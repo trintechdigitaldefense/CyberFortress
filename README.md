@@ -19,43 +19,31 @@ Drastically reduce Mean Time to Containment (MTTC) while maintaining strict adhe
 ## Key Capabilities
 
 - **Tiered Autonomy (Human-in-the-Loop)** via WhatsApp
-- **Legal Mapping** to the Trinidad & Tobago Computer Misuse Act on every action
+- **Legal Mapping** to the Trinidad & Tobago Computer Misuse Act
 - **Telemetry Fusion** from Sentinel + Mirage + local sources
-- **Real Containment Drivers** (iptables, session kill, decoy, **credential rotation**, **emergency halt**)
-- **Smart Escalation** (LOW → HIGH → CRITICAL)
-- **Evidence Pack** — client-ready, integrity-protected report of every action
-- **Fail-Safe Circuit Breaker** — automatically pauses autonomy if too many high-impact actions occur
+- **Real Containment Drivers** (iptables, session, decoy, credential rotation, emergency halt)
+- **Pluggable Identity Providers** (Local Linux working, LDAP & Azure AD ready)
+- **Smart Escalation**, **Evidence Pack**, **Fail-Safe Circuit Breaker**
 
 ---
 
-## Architecture (Current)
+## Identity Providers for Credential Rotation
 
-```
-CyberFortress/
-├── agents/
-│   ├── threat_hunting_agent.py
-│   ├── compliance_logger.py
-│   └── telemetry_fusion_agent.py
-├── playbooks/
-│   ├── library.py
-│   ├── execute.py
-│   ├── evidence.py
-│   └── breaker.py
-├── core/
-│   ├── autonomy.py
-│   ├── whatsapp_gateway.py
-│   ├── legal_mapper.py
-│   ├── escalation.py
-│   ├── circuit_breaker.py
-│   ├── containment/drivers.py   # All real drivers live here
-│   ├── telemetry/
-│   └── evidence/
-├── telemetry/
-├── evidence/
-├── secrets/rotated/             # One-time rotated credentials (mode 600)
-├── docker/
-├── config/
-└── docs/
+| Provider        | Status          | How to enable                                      |
+|-----------------|-----------------|----------------------------------------------------|
+| `local_linux`   | Fully working   | Default. Uses `chpasswd` / `usermod`               |
+| `ldap` / `ad`   | Config stub     | Set `CF_LDAP_SERVER`, `CF_LDAP_BIND_DN`, etc.      |
+| `azure_ad`      | Config stub     | Set `CF_AZURE_TENANT_ID`, `CF_AZURE_CLIENT_ID`, …  |
+
+```bash
+# Use local Linux accounts (default)
+export CF_IDENTITY_PROVIDER=local_linux
+python3 playbooks/execute.py --action credential_rotation --target admin,www-data --force
+
+# Point at LDAP / AD (once configured)
+export CF_IDENTITY_PROVIDER=ldap
+export CF_LDAP_SERVER=ldap://dc.example.tt
+# … etc.
 ```
 
 ---
@@ -66,17 +54,10 @@ CyberFortress/
 git clone https://github.com/trintechdigitaldefense/CyberFortress.git
 cd CyberFortress
 
-# List all playbooks
 python3 playbooks/execute.py --list
-
-# Credential rotation (Tier 2 — requires approval or --force)
-python3 playbooks/execute.py --action credential_rotation --target admin,www-data --force
-
-# Emergency halt
-python3 playbooks/execute.py --action halt_operations --target 10.0.5.0/24 --force
-
-# Generate Evidence Pack
-python3 playbooks/evidence.py --client "Acme Ltd" --engagement ENG-2026-042
+python3 playbooks/execute.py --action credential_rotation --target admin --force
+python3 playbooks/evidence.py --client "Acme Ltd"
+python3 playbooks/breaker.py status
 ```
 
 ---
@@ -84,30 +65,27 @@ python3 playbooks/evidence.py --client "Acme Ltd" --engagement ENG-2026-042
 ## Status (2026-10-09)
 
 ### Completed
-- [x] Full Playbook Library
-- [x] WhatsApp HITL Gateway
-- [x] Smart Escalation Engine
+- [x] Full Playbook Library + WhatsApp HITL + Escalation
 - [x] Telemetry Fusion (Sentinel / Mirage / local)
-- [x] Real Containment Drivers (iptables, session, decoy)
-- [x] **Credential Rotation driver**
-- [x] **Emergency Halt Operations driver**
+- [x] Real Containment Drivers (all major actions)
+- [x] Credential Rotation with **pluggable Identity Providers**
+- [x] Emergency Halt Operations
 - [x] Evidence Pack (executive report + SHA-256 manifest)
 - [x] Fail-Safe Circuit Breaker
 
 ### Next Up
 - [ ] Production WhatsApp Business API + webhook receiver
 - [ ] Direct API connectors for Sentinel / Mirage
-- [ ] Identity provider integrations (AD / LDAP / cloud IAM) for credential rotation
+- [ ] Complete LDAP / Azure AD implementations (currently safe stubs)
 
 ---
 
 ## Safety Notes
 
-- All containment actions default to **DRY-RUN**.
-- Live mode requires explicit `CF_CONTAINMENT_LIVE=true`.
-- Credential rotation stores new secrets in `./secrets/rotated/` with mode 600.
-- Every action is logged with TT Computer Misuse Act justification.
-- Circuit Breaker automatically blocks further autonomous actions if thresholds are exceeded.
+- All containment actions default to **DRY-RUN** (`CF_CONTAINMENT_LIVE=true` required for live).
+- Credential secrets are written to `./secrets/rotated/` with mode 600.
+- Circuit Breaker automatically blocks runaway autonomy.
+- Every action carries a Trinidad & Tobago Computer Misuse Act justification.
 
 ---
 
