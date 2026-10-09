@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  threat_agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_threat_agent
+    restart: unless-stopped
+    volumes:
+      - ../config:/app/config:ro
+      - ../logs:/app/logs
+    environment:
+      - CF_MODE=production
+      - CF_LOG_LEVEL=INFO
+    networks:
+      - cyberfortress_net
+
+  compliance_logger:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_compliance_logger
+    restart: unless-stopped
+    command: ["python", "-m", "agents.compliance_logger"]
+    volumes:
+      - ../config:/app/config:ro
+      - ../logs:/app/logs
+    environment:
+      - CF_MODE=production
+    networks:
+      - cyberfortress_net
+
+networks:
+  cyberfortress_net:
+    driver: bridge
