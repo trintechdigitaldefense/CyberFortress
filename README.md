@@ -47,7 +47,7 @@ CyberFortress/
 │   └── execute.py                   # Playbook runner + Tier 2 force override
 ├── core/
 │   ├── autonomy.py                  # HITL decision engine
-│   ├── whatsapp_gateway.py          # Out-of-band approval channel
+│   ├── whatsapp_gateway.py          # Out-of-band approval channel (placeholder)
 │   └── legal_mapper.py              # TT Computer Misuse Act mapping
 ├── docker/
 │   ├── Dockerfile
@@ -68,7 +68,7 @@ git clone https://github.com/trintechdigitaldefense/CyberFortress.git
 cd CyberFortress
 
 # Build & run core services
-docker compose up -d
+docker compose -f docker/docker-compose.yml up -d --build
 
 # Restart Threat Hunting Agent
 docker restart cf_threat_agent
@@ -82,16 +82,20 @@ python3 playbooks/execute.py --target=SEC-WEB-01 --force
 
 ---
 
-## Status
+## Status (2026-10-09)
 
-- [x] Repository initialized
-- [ ] Core autonomy engine
-- [ ] WhatsApp HITL gateway
-- [ ] Legal mapper (TT Computer Misuse Act)
-- [ ] Threat hunting agent
-- [ ] Compliance logger
-- [ ] Docker packaging
-- [ ] Full playbook suite
+- [x] Repository initialized (private)
+- [x] Core autonomy engine (Tier 1 / Tier 2)
+- [x] Legal mapper (TT Computer Misuse Act)
+- [x] Threat hunting agent (continuous loop skeleton)
+- [x] Compliance logger (TT_CMA_TAG + JSONL audit)
+- [x] Docker packaging (Dockerfile + compose)
+- [x] Playbook executor with --force override
+- [x] Full operational playbook documentation
+- [ ] WhatsApp HITL gateway (real API integration)
+- [ ] Full playbook suite (isolate, rotate, halt, etc.)
+- [ ] Integration with Sentinel / Mirage telemetry
+- [ ] Production hardening & secrets management
 
 ---
 
