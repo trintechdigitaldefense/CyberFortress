@@ -85,6 +85,25 @@ services:
     networks:
       - cyberfortress_net
 
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_dashboard
+    restart: unless-stopped
+    command: ["python3", "-m", "agents.dashboard"]
+    ports:
+      - "8091:8091"
+    volumes:
+      - ../logs:/app/logs
+      - ../evidence:/app/evidence
+    environment:
+      - CF_DASHBOARD_PORT=8091
+      - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
+      - CF_WHATSAPP_PENDING_DIR=/app/logs/whatsapp_pending
+    networks:
+      - cyberfortress_net
+
 networks:
   cyberfortress_net:
     driver: bridge
