@@ -7,8 +7,11 @@ with its Trinidad & Tobago Computer Misuse Act justification.
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+from core.watchdog import write_heartbeat
 
 LOG_DIR = Path("/app/logs") if Path("/app/logs").exists() else Path("./logs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -21,10 +24,6 @@ logger = logging.getLogger("cf_compliance_logger")
 
 
 def write_cma_entry(action: str, target: str, justification: str, severity: str = "INFO"):
-    """
-    Create a structured, CMA-tagged log entry.
-    In production this should also be written to an append-only / signed store.
-    """
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "tag": "TT_CMA_TAG",
@@ -35,14 +34,12 @@ def write_cma_entry(action: str, target: str, justification: str, severity: str 
         "source": "CyberFortress",
     }
 
-    # Human-readable line for docker logs | grep TT_CMA_TAG
     line = (
         f"TT_CMA_TAG | {entry['timestamp']} | {severity} | "
         f"Action={action} | Target={target} | Justification={justification}"
     )
     logger.info(line)
 
-    # Structured JSON for later analysis / SIEM
     json_path = LOG_DIR / "cma_audit.jsonl"
     with open(json_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
@@ -53,10 +50,9 @@ def write_cma_entry(action: str, target: str, justification: str, severity: str 
 def main():
     logger.info("CyberFortress Compliance Logger started")
     logger.info("All actions will be tagged TT_CMA_TAG and mapped to TT Computer Misuse Act")
-    # Keep process alive so docker logs -f works
-    import time
     while True:
-        time.sleep(3600)
+        write_heartbeat("compliance_logger", {"phase": "alive"})
+        time.sleep(60)
 
 
 if __name__ == "__main__":
