@@ -24,6 +24,7 @@ Drastically reduce Mean Time to Containment (MTTC) while maintaining strict adhe
 - **Real Containment Drivers** (iptables, session kill, decoy deployment)
 - **Smart Escalation** (LOW → HIGH → CRITICAL)
 - **Evidence Pack** — client-ready, integrity-protected report of every action
+- **Fail-Safe Circuit Breaker** — automatically pauses autonomy if too many high-impact actions occur
 
 ---
 
@@ -38,21 +39,19 @@ CyberFortress/
 ├── playbooks/
 │   ├── library.py
 │   ├── execute.py
-│   └── evidence.py              # Generate client evidence pack
+│   ├── evidence.py
+│   └── breaker.py               # Circuit breaker control
 ├── core/
 │   ├── autonomy.py
 │   ├── whatsapp_gateway.py
 │   ├── legal_mapper.py
 │   ├── escalation.py
+│   ├── circuit_breaker.py       # Fail-safe protection
 │   ├── containment/
-│   │   └── drivers.py
 │   ├── telemetry/
-│   │   ├── adapters.py
-│   │   └── fusion.py
 │   └── evidence/
-│       └── pack.py              # Evidence pack generator
 ├── telemetry/
-├── evidence/                    # Generated packs land here
+├── evidence/
 ├── docker/
 ├── config/
 └── docs/
@@ -74,6 +73,11 @@ python3 playbooks/execute.py --action block_ip --target 203.0.113.50 --force
 
 # Generate client Evidence Pack
 python3 playbooks/evidence.py --client "Acme Ltd" --engagement ENG-2026-042
+
+# Circuit Breaker control
+python3 playbooks/breaker.py status
+python3 playbooks/breaker.py reset
+python3 playbooks/breaker.py trip --reason "Emergency stop"
 ```
 
 ---
@@ -92,14 +96,15 @@ python3 playbooks/evidence.py --client "Acme Ltd" --engagement ENG-2026-042
 - [x] IPTables / Session / Decoy drivers (dry-run by default)
 
 ### Priority 4 — Evidence Pack ✅
-- [x] Executive Markdown report (client-friendly)
-- [x] Full machine-readable audit (JSON)
-- [x] Raw CMA audit log copy
-- [x] SHA-256 integrity manifest
-- [x] One-command ZIP for delivery
+- [x] Executive report + full audit + SHA-256 manifest + ZIP
+
+### Priority 5 — Fail-Safe Circuit Breaker ✅
+- [x] Configurable thresholds (window, max actions, max Tier-2, max CRITICAL)
+- [x] Persistent state across restarts
+- [x] Fully wired into autonomy engine
+- [x] CLI for status / reset / manual trip
 
 ### Next Up
-- [ ] Fail-safe / circuit breaker
 - [ ] Production WhatsApp Business API + webhook receiver
 - [ ] Credential rotation & halt_operations drivers
 - [ ] Direct API connectors for Sentinel / Mirage
@@ -112,6 +117,7 @@ python3 playbooks/evidence.py --client "Acme Ltd" --engagement ENG-2026-042
 - Live mode requires explicit `CF_CONTAINMENT_LIVE=true`.
 - Every action is logged with TT Computer Misuse Act justification.
 - Tier 2 actions still require WhatsApp APPROVE (unless `--force`).
+- Circuit Breaker automatically blocks further autonomous actions if thresholds are exceeded.
 
 ---
 
