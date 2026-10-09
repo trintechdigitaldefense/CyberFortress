@@ -23,6 +23,7 @@ Drastically reduce Mean Time to Containment (MTTC) while maintaining strict adhe
 - **Telemetry Fusion** from Sentinel + Mirage + local sources
 - **Real Containment Drivers** (iptables, session kill, decoy deployment)
 - **Smart Escalation** (LOW → HIGH → CRITICAL)
+- **Evidence Pack** — client-ready, integrity-protected report of every action
 
 ---
 
@@ -36,18 +37,22 @@ CyberFortress/
 │   └── telemetry_fusion_agent.py
 ├── playbooks/
 │   ├── library.py
-│   └── execute.py
+│   ├── execute.py
+│   └── evidence.py              # Generate client evidence pack
 ├── core/
-│   ├── autonomy.py              # decision + containment orchestration
+│   ├── autonomy.py
 │   ├── whatsapp_gateway.py
 │   ├── legal_mapper.py
 │   ├── escalation.py
 │   ├── containment/
-│   │   └── drivers.py           # iptables / session / decoy
-│   └── telemetry/
-│       ├── adapters.py
-│       └── fusion.py
-├── telemetry/                   # drop zone for alerts
+│   │   └── drivers.py
+│   ├── telemetry/
+│   │   ├── adapters.py
+│   │   └── fusion.py
+│   └── evidence/
+│       └── pack.py              # Evidence pack generator
+├── telemetry/
+├── evidence/                    # Generated packs land here
 ├── docker/
 ├── config/
 └── docs/
@@ -65,12 +70,10 @@ cd CyberFortress
 python3 playbooks/execute.py --list
 
 # Safe test (DRY-RUN by default)
-python3 playbooks/execute.py --action block_ip --target 203.0.113.50
-python3 playbooks/execute.py --action isolate_endpoint --target 10.0.5.12 --force
-
-# Enable REAL containment (use with extreme care)
-export CF_CONTAINMENT_LIVE=true
 python3 playbooks/execute.py --action block_ip --target 203.0.113.50 --force
+
+# Generate client Evidence Pack
+python3 playbooks/evidence.py --client "Acme Ltd" --engagement ENG-2026-042
 ```
 
 ---
@@ -86,14 +89,16 @@ python3 playbooks/execute.py --action block_ip --target 203.0.113.50 --force
 - [x] Adapters + Fusion Engine + continuous agent
 
 ### Priority 3 — Real Containment Drivers ✅
-- [x] IPTablesDriver (block_ip, isolate_endpoint, subnet_isolation)
-- [x] SessionKiller (terminate_session)
-- [x] DecoyDeployer (deploy_decoy)
-- [x] Fully wired into autonomy engine
-- [x] Dry-run by default (set `CF_CONTAINMENT_LIVE=true` for live actions)
+- [x] IPTables / Session / Decoy drivers (dry-run by default)
+
+### Priority 4 — Evidence Pack ✅
+- [x] Executive Markdown report (client-friendly)
+- [x] Full machine-readable audit (JSON)
+- [x] Raw CMA audit log copy
+- [x] SHA-256 integrity manifest
+- [x] One-command ZIP for delivery
 
 ### Next Up
-- [ ] Evidence pack + client-facing report
 - [ ] Fail-safe / circuit breaker
 - [ ] Production WhatsApp Business API + webhook receiver
 - [ ] Credential rotation & halt_operations drivers
