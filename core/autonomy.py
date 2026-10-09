@@ -2,10 +2,18 @@
 """
 CyberFortress Autonomy Engine
 Implements the tiered Human-in-the-Loop decision model.
+Integrates WhatsApp gateway + legal mapper + compliance logging.
 """
 
 from enum import Enum
 from typing import Optional
+import logging
+
+from core.legal_mapper import get_justification
+from core.whatsapp_gateway import request_approval as wa_request_approval, notify_tier1
+from agents.compliance_logger import write_cma_entry
+
+logger = logging.getLogger("cf_autonomy")
 
 
 class AutonomyTier(Enum):
@@ -21,7 +29,7 @@ TIER_1_ACTIONS = {
 }
 
 TIER_2_ACTIONS = {
-    "isolate_endpoint",   # can be Tier 1 or 2 depending on scope
+    "isolate_endpoint",
     "subnet_isolation",
     "credential_rotation",
     "halt_operations",
@@ -41,37 +49,57 @@ def classify_action(action: str, scope: str = "single") -> AutonomyTier:
     return AutonomyTier.TIER_2_GUARDED
 
 
-def request_approval(action: str, target: str) -> bool:
-    """
-    Placeholder for WhatsApp interactive prompt.
-    In production this will call core.whatsapp_gateway and wait for APPROVE.
-    """
-    print(f"[HITL] Tier 2 action '{action}' on {target} requires WhatsApp APPROVE")
-    print("[HITL] (MVP) Simulating wait for human approval...")
-    # TODO: real WhatsApp API integration
-    return False  # default deny until real gateway is wired
-
-
-def execute_with_autonomy(action: str, target: str, scope: str = "single", force: bool = False) -> bool:
+def execute_with_autonomy(
+    action: str,
+    target: str,
+    scope: str = "single",
+    force: bool = False,
+    severity: str = "HIGH",
+) -> bool:
     """
     Main entry point used by playbooks and agents.
     Returns True if action was allowed to proceed.
+    Always writes a CMA-mapped compliance log entry.
     """
     tier = classify_action(action, scope)
+    mapping = get_justification(action)
+    justification = f"{mapping['section']}: {mapping['justification']}"
 
+    logger.info(f"Evaluating action={action} target={target} scope={scope} force={force} tier={tier.name}")
+
+    # --- FORCE override (still logged) ---
     if force:
-        print(f"[AUTONOMY] FORCE override — executing {action} on {target}")
+        logger.warning(f"FORCE override — executing {action} on {target}")
+        write_cma_entry(action, target, justification + " [FORCE OVERRIDE]", severity="CRITICAL")
+        notify_tier1(action, target, justification + " (FORCE)")
         return True
 
+    # --- Tier 1: execute immediately + notify ---
     if tier == AutonomyTier.TIER_1_FULL:
-        print(f"[AUTONOMY] Tier 1 — executing immediately + notifying")
+        logger.info(f"Tier 1 — executing immediately + notifying")
+        write_cma_entry(action, target, justification, severity=severity)
+        notify_tier1(action, target, justification)
         return True
 
-    # Tier 2
-    approved = request_approval(action, target)
+    # --- Tier 2: request WhatsApp approval ---
+    logger.info(f"Tier 2 — requesting WhatsApp APPROVE for {action} on {target}")
+    approved = wa_request_approval(
+        action=action,
+        target=target,
+        severity=severity,
+        justification=justification,
+    )
+
     if approved:
-        print(f"[AUTONOMY] Tier 2 — APPROVED — executing {action}")
+        logger.info(f"Tier 2 — APPROVED — executing {action}")
+        write_cma_entry(action, target, justification + " [APPROVED via WhatsApp]", severity=severity)
         return True
     else:
-        print(f"[AUTONOMY] Tier 2 — DENIED or pending — action held")
+        logger.warning(f"Tier 2 — DENIED or timed out — action held")
+        write_cma_entry(
+            action,
+            target,
+            justification + " [HELD — no approval]",
+            severity="INFO",
+        )
         return False
