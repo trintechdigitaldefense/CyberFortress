@@ -8,41 +8,26 @@
 
 ## Overview
 
-CyberFortress is a containerized (Docker/Ubuntu) autonomous security platform designed for Caribbean enterprise environments.  
-It combines AI-driven threat hunting, continuous credential resilience testing, and dynamic telemetry mapping to detect and isolate threats with minimal human latency.
-
-**Core Objective**  
-Drastically reduce Mean Time to Containment (MTTC) while maintaining strict adherence to executive risk management protocols and regional legislation (Trinidad & Tobago Computer Misuse Act).
+CyberFortress is a containerized autonomous security platform built for Caribbean enterprise environments.  
+It reduces Mean Time to Containment (MTTC) while staying fully aligned with the Trinidad & Tobago Computer Misuse Act.
 
 ---
 
-## Identity Providers (Credential Rotation)
+## Capabilities (Complete)
 
-| Provider | Status | Requirements |
-|----------|--------|--------------|
-| **local_linux** | Fully working | Default. Uses `chpasswd` / `usermod` |
-| **ldap** / **ad** | Fully working | `ldap3` + `CF_LDAP_*` env vars |
-| **azure_ad** / **entra** | Fully working | `msal` + `CF_AZURE_*` env vars + Graph permissions |
-
-### LDAP / Active Directory
-```bash
-export CF_IDENTITY_PROVIDER=ldap
-export CF_LDAP_SERVER=ldaps://dc.example.tt
-export CF_LDAP_BIND_DN="cn=admin,dc=example,dc=tt"
-export CF_LDAP_BIND_PASSWORD="..."
-export CF_LDAP_USER_BASE="ou=users,dc=example,dc=tt"
-# Optional for AD:
-# export CF_LDAP_USER_FILTER="(sAMAccountName={username})"
-```
-
-### Microsoft Entra ID (Azure AD)
-```bash
-export CF_IDENTITY_PROVIDER=azure_ad
-export CF_AZURE_TENANT_ID="your-tenant-id"
-export CF_AZURE_CLIENT_ID="your-app-client-id"
-export CF_AZURE_CLIENT_SECRET="your-client-secret"
-# App Registration needs User.ReadWrite.All (application permission) + admin consent
-```
+| Feature | Status |
+|---------|--------|
+| Tiered Autonomy (Tier 1 instant / Tier 2 WhatsApp APPROVE) | ✅ Production Meta Cloud API |
+| Legal mapping to TT Computer Misuse Act | ✅ |
+| Smart Escalation (LOW → HIGH → CRITICAL) | ✅ |
+| Telemetry Fusion (file + live API) | ✅ Sentinel & Mirage connectors |
+| Real Containment Drivers | ✅ iptables, session, decoy, credential rotation, halt |
+| Identity Providers | ✅ Local Linux, LDAP/AD, Azure AD / Entra ID |
+| Evidence Pack (client-ready + SHA-256) | ✅ |
+| Fail-Safe Circuit Breaker | ✅ |
+| WhatsApp Webhook Receiver | ✅ |
+| Health Check endpoint | ✅ |
+| Pilot Deployment Checklist | ✅ |
 
 ---
 
@@ -53,40 +38,62 @@ git clone https://github.com/trintechdigitaldefense/CyberFortress.git
 cd CyberFortress
 pip install -r requirements.txt
 
-python3 playbooks/execute.py --list
-python3 playbooks/execute.py --action credential_rotation --target admin --force
-python3 playbooks/evidence.py --client "Acme Ltd"
+# Health
+python3 -m agents.healthcheck
+
+# Dry-run playbook
+python3 playbooks/execute.py --action block_ip --target 203.0.113.50 --force
+
+# Evidence pack
+python3 playbooks/evidence.py --client "Acme Ltd" --engagement ENG-2026-001
+
+# Circuit breaker
 python3 playbooks/breaker.py status
+```
+
+See **docs/PILOT_DEPLOYMENT.md** before any client engagement.
+
+---
+
+## Key Environment Variables
+
+```bash
+# Safety
+CF_CONTAINMENT_LIVE=false          # keep false until pilot is ready
+
+# WhatsApp (Meta Cloud API)
+CF_WHATSAPP_ENABLED=true
+CF_WHATSAPP_TOKEN=...
+CF_WHATSAPP_PHONE_NUMBER_ID=...
+CF_WHATSAPP_ADMINS=+1868...,+1868...
+CF_WHATSAPP_VERIFY_TOKEN=...
+
+# Identity
+CF_IDENTITY_PROVIDER=local_linux   # or ldap / azure_ad
+
+# Live telemetry (optional)
+CF_SENTINEL_API_URL=http://sentinel:port/api/alerts
+CF_MIRAGE_API_URL=http://mirage:port/api/events
 ```
 
 ---
 
-## Status (2026-10-09)
+## Docker
 
-### Completed
-- [x] Full Playbook Library + WhatsApp HITL + Escalation
-- [x] Telemetry Fusion (Sentinel / Mirage / local)
-- [x] Real Containment Drivers (all major actions)
-- [x] Credential Rotation with **real** Identity Providers:
-  - Local Linux (chpasswd)
-  - LDAP / Active Directory (ldap3)
-  - Microsoft Entra ID / Azure AD (MSAL + Graph)
-- [x] Emergency Halt Operations
-- [x] Evidence Pack (executive report + SHA-256 manifest)
-- [x] Fail-Safe Circuit Breaker
+```bash
+docker compose -f docker/docker-compose.yml up -d --build
+```
 
-### Next Up
-- [ ] Production WhatsApp Business API + webhook receiver
-- [ ] Direct API connectors for Sentinel / Mirage
+Services: `cf_threat_agent`, `cf_compliance_logger`, `cf_fusion_agent`, `cf_whatsapp_webhook` (:8089), `cf_health` (:8090)
 
 ---
 
-## Safety Notes
+## Safety
 
-- All containment actions default to **DRY-RUN** (`CF_CONTAINMENT_LIVE=true` required for live).
-- Credential secrets are written to `./secrets/rotated/` with mode 600.
-- Circuit Breaker automatically blocks runaway autonomy.
-- Every action carries a Trinidad & Tobago Computer Misuse Act justification.
+- Default mode is **DRY-RUN**. Live actions require `CF_CONTAINMENT_LIVE=true`.
+- Circuit breaker automatically blocks runaway autonomy.
+- Every action is logged with TT Computer Misuse Act justification.
+- Secrets written to `./secrets/rotated/` with mode 600.
 
 ---
 
