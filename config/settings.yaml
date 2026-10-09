@@ -8,9 +8,13 @@ autonomy:
   default_tier: 2          # 1 = full, 2 = guarded
   force_allowed: true      # allow --force override (restrict in production)
 
+containment:
+  live: false              # CRITICAL: set true (or CF_CONTAINMENT_LIVE=true) only when ready for real actions
+  # When false → all drivers run in dry-run mode (safe)
+
 whatsapp:
   enabled: false           # set true when gateway is production-ready
-  # api_url / token come from env vars
+  # api_url / token / admin numbers come from env vars
 
 compliance:
   cma_tag: "TT_CMA_TAG"
@@ -22,3 +26,6 @@ hunting:
     - sentinel
     - mirage
     - local_telemetry
+
+telemetry:
+  poll_interval_seconds: 30
