@@ -2,18 +2,22 @@
 """
 CyberFortress Autonomy Engine
 Implements the tiered Human-in-the-Loop decision model.
-Integrates WhatsApp gateway + legal mapper + compliance logging.
+Integrates WhatsApp gateway + legal mapper + compliance logging + real containment drivers.
 """
 
 from enum import Enum
-from typing import Optional
 import logging
+import os
 
 from core.legal_mapper import get_justification
 from core.whatsapp_gateway import request_approval as wa_request_approval, notify_tier1
 from agents.compliance_logger import write_cma_entry
+from core.containment.drivers import get_driver
 
 logger = logging.getLogger("cf_autonomy")
+
+# Default to dry-run for safety. Set CF_CONTAINMENT_LIVE=true to enable real actions.
+DRY_RUN = os.getenv("CF_CONTAINMENT_LIVE", "false").lower() != "true"
 
 
 class AutonomyTier(Enum):
@@ -21,7 +25,6 @@ class AutonomyTier(Enum):
     TIER_2_GUARDED = 2   # Pause → WhatsApp APPROVE required
 
 
-# Actions classified by tier
 TIER_1_ACTIONS = {
     "block_ip",
     "terminate_session",
@@ -37,16 +40,23 @@ TIER_2_ACTIONS = {
 
 
 def classify_action(action: str, scope: str = "single") -> AutonomyTier:
-    """
-    Decide which autonomy tier an action falls under.
-    scope = "single" | "subnet" | "fleet"
-    """
     if action in TIER_1_ACTIONS and scope == "single":
         return AutonomyTier.TIER_1_FULL
     if action in TIER_2_ACTIONS or scope in ("subnet", "fleet"):
         return AutonomyTier.TIER_2_GUARDED
-    # Default safe side
     return AutonomyTier.TIER_2_GUARDED
+
+
+def _perform_containment(action: str, target: str) -> dict:
+    """Call the real containment driver and return its result."""
+    driver = get_driver(action, dry_run=DRY_RUN)
+    logger.info(f"Invoking containment driver '{driver.name}' for {action} on {target} (dry_run={DRY_RUN})")
+    result = driver.execute(target=target, action=action)
+    if result.get("success"):
+        logger.info(f"Containment success: {result.get('details')}")
+    else:
+        logger.error(f"Containment failed: {result.get('details')}")
+    return result
 
 
 def execute_with_autonomy(
@@ -58,7 +68,7 @@ def execute_with_autonomy(
 ) -> bool:
     """
     Main entry point used by playbooks and agents.
-    Returns True if action was allowed to proceed.
+    Returns True if action was authorized AND containment was attempted.
     Always writes a CMA-mapped compliance log entry.
     """
     tier = classify_action(action, scope)
@@ -67,18 +77,20 @@ def execute_with_autonomy(
 
     logger.info(f"Evaluating action={action} target={target} scope={scope} force={force} tier={tier.name}")
 
-    # --- FORCE override (still logged) ---
+    # --- FORCE override ---
     if force:
         logger.warning(f"FORCE override — executing {action} on {target}")
         write_cma_entry(action, target, justification + " [FORCE OVERRIDE]", severity="CRITICAL")
         notify_tier1(action, target, justification + " (FORCE)")
+        _perform_containment(action, target)
         return True
 
     # --- Tier 1: execute immediately + notify ---
     if tier == AutonomyTier.TIER_1_FULL:
-        logger.info(f"Tier 1 — executing immediately + notifying")
+        logger.info("Tier 1 — executing immediately + notifying")
         write_cma_entry(action, target, justification, severity=severity)
         notify_tier1(action, target, justification)
+        _perform_containment(action, target)
         return True
 
     # --- Tier 2: request WhatsApp approval ---
@@ -93,9 +105,10 @@ def execute_with_autonomy(
     if approved:
         logger.info(f"Tier 2 — APPROVED — executing {action}")
         write_cma_entry(action, target, justification + " [APPROVED via WhatsApp]", severity=severity)
+        _perform_containment(action, target)
         return True
     else:
-        logger.warning(f"Tier 2 — DENIED or timed out — action held")
+        logger.warning("Tier 2 — DENIED or timed out — action held")
         write_cma_entry(
             action,
             target,
