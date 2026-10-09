@@ -49,6 +49,42 @@ services:
     networks:
       - cyberfortress_net
 
+  whatsapp_webhook:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_whatsapp_webhook
+    restart: unless-stopped
+    command: ["python3", "-m", "agents.whatsapp_webhook"]
+    ports:
+      - "8089:8089"
+    volumes:
+      - ../logs:/app/logs
+    environment:
+      - CF_WHATSAPP_VERIFY_TOKEN=${CF_WHATSAPP_VERIFY_TOKEN:-cf_verify_token_change_me}
+      - CF_WHATSAPP_PENDING_DIR=/app/logs/whatsapp_pending
+      - CF_WHATSAPP_WEBHOOK_PORT=8089
+    networks:
+      - cyberfortress_net
+
+  health:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_health
+    restart: unless-stopped
+    command: ["python3", "-m", "agents.healthcheck", "--serve"]
+    ports:
+      - "8090:8090"
+    volumes:
+      - ../logs:/app/logs
+      - ../evidence:/app/evidence
+      - ../secrets:/app/secrets
+    environment:
+      - CF_HEALTH_PORT=8090
+    networks:
+      - cyberfortress_net
+
 networks:
   cyberfortress_net:
     driver: bridge
