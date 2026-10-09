@@ -1,0 +1,9 @@
+{
+  "indicator": "reverse_shell_detected",
+  "target": "SEC-WEB-01",
+  "severity": "HIGH",
+  "host": "SEC-WEB-01",
+  "ip": "10.0.5.12",
+  "timestamp": "2026-10-09T18:50:00Z",
+  "details": "Outbound connection to 203.0.113.88:4444 matched reverse-shell pattern"
+}
