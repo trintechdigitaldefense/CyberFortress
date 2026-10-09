@@ -10,12 +10,12 @@ All drivers support a dry_run mode for safe testing.
 import os
 import subprocess
 import logging
-import secrets
-import string
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime, timezone
 from pathlib import Path
+
+from core.identity.providers import get_identity_provider
 
 logger = logging.getLogger("cf_containment")
 
@@ -169,32 +169,27 @@ class DecoyDeployer(ContainmentDriver):
 
 class CredentialRotator(ContainmentDriver):
     """
-    Widespread or targeted credential rotation.
+    Credential rotation via pluggable Identity Providers.
 
-    MVP behaviour:
-    - Generates strong random passwords
-    - Records the rotation action + new password hash location
-    - In live mode can call system tools (chpasswd, passwd) or write a rotation script
-    - Designed so real identity providers (AD, LDAP, cloud IAM) can be plugged in later
+    Supports:
+      - local_linux (fully working)
+      - ldap / Active Directory (config-aware stub)
+      - azure_ad / Entra ID (config-aware stub)
+
+    Select provider with CF_IDENTITY_PROVIDER env var or kwargs.
     """
 
     name = "credential_rotator"
 
-    def _generate_password(self, length: int = 20) -> str:
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
-        return "".join(secrets.choice(alphabet) for _ in range(length))
-
     def execute(self, target: str, action: str = "credential_rotation", **kwargs) -> Dict[str, Any]:
-        """
-        target can be:
-          - a single username
-          - a comma-separated list of usernames
-          - "all" / "fleet" for broader rotation (logged only in MVP)
-        """
+        provider_name = kwargs.get("provider") or os.getenv("CF_IDENTITY_PROVIDER", "local_linux")
+        idp = get_identity_provider(provider_name)
+
         result = {
             "driver": self.name,
             "action": action,
             "target": target,
+            "provider": idp.name,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "dry_run": self.dry_run,
             "success": False,
@@ -202,40 +197,30 @@ class CredentialRotator(ContainmentDriver):
             "rotated": [],
         }
 
-        users: List[str] = []
+        # Resolve target users
         if target.lower() in ("all", "fleet", "*"):
-            users = ["(fleet-wide rotation requested)"]
+            users = idp.list_users()
+            if not users:
+                users = ["(fleet-wide — no users returned by provider)"]
         else:
             users = [u.strip() for u in target.split(",") if u.strip()]
 
         try:
             rotation_log = []
-            for user in users:
-                new_pass = self._generate_password()
-                # We never log the clear-text password in production logs.
-                # Instead we record that a rotation occurred and where the secret was stored.
-                secret_ref = f"cf-rotated-{user}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            all_ok = True
 
-                if self.dry_run:
-                    logger.info(f"[DRY-RUN] Would rotate credentials for user '{user}' → secret_ref={secret_ref}")
-                    rotation_log.append({"user": user, "status": "dry-run", "secret_ref": secret_ref})
-                else:
-                    # MVP: write a secure one-time file that an admin can consume
-                    # In production this would call AD / LDAP / cloud IAM / chpasswd etc.
-                    secrets_dir = Path("./secrets/rotated")
-                    secrets_dir.mkdir(parents=True, exist_ok=True)
-                    secret_file = secrets_dir / f"{secret_ref}.txt"
-                    secret_file.write_text(
-                        f"user={user}\npassword={new_pass}\ngenerated={datetime.now(timezone.utc).isoformat()}\n",
-                        encoding="utf-8",
-                    )
-                    os.chmod(secret_file, 0o600)
-                    logger.info(f"Credentials rotated for '{user}' — secret stored at {secret_file} (mode 600)")
-                    rotation_log.append({"user": user, "status": "rotated", "secret_ref": str(secret_file)})
+            for user in users:
+                rot = idp.rotate_password(user, dry_run=self.dry_run)
+                rotation_log.append(rot)
+                if not rot.get("success"):
+                    all_ok = False
 
             result["rotated"] = rotation_log
-            result["details"] = f"Credential rotation completed for {len(users)} target(s)"
-            result["success"] = True
+            result["success"] = all_ok
+            result["details"] = (
+                f"Credential rotation via {idp.name} for {len(users)} target(s) "
+                f"({'dry-run' if self.dry_run else 'live'})"
+            )
 
         except Exception as e:
             result["details"] = str(e)
@@ -245,10 +230,7 @@ class CredentialRotator(ContainmentDriver):
 
 
 class HaltOperations(ContainmentDriver):
-    """
-    Emergency halt / critical containment.
-    Stages a controlled shutdown of non-essential services and network isolation.
-    """
+    """Emergency halt / critical containment."""
 
     name = "halt_operations"
 
@@ -266,12 +248,10 @@ class HaltOperations(ContainmentDriver):
         try:
             steps = []
 
-            # 1. Broad network isolation of the target (or whole host)
             ipt = IPTablesDriver(dry_run=self.dry_run)
             iso = ipt.execute(target=target if "/" in target else "0.0.0.0/0", action="subnet_isolation")
             steps.append(f"network_isolation: {iso.get('details')}")
 
-            # 2. Stop non-essential services (MVP list – expand per client)
             services_to_stop = kwargs.get("services", ["nginx", "apache2", "mysql", "postgresql"])
             for svc in services_to_stop:
                 cmd = ["systemctl", "stop", svc]
