@@ -36,66 +36,67 @@ Drastically reduce Mean Time to Containment (MTTC) while maintaining strict adhe
 
 ---
 
-## Architecture (MVP)
+## Architecture (Current)
 
 ```
 CyberFortress/
 ├── agents/
-│   ├── threat_hunting_agent.py      # AI-driven continuous hunting
-│   └── compliance_logger.py         # Tamper-proof CMA-mapped logs
+│   ├── threat_hunting_agent.py
+│   └── compliance_logger.py
 ├── playbooks/
-│   └── execute.py                   # Playbook runner + Tier 2 force override
+│   ├── library.py               # Full playbook registry
+│   └── execute.py               # CLI runner with HITL
 ├── core/
-│   ├── autonomy.py                  # HITL decision engine
-│   ├── whatsapp_gateway.py          # Out-of-band approval channel (placeholder)
-│   └── legal_mapper.py              # TT Computer Misuse Act mapping
+│   ├── autonomy.py              # Tiered decision engine (wired)
+│   ├── whatsapp_gateway.py      # HITL APPROVE / DENY + notifications
+│   ├── legal_mapper.py          # TT Computer Misuse Act mapping
+│   └── escalation.py            # Smart LOW → HIGH → CRITICAL promotion
 ├── docker/
 │   ├── Dockerfile
 │   └── docker-compose.yml
 ├── config/
 │   └── settings.yaml
 └── docs/
-    └── PLAYBOOK.md                  # Full operational playbook
+    └── PLAYBOOK.md
 ```
 
 ---
 
-## Quick Start (Development)
+## Quick Start
 
 ```bash
-# Clone
 git clone https://github.com/trintechdigitaldefense/CyberFortress.git
 cd CyberFortress
 
-# Build & run core services
-docker compose -f docker/docker-compose.yml up -d --build
+# List all playbooks
+python3 playbooks/execute.py --list
 
-# Restart Threat Hunting Agent
-docker restart cf_threat_agent
+# Run a Tier 1 action (auto-executes + notifies)
+python3 playbooks/execute.py --action block_ip --target 203.0.113.50
 
-# View real-time Compliance Logs (filtered for TT CMA)
-docker logs -f cf_compliance_logger | grep "TT_CMA_TAG"
+# Run a Tier 2 action (requests WhatsApp APPROVE)
+python3 playbooks/execute.py --action isolate_endpoint --target SEC-WEB-01
 
-# Manually trigger Tier 2 isolation (force)
-python3 playbooks/execute.py --target=SEC-WEB-01 --force
+# Force a Tier 2 action (bypass HITL — still fully logged)
+python3 playbooks/execute.py --action subnet_isolation --target 10.0.5.0/24 --force
 ```
 
 ---
 
 ## Status (2026-10-09)
 
-- [x] Repository initialized (private)
-- [x] Core autonomy engine (Tier 1 / Tier 2)
-- [x] Legal mapper (TT Computer Misuse Act)
-- [x] Threat hunting agent (continuous loop skeleton)
-- [x] Compliance logger (TT_CMA_TAG + JSONL audit)
-- [x] Docker packaging (Dockerfile + compose)
-- [x] Playbook executor with --force override
-- [x] Full operational playbook documentation
-- [ ] WhatsApp HITL gateway (real API integration)
-- [ ] Full playbook suite (isolate, rotate, halt, etc.)
-- [ ] Integration with Sentinel / Mirage telemetry
-- [ ] Production hardening & secrets management
+### Priority 1 — Core Autonomy & Response ✅
+- [x] Full Playbook Library (block_ip, terminate_session, deploy_decoy, isolate_endpoint, subnet_isolation, credential_rotation, halt_operations)
+- [x] WhatsApp HITL Gateway (Tier 1 notify + Tier 2 interactive APPROVE/DENY with timeout)
+- [x] Smart Escalation Engine (velocity + impact based promotion)
+- [x] Autonomy engine fully wired to legal mapper + compliance logger + WhatsApp
+
+### Next Up
+- [ ] Telemetry fusion from Sentinel / Mirage
+- [ ] Real containment drivers (iptables / agent commands)
+- [ ] Evidence pack + client-facing report
+- [ ] Fail-safe / circuit breaker
+- [ ] Production WhatsApp Business API credentials + webhook receiver
 
 ---
 
