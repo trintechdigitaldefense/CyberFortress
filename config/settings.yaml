@@ -1,0 +1,24 @@
+# CyberFortress Configuration
+# Keep secrets out of this file — use environment variables or a secrets manager
+
+mode: development          # development | production
+log_level: INFO
+
+autonomy:
+  default_tier: 2          # 1 = full, 2 = guarded
+  force_allowed: true      # allow --force override (restrict in production)
+
+whatsapp:
+  enabled: false           # set true when gateway is production-ready
+  # api_url / token come from env vars
+
+compliance:
+  cma_tag: "TT_CMA_TAG"
+  audit_path: "./logs/cma_audit.jsonl"
+
+hunting:
+  cycle_seconds: 60
+  sources:
+    - sentinel
+    - mirage
+    - local_telemetry
