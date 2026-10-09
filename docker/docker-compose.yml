@@ -10,6 +10,7 @@ services:
     volumes:
       - ../config:/app/config:ro
       - ../logs:/app/logs
+      - ../telemetry:/app/telemetry
     environment:
       - CF_MODE=production
       - CF_LOG_LEVEL=INFO
@@ -22,12 +23,29 @@ services:
       dockerfile: docker/Dockerfile
     container_name: cf_compliance_logger
     restart: unless-stopped
-    command: ["python", "-m", "agents.compliance_logger"]
+    command: ["python3", "-m", "agents.compliance_logger"]
     volumes:
       - ../config:/app/config:ro
       - ../logs:/app/logs
     environment:
       - CF_MODE=production
+    networks:
+      - cyberfortress_net
+
+  fusion_agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_fusion_agent
+    restart: unless-stopped
+    command: ["python3", "-m", "agents.telemetry_fusion_agent"]
+    volumes:
+      - ../config:/app/config:ro
+      - ../logs:/app/logs
+      - ../telemetry:/app/telemetry
+    environment:
+      - CF_MODE=production
+      - CF_LOG_LEVEL=INFO
     networks:
       - cyberfortress_net
 
