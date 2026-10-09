@@ -26,6 +26,9 @@ Drastically reduce Mean Time to Containment (MTTC) while maintaining strict adhe
   Every automated action is programmatically mapped to the Trinidad & Tobago Computer Misuse Act.  
   Tamper-proof logs pair the exact system action with its legislative justification.
 
+- **Telemetry Fusion**  
+  Ingests and correlates alerts from Sentinel, Mirage, and local sources → escalates → recommends (or auto-runs) the right playbook.
+
 - **Alert Tiers**
 
 | Alert Tier       | Trigger Conditions                          | System Action                          | Admin Required     |
@@ -42,22 +45,25 @@ Drastically reduce Mean Time to Containment (MTTC) while maintaining strict adhe
 CyberFortress/
 ├── agents/
 │   ├── threat_hunting_agent.py
-│   └── compliance_logger.py
+│   ├── compliance_logger.py
+│   └── telemetry_fusion_agent.py    # continuous fusion loop
 ├── playbooks/
-│   ├── library.py               # Full playbook registry
-│   └── execute.py               # CLI runner with HITL
+│   ├── library.py
+│   └── execute.py
 ├── core/
-│   ├── autonomy.py              # Tiered decision engine (wired)
-│   ├── whatsapp_gateway.py      # HITL APPROVE / DENY + notifications
-│   ├── legal_mapper.py          # TT Computer Misuse Act mapping
-│   └── escalation.py            # Smart LOW → HIGH → CRITICAL promotion
+│   ├── autonomy.py
+│   ├── whatsapp_gateway.py
+│   ├── legal_mapper.py
+│   ├── escalation.py
+│   └── telemetry/
+│       ├── adapters.py              # Sentinel / Mirage / Local
+│       └── fusion.py                # central fusion engine
+├── telemetry/                       # drop zone for source alerts
+│   ├── sentinel/
+│   └── mirage/
 ├── docker/
-│   ├── Dockerfile
-│   └── docker-compose.yml
 ├── config/
-│   └── settings.yaml
 └── docs/
-    └── PLAYBOOK.md
 ```
 
 ---
@@ -68,17 +74,24 @@ CyberFortress/
 git clone https://github.com/trintechdigitaldefense/CyberFortress.git
 cd CyberFortress
 
-# List all playbooks
+# List playbooks
 python3 playbooks/execute.py --list
 
-# Run a Tier 1 action (auto-executes + notifies)
-python3 playbooks/execute.py --action block_ip --target 203.0.113.50
-
-# Run a Tier 2 action (requests WhatsApp APPROVE)
+# Manual playbook run
 python3 playbooks/execute.py --action isolate_endpoint --target SEC-WEB-01
 
-# Force a Tier 2 action (bypass HITL — still fully logged)
-python3 playbooks/execute.py --action subnet_isolation --target 10.0.5.0/24 --force
+# Run Telemetry Fusion once (processes sample alerts)
+python3 -c "
+from core.telemetry.fusion import TelemetryFusion
+fusion = TelemetryFusion(auto_respond=False)
+fusion.register_defaults()
+results = fusion.process()
+for r in results:
+    print(r['escalated_level'], r['recommended_playbook'], r['event']['target'])
+"
+
+# Continuous fusion agent
+python3 -m agents.telemetry_fusion_agent
 ```
 
 ---
@@ -86,17 +99,24 @@ python3 playbooks/execute.py --action subnet_isolation --target 10.0.5.0/24 --fo
 ## Status (2026-10-09)
 
 ### Priority 1 — Core Autonomy & Response ✅
-- [x] Full Playbook Library (block_ip, terminate_session, deploy_decoy, isolate_endpoint, subnet_isolation, credential_rotation, halt_operations)
-- [x] WhatsApp HITL Gateway (Tier 1 notify + Tier 2 interactive APPROVE/DENY with timeout)
-- [x] Smart Escalation Engine (velocity + impact based promotion)
-- [x] Autonomy engine fully wired to legal mapper + compliance logger + WhatsApp
+- [x] Full Playbook Library
+- [x] WhatsApp HITL Gateway
+- [x] Smart Escalation Engine
+- [x] Autonomy engine fully wired
+
+### Priority 2 — Telemetry Fusion ✅
+- [x] Adapters for Sentinel, Mirage, and local/custom sources
+- [x] Central Fusion Engine (collect → normalize → escalate → recommend)
+- [x] Continuous Fusion Agent
+- [x] Sample alerts for immediate testing
+- [x] Docker service for fusion_agent
 
 ### Next Up
-- [ ] Telemetry fusion from Sentinel / Mirage
 - [ ] Real containment drivers (iptables / agent commands)
 - [ ] Evidence pack + client-facing report
 - [ ] Fail-safe / circuit breaker
-- [ ] Production WhatsApp Business API credentials + webhook receiver
+- [ ] Production WhatsApp Business API + webhook receiver
+- [ ] Direct API connectors (instead of file drop) for Sentinel / Mirage
 
 ---
 
