@@ -18,24 +18,11 @@ Drastically reduce Mean Time to Containment (MTTC) while maintaining strict adhe
 
 ## Key Capabilities
 
-- **Tiered Autonomy (Human-in-the-Loop)**  
-  - **Tier 1 (Full)**: Single IP blocks, session termination, active decoy deployment → executes instantly + WhatsApp notification  
-  - **Tier 2 (Guarded)**: Subnet isolation, widespread credential rotation → pauses and requires WhatsApp “APPROVE”
-
-- **Legal Mapping & Audit**  
-  Every automated action is programmatically mapped to the Trinidad & Tobago Computer Misuse Act.  
-  Tamper-proof logs pair the exact system action with its legislative justification.
-
-- **Telemetry Fusion**  
-  Ingests and correlates alerts from Sentinel, Mirage, and local sources → escalates → recommends (or auto-runs) the right playbook.
-
-- **Alert Tiers**
-
-| Alert Tier       | Trigger Conditions                          | System Action                          | Admin Required     |
-|------------------|---------------------------------------------|----------------------------------------|--------------------|
-| **LOW (Notice)** | Failed login spikes, minor policy violations | Log to Compliance Feed                 | No                 |
-| **HIGH (Action)**| Decoy trigger, credential traversal          | Isolate endpoint, drop active connection | No (Notified)     |
-| **CRITICAL (Halt)** | Data exfiltration, widespread encryption attempt | Halt operations, stage subnet lockdown | **YES (WhatsApp)** |
+- **Tiered Autonomy (Human-in-the-Loop)** via WhatsApp
+- **Legal Mapping** to the Trinidad & Tobago Computer Misuse Act on every action
+- **Telemetry Fusion** from Sentinel + Mirage + local sources
+- **Real Containment Drivers** (iptables, session kill, decoy deployment)
+- **Smart Escalation** (LOW → HIGH → CRITICAL)
 
 ---
 
@@ -46,21 +33,21 @@ CyberFortress/
 ├── agents/
 │   ├── threat_hunting_agent.py
 │   ├── compliance_logger.py
-│   └── telemetry_fusion_agent.py    # continuous fusion loop
+│   └── telemetry_fusion_agent.py
 ├── playbooks/
 │   ├── library.py
 │   └── execute.py
 ├── core/
-│   ├── autonomy.py
+│   ├── autonomy.py              # decision + containment orchestration
 │   ├── whatsapp_gateway.py
 │   ├── legal_mapper.py
 │   ├── escalation.py
+│   ├── containment/
+│   │   └── drivers.py           # iptables / session / decoy
 │   └── telemetry/
-│       ├── adapters.py              # Sentinel / Mirage / Local
-│       └── fusion.py                # central fusion engine
-├── telemetry/                       # drop zone for source alerts
-│   ├── sentinel/
-│   └── mirage/
+│       ├── adapters.py
+│       └── fusion.py
+├── telemetry/                   # drop zone for alerts
 ├── docker/
 ├── config/
 └── docs/
@@ -77,21 +64,13 @@ cd CyberFortress
 # List playbooks
 python3 playbooks/execute.py --list
 
-# Manual playbook run
-python3 playbooks/execute.py --action isolate_endpoint --target SEC-WEB-01
+# Safe test (DRY-RUN by default)
+python3 playbooks/execute.py --action block_ip --target 203.0.113.50
+python3 playbooks/execute.py --action isolate_endpoint --target 10.0.5.12 --force
 
-# Run Telemetry Fusion once (processes sample alerts)
-python3 -c "
-from core.telemetry.fusion import TelemetryFusion
-fusion = TelemetryFusion(auto_respond=False)
-fusion.register_defaults()
-results = fusion.process()
-for r in results:
-    print(r['escalated_level'], r['recommended_playbook'], r['event']['target'])
-"
-
-# Continuous fusion agent
-python3 -m agents.telemetry_fusion_agent
+# Enable REAL containment (use with extreme care)
+export CF_CONTAINMENT_LIVE=true
+python3 playbooks/execute.py --action block_ip --target 203.0.113.50 --force
 ```
 
 ---
@@ -102,21 +81,32 @@ python3 -m agents.telemetry_fusion_agent
 - [x] Full Playbook Library
 - [x] WhatsApp HITL Gateway
 - [x] Smart Escalation Engine
-- [x] Autonomy engine fully wired
 
 ### Priority 2 — Telemetry Fusion ✅
-- [x] Adapters for Sentinel, Mirage, and local/custom sources
-- [x] Central Fusion Engine (collect → normalize → escalate → recommend)
-- [x] Continuous Fusion Agent
-- [x] Sample alerts for immediate testing
-- [x] Docker service for fusion_agent
+- [x] Adapters + Fusion Engine + continuous agent
+
+### Priority 3 — Real Containment Drivers ✅
+- [x] IPTablesDriver (block_ip, isolate_endpoint, subnet_isolation)
+- [x] SessionKiller (terminate_session)
+- [x] DecoyDeployer (deploy_decoy)
+- [x] Fully wired into autonomy engine
+- [x] Dry-run by default (set `CF_CONTAINMENT_LIVE=true` for live actions)
 
 ### Next Up
-- [ ] Real containment drivers (iptables / agent commands)
 - [ ] Evidence pack + client-facing report
 - [ ] Fail-safe / circuit breaker
 - [ ] Production WhatsApp Business API + webhook receiver
-- [ ] Direct API connectors (instead of file drop) for Sentinel / Mirage
+- [ ] Credential rotation & halt_operations drivers
+- [ ] Direct API connectors for Sentinel / Mirage
+
+---
+
+## Safety Notes
+
+- All containment actions default to **DRY-RUN**.
+- Live mode requires explicit `CF_CONTAINMENT_LIVE=true`.
+- Every action is logged with TT Computer Misuse Act justification.
+- Tier 2 actions still require WhatsApp APPROVE (unless `--force`).
 
 ---
 
