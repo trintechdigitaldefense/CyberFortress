@@ -1,0 +1,10 @@
+# CyberFortress core dependencies
+# Keep lightweight for Caribbean / modest hardware deployments
+
+pyyaml>=6.0
+requests>=2.31.0
+python-dateutil>=2.8.2
+
+# Optional / future
+# openai / local LLM for AI threat hunting
+# whatsapp-api wrappers when production ready
