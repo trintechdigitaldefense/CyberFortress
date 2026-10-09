@@ -10,11 +10,14 @@ autonomy:
 
 containment:
   live: false              # CRITICAL: set true (or CF_CONTAINMENT_LIVE=true) only when ready for real actions
-  # When false → all drivers run in dry-run mode (safe)
+
+identity:
+  provider: local_linux    # local_linux | ldap | azure_ad
+  # For LDAP set: CF_LDAP_SERVER, CF_LDAP_BIND_DN, CF_LDAP_BIND_PASSWORD, CF_LDAP_USER_BASE
+  # For Azure AD set: CF_AZURE_TENANT_ID, CF_AZURE_CLIENT_ID, CF_AZURE_CLIENT_SECRET
 
 whatsapp:
   enabled: false           # set true when gateway is production-ready
-  # api_url / token / admin numbers come from env vars
 
 compliance:
   cma_tag: "TT_CMA_TAG"
