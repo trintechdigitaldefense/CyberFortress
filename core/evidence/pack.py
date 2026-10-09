@@ -1,0 +1,216 @@
+#!/usr/bin/env python3
+"""
+CyberFortress Evidence Pack Generator
+Creates a professional, client-ready evidence package containing:
+- All CMA-mapped actions
+- Timestamps and justifications
+- Approval status
+- Summary suitable for clients or regulators
+
+Output: a timestamped folder + optional ZIP.
+"""
+
+import json
+import hashlib
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+import logging
+
+logger = logging.getLogger("cf_evidence")
+
+LOG_DIR = Path("./logs")
+EVIDENCE_ROOT = Path("./evidence")
+
+
+class EvidencePack:
+    def __init__(self, client_name: str = "Client", engagement_id: str = None):
+        self.client_name = client_name
+        self.engagement_id = engagement_id or datetime.now(timezone.utc).strftime("ENG-%Y%m%d-%H%M")
+        self.created_at = datetime.now(timezone.utc)
+        self.actions: List[Dict[str, Any]] = []
+        self.pack_dir: Optional[Path] = None
+
+    def load_from_audit_log(self, audit_path: str = "./logs/cma_audit.jsonl") -> int:
+        """Load all entries from the compliance JSONL log."""
+        path = Path(audit_path)
+        if not path.exists():
+            logger.warning(f"No audit log found at {path}")
+            return 0
+
+        count = 0
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    self.actions.append(entry)
+                    count += 1
+                except json.JSONDecodeError:
+                    continue
+        logger.info(f"Loaded {count} audit entries")
+        return count
+
+    def add_action(self, entry: Dict[str, Any]):
+        self.actions.append(entry)
+
+    def _generate_summary(self) -> Dict[str, Any]:
+        total = len(self.actions)
+        by_severity = {}
+        by_action = {}
+        approved = 0
+        held = 0
+
+        for a in self.actions:
+            sev = a.get("severity", "INFO")
+            by_severity[sev] = by_severity.get(sev, 0) + 1
+            act = a.get("action", "unknown")
+            by_action[act] = by_action.get(act, 0) + 1
+            just = a.get("legislative_justification", "")
+            if "APPROVED" in just or "FORCE" in just:
+                approved += 1
+            if "HELD" in just:
+                held += 1
+
+        return {
+            "client": self.client_name,
+            "engagement_id": self.engagement_id,
+            "generated_at": self.created_at.isoformat(),
+            "total_actions": total,
+            "approved_or_forced": approved,
+            "held": held,
+            "by_severity": by_severity,
+            "by_action": by_action,
+        }
+
+    def _write_human_report(self, path: Path):
+        """Write a clean, client-friendly Markdown report."""
+        summary = self._generate_summary()
+
+        lines = [
+            f"# CyberFortress Evidence Report",
+            f"",
+            f"**Client:** {self.client_name}  ",
+            f"**Engagement ID:** {self.engagement_id}  ",
+            f"**Generated:** {self.created_at.strftime('%Y-%m-%d %H:%M UTC')}  ",
+            f"**Prepared by:** TrinTech Digital Defense",
+            f"",
+            f"---",
+            f"",
+            f"## Executive Summary",
+            f"",
+            f"- Total protective actions recorded: **{summary['total_actions']}**",
+            f"- Actions approved / forced: **{summary['approved_or_forced']}**",
+            f"- Actions held pending approval: **{summary['held']}**",
+            f"",
+            f"### Breakdown by Severity",
+        ]
+
+        for sev, count in summary["by_severity"].items():
+            lines.append(f"- {sev}: {count}")
+
+        lines += [
+            f"",
+            f"### Breakdown by Action Type",
+        ]
+        for act, count in summary["by_action"].items():
+            lines.append(f"- `{act}`: {count}")
+
+        lines += [
+            f"",
+            f"---",
+            f"",
+            f"## Detailed Action Log",
+            f"",
+            f"All actions below are mapped to the Trinidad and Tobago Computer Misuse Act",
+            f"and include the exact legislative justification used at the time of execution.",
+            f"",
+        ]
+
+        for i, a in enumerate(self.actions, 1):
+            lines += [
+                f"### {i}. {a.get('action', 'unknown').upper()} on {a.get('target', 'unknown')}",
+                f"",
+                f"- **Time:** {a.get('timestamp', 'N/A')}",
+                f"- **Severity:** {a.get('severity', 'N/A')}",
+                f"- **Justification:** {a.get('legislative_justification', 'N/A')}",
+                f"",
+            ]
+
+        lines += [
+            f"---",
+            f"",
+            f"## Integrity Note",
+            f"",
+            f"This evidence pack was generated by CyberFortress.",
+            f"A SHA-256 manifest is included so any alteration of the files can be detected.",
+            f"",
+            f"*TrinTech Digital Defense — Defend. Detect. Dominate.*",
+        ]
+
+        path.write_text("\n".join(lines), encoding="utf-8")
+
+    def build(self, output_root: str = "./evidence") -> Path:
+        """Create the evidence pack folder and files."""
+        EVIDENCE_ROOT.mkdir(parents=True, exist_ok=True)
+        stamp = self.created_at.strftime("%Y%m%d_%H%M%S")
+        self.pack_dir = EVIDENCE_ROOT / f"{self.engagement_id}_{stamp}"
+        self.pack_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Human-readable report
+        self._write_human_report(self.pack_dir / "01_Executive_Report.md")
+
+        # 2. Full machine-readable audit
+        with open(self.pack_dir / "02_Full_Audit.json", "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "summary": self._generate_summary(),
+                    "actions": self.actions,
+                },
+                f,
+                indent=2,
+            )
+
+        # 3. Raw JSONL copy (if exists)
+        audit_src = Path("./logs/cma_audit.jsonl")
+        if audit_src.exists():
+            shutil.copy(audit_src, self.pack_dir / "03_Raw_CMA_Audit.jsonl")
+
+        # 4. Manifest with hashes for integrity
+        manifest = {}
+        for file in sorted(self.pack_dir.iterdir()):
+            if file.is_file() and file.name != "MANIFEST.sha256":
+                h = hashlib.sha256(file.read_bytes()).hexdigest()
+                manifest[file.name] = h
+
+        with open(self.pack_dir / "MANIFEST.sha256", "w", encoding="utf-8") as f:
+            for name, digest in manifest.items():
+                f.write(f"{digest}  {name}\n")
+
+        logger.info(f"Evidence pack created at {self.pack_dir}")
+        return self.pack_dir
+
+    def zip(self) -> Path:
+        """Create a ZIP of the pack for easy delivery."""
+        if not self.pack_dir or not self.pack_dir.exists():
+            raise RuntimeError("Call build() first")
+        zip_path = shutil.make_archive(str(self.pack_dir), "zip", root_dir=self.pack_dir)
+        logger.info(f"Evidence ZIP created: {zip_path}")
+        return Path(zip_path)
+
+
+def generate_evidence_pack(
+    client_name: str = "Client",
+    engagement_id: str = None,
+    create_zip: bool = True,
+) -> Path:
+    """Convenience function used by CLI and other modules."""
+    pack = EvidencePack(client_name=client_name, engagement_id=engagement_id)
+    pack.load_from_audit_log()
+    pack.build()
+    if create_zip:
+        return pack.zip()
+    return pack.pack_dir
