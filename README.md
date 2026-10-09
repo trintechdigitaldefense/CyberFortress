@@ -16,34 +16,32 @@ Drastically reduce Mean Time to Containment (MTTC) while maintaining strict adhe
 
 ---
 
-## Key Capabilities
+## Identity Providers (Credential Rotation)
 
-- **Tiered Autonomy (Human-in-the-Loop)** via WhatsApp
-- **Legal Mapping** to the Trinidad & Tobago Computer Misuse Act
-- **Telemetry Fusion** from Sentinel + Mirage + local sources
-- **Real Containment Drivers** (iptables, session, decoy, credential rotation, emergency halt)
-- **Pluggable Identity Providers** (Local Linux working, LDAP & Azure AD ready)
-- **Smart Escalation**, **Evidence Pack**, **Fail-Safe Circuit Breaker**
+| Provider | Status | Requirements |
+|----------|--------|--------------|
+| **local_linux** | Fully working | Default. Uses `chpasswd` / `usermod` |
+| **ldap** / **ad** | Fully working | `ldap3` + `CF_LDAP_*` env vars |
+| **azure_ad** / **entra** | Fully working | `msal` + `CF_AZURE_*` env vars + Graph permissions |
 
----
-
-## Identity Providers for Credential Rotation
-
-| Provider        | Status          | How to enable                                      |
-|-----------------|-----------------|----------------------------------------------------|
-| `local_linux`   | Fully working   | Default. Uses `chpasswd` / `usermod`               |
-| `ldap` / `ad`   | Config stub     | Set `CF_LDAP_SERVER`, `CF_LDAP_BIND_DN`, etc.      |
-| `azure_ad`      | Config stub     | Set `CF_AZURE_TENANT_ID`, `CF_AZURE_CLIENT_ID`, …  |
-
+### LDAP / Active Directory
 ```bash
-# Use local Linux accounts (default)
-export CF_IDENTITY_PROVIDER=local_linux
-python3 playbooks/execute.py --action credential_rotation --target admin,www-data --force
-
-# Point at LDAP / AD (once configured)
 export CF_IDENTITY_PROVIDER=ldap
-export CF_LDAP_SERVER=ldap://dc.example.tt
-# … etc.
+export CF_LDAP_SERVER=ldaps://dc.example.tt
+export CF_LDAP_BIND_DN="cn=admin,dc=example,dc=tt"
+export CF_LDAP_BIND_PASSWORD="..."
+export CF_LDAP_USER_BASE="ou=users,dc=example,dc=tt"
+# Optional for AD:
+# export CF_LDAP_USER_FILTER="(sAMAccountName={username})"
+```
+
+### Microsoft Entra ID (Azure AD)
+```bash
+export CF_IDENTITY_PROVIDER=azure_ad
+export CF_AZURE_TENANT_ID="your-tenant-id"
+export CF_AZURE_CLIENT_ID="your-app-client-id"
+export CF_AZURE_CLIENT_SECRET="your-client-secret"
+# App Registration needs User.ReadWrite.All (application permission) + admin consent
 ```
 
 ---
@@ -53,6 +51,7 @@ export CF_LDAP_SERVER=ldap://dc.example.tt
 ```bash
 git clone https://github.com/trintechdigitaldefense/CyberFortress.git
 cd CyberFortress
+pip install -r requirements.txt
 
 python3 playbooks/execute.py --list
 python3 playbooks/execute.py --action credential_rotation --target admin --force
@@ -68,7 +67,10 @@ python3 playbooks/breaker.py status
 - [x] Full Playbook Library + WhatsApp HITL + Escalation
 - [x] Telemetry Fusion (Sentinel / Mirage / local)
 - [x] Real Containment Drivers (all major actions)
-- [x] Credential Rotation with **pluggable Identity Providers**
+- [x] Credential Rotation with **real** Identity Providers:
+  - Local Linux (chpasswd)
+  - LDAP / Active Directory (ldap3)
+  - Microsoft Entra ID / Azure AD (MSAL + Graph)
 - [x] Emergency Halt Operations
 - [x] Evidence Pack (executive report + SHA-256 manifest)
 - [x] Fail-Safe Circuit Breaker
@@ -76,7 +78,6 @@ python3 playbooks/breaker.py status
 ### Next Up
 - [ ] Production WhatsApp Business API + webhook receiver
 - [ ] Direct API connectors for Sentinel / Mirage
-- [ ] Complete LDAP / Azure AD implementations (currently safe stubs)
 
 ---
 
