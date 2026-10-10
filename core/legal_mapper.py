@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
-"""
-CyberFortress Legal Mapper
-Maps every automated action to the relevant section of the
-Trinidad and Tobago Computer Misuse Act so the environment
-stays continually audit-ready.
-"""
+"""CyberFortress Legal Mapper — TT Computer Misuse Act justifications."""
 
-# High-level mapping (expand with actual Act sections as legal review progresses)
 CMA_MAP = {
     "block_ip": {
         "section": "Computer Misuse Act — Unauthorized Access / Access with Intent",
@@ -36,11 +30,22 @@ CMA_MAP = {
         "section": "Computer Misuse Act — Emergency protective measures",
         "justification": "Critical containment of data exfiltration or destructive activity",
     },
+    "unblock_ip": {
+        "section": "Computer Misuse Act — Restoration of legitimate access",
+        "justification": "Authorized rollback of IP block after threat cleared",
+    },
+    "restore_endpoint": {
+        "section": "Computer Misuse Act — Restoration of legitimate access",
+        "justification": "Authorized rollback of endpoint isolation after containment complete",
+    },
+    "restore_subnet": {
+        "section": "Computer Misuse Act — Restoration of legitimate network operations",
+        "justification": "Authorized rollback of subnet isolation after threat cleared",
+    },
 }
 
 
 def get_justification(action: str) -> dict:
-    """Return legislative justification for a given system action."""
     return CMA_MAP.get(
         action,
         {
@@ -51,7 +56,6 @@ def get_justification(action: str) -> dict:
 
 
 def map_and_log(action: str, target: str, severity: str = "INFO"):
-    """Convenience: map action + write compliance entry."""
     from agents.compliance_logger import write_cma_entry
 
     mapping = get_justification(action)
