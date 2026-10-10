@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
 CyberFortress Autonomy Engine
-Implements the tiered Human-in-the-Loop decision model.
-Integrates WhatsApp gateway + legal mapper + compliance logging +
-real containment drivers + fail-safe circuit breaker.
+Tiered HITL + legal mapper + compliance + containment + circuit breaker.
+
+Safety:
+  CF_CONTAINMENT_LIVE=false  → dry-run (default until pilot sign-off)
+  CF_ALLOW_FORCE=false       → --force blocked; prefer WhatsApp APPROVE
 """
 
 from enum import Enum
@@ -18,13 +20,13 @@ from core.circuit_breaker import breaker
 
 logger = logging.getLogger("cf_autonomy")
 
-# Default to dry-run for safety. Set CF_CONTAINMENT_LIVE=true to enable real actions.
 DRY_RUN = os.getenv("CF_CONTAINMENT_LIVE", "false").lower() != "true"
+ALLOW_FORCE = os.getenv("CF_ALLOW_FORCE", "false").lower() == "true"
 
 
 class AutonomyTier(Enum):
-    TIER_1_FULL = 1      # Instant execution + notification
-    TIER_2_GUARDED = 2   # Pause → WhatsApp APPROVE required
+    TIER_1_FULL = 1
+    TIER_2_GUARDED = 2
 
 
 TIER_1_ACTIONS = {
@@ -50,7 +52,6 @@ def classify_action(action: str, scope: str = "single") -> AutonomyTier:
 
 
 def _perform_containment(action: str, target: str) -> dict:
-    """Call the real containment driver and return its result."""
     driver = get_driver(action, dry_run=DRY_RUN)
     logger.info(f"Invoking containment driver '{driver.name}' for {action} on {target} (dry_run={DRY_RUN})")
     result = driver.execute(target=target, action=action)
@@ -68,18 +69,23 @@ def execute_with_autonomy(
     force: bool = False,
     severity: str = "HIGH",
 ) -> bool:
-    """
-    Main entry point used by playbooks and agents.
-    Returns True if action was authorized AND containment was attempted.
-    Always writes a CMA-mapped compliance log entry.
-    """
     tier = classify_action(action, scope)
     mapping = get_justification(action)
     justification = f"{mapping['section']}: {mapping['justification']}"
 
     logger.info(f"Evaluating action={action} target={target} scope={scope} force={force} tier={tier.name}")
 
-    # --- Circuit Breaker check ---
+    # Prefer WhatsApp APPROVE — force requires explicit CF_ALLOW_FORCE=true
+    if force and not ALLOW_FORCE:
+        logger.error("FORCE requested but CF_ALLOW_FORCE is false — refusing")
+        write_cma_entry(
+            action,
+            target,
+            justification + " [FORCE BLOCKED — CF_ALLOW_FORCE=false; use WhatsApp APPROVE]",
+            severity="INFO",
+        )
+        return False
+
     if not breaker.allow(force=force):
         write_cma_entry(
             action,
@@ -90,7 +96,6 @@ def execute_with_autonomy(
         logger.error("Action blocked by circuit breaker")
         return False
 
-    # --- FORCE override ---
     if force:
         logger.warning(f"FORCE override — executing {action} on {target}")
         write_cma_entry(action, target, justification + " [FORCE OVERRIDE]", severity="CRITICAL")
@@ -99,7 +104,6 @@ def execute_with_autonomy(
         breaker.record(action, target, severity="CRITICAL", tier=2)
         return True
 
-    # --- Tier 1: execute immediately + notify ---
     if tier == AutonomyTier.TIER_1_FULL:
         logger.info("Tier 1 — executing immediately + notifying")
         write_cma_entry(action, target, justification, severity=severity)
@@ -108,7 +112,6 @@ def execute_with_autonomy(
         breaker.record(action, target, severity=severity, tier=1)
         return True
 
-    # --- Tier 2: request WhatsApp approval ---
     logger.info(f"Tier 2 — requesting WhatsApp APPROVE for {action} on {target}")
     approved = wa_request_approval(
         action=action,
@@ -123,12 +126,12 @@ def execute_with_autonomy(
         _perform_containment(action, target)
         breaker.record(action, target, severity=severity, tier=2)
         return True
-    else:
-        logger.warning("Tier 2 — DENIED or timed out — action held")
-        write_cma_entry(
-            action,
-            target,
-            justification + " [HELD — no approval]",
-            severity="INFO",
-        )
-        return False
+
+    logger.warning("Tier 2 — DENIED or timed out — action held")
+    write_cma_entry(
+        action,
+        target,
+        justification + " [HELD — no approval]",
+        severity="INFO",
+    )
+    return False
