@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 CyberFortress Playbook Library
-Central registry of all supported containment actions.
+Containment + rollback actions.
 """
 
 from typing import Dict, Any
 
-# Canonical playbook definitions
 PLAYBOOKS: Dict[str, Dict[str, Any]] = {
+    # --- Containment ---
     "block_ip": {
         "name": "Block Single IP",
         "description": "Immediately block a single anomalous IP address",
@@ -64,16 +64,39 @@ PLAYBOOKS: Dict[str, Dict[str, Any]] = {
         "severity": "CRITICAL",
         "action_key": "halt_operations",
     },
+    # --- Rollback / recovery ---
+    "unblock_ip": {
+        "name": "Unblock IP (Rollback)",
+        "description": "Remove iptables DROP rules for a previously blocked IP",
+        "tier": 1,
+        "scope": "single",
+        "severity": "INFO",
+        "action_key": "unblock_ip",
+    },
+    "restore_endpoint": {
+        "name": "Restore Endpoint (Rollback)",
+        "description": "Remove isolation rules for a single host",
+        "tier": 1,
+        "scope": "single",
+        "severity": "INFO",
+        "action_key": "restore_endpoint",
+    },
+    "restore_subnet": {
+        "name": "Restore Subnet (Rollback)",
+        "description": "Remove subnet isolation rules",
+        "tier": 2,
+        "scope": "subnet",
+        "severity": "HIGH",
+        "action_key": "restore_subnet",
+    },
 }
 
 
 def get_playbook(name: str) -> Dict[str, Any]:
-    """Return playbook definition or raise KeyError."""
     if name not in PLAYBOOKS:
         raise KeyError(f"Unknown playbook: {name}. Available: {list(PLAYBOOKS.keys())}")
     return PLAYBOOKS[name]
 
 
 def list_playbooks() -> list:
-    """Return list of available playbook names."""
     return list(PLAYBOOKS.keys())
