@@ -23,6 +23,7 @@ backups/
 .env.*
 !.env.example
 config/secrets.yaml
+config/pilot_signoff.json
 secrets/
 *.pem
 *.key
