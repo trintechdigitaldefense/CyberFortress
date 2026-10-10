@@ -8,7 +8,3 @@ python-dateutil>=2.8.2
 # Identity Providers (install only what you need)
 ldap3>=2.9.1          # LDAP / Active Directory
 msal>=1.24.0          # Microsoft Entra ID (Azure AD) via MSAL
-
-# Optional / future
-# openai / local LLM for AI threat hunting
-# whatsapp-api wrappers when production ready
