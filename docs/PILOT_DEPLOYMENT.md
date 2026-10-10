@@ -2,8 +2,17 @@
 
 **TrinTech Digital Defense — Protected Asset**
 
-**Mandatory:** complete this checklist before placing CyberFortress on any client network  
-and **before** setting `CF_CONTAINMENT_LIVE=true`.
+**Mandatory** before any client network placement and **before** live mode.
+
+Related docs:
+- **Live WhatsApp + TLS:** [WHATSAPP_TLS.md](WHATSAPP_TLS.md)
+- **Operator process:** [OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md)
+- **Intentional live mode:** [GO_LIVE.md](GO_LIVE.md)
+
+```bash
+# Preflight
+./scripts/check_client_ready.sh
+```
 
 ---
 
@@ -11,121 +20,131 @@ and **before** setting `CF_CONTAINMENT_LIVE=true`.
 
 | Control | Default | Notes |
 |---------|---------|-------|
-| `CF_CONTAINMENT_LIVE` | `false` | Keep until pilot sign-off |
+| `CF_CONTAINMENT_LIVE` | `false` | Enable only via `scripts/enable_live_mode.sh` |
 | `CF_WATCHDOG_FAIL_CLOSED` | `true` | Auto-trip breaker if UNHEALTHY |
-| `CF_ALLOW_FORCE` | `false` | Prefer WhatsApp APPROVE over `--force` |
-| Dashboard / health / webhook binds | `127.0.0.1` | Admin network / SSH tunnel only |
-| Container user | non-root `cfops` (uid 10001) | Dockerfile + compose |
-| Secrets | `.env` / secrets manager | Never commit; use `.env.example` |
-| WhatsApp webhook TLS | reverse proxy required | See `docker/caddy.whatsapp.example` |
-| Off-box backup | `scripts/backup_offbox.sh` | `logs/` + `evidence/` |
+| `CF_ALLOW_FORCE` | `false` | Prefer WhatsApp APPROVE |
+| Admin ports | `127.0.0.1` | SSH tunnel / admin VPN only |
+| Containers | non-root `cfops` | uid 10001 |
+| Secrets | `.env` only | Never commit |
+| WhatsApp TLS | required for HITL | [WHATSAPP_TLS.md](WHATSAPP_TLS.md) |
+| Off-box backup | script | `scripts/backup_offbox.sh` |
 
 ---
 
 ## 1. Legal & Authorization
 
-- [ ] Signed NDA in place
-- [ ] Signed Rules of Engagement (ROE) that explicitly authorizes:
-  - Network monitoring
-  - Automated containment actions (list which ones)
-  - Credential rotation if used
-  - Out-of-band WhatsApp notifications/approvals
-- [ ] Client has designated primary + secondary WhatsApp admin numbers
-- [ ] Written confirmation that TT Computer Misuse Act justifications are acceptable to the client
-- [ ] Pilot sign-off recorded before enabling live containment
+- [ ] Signed NDA
+- [ ] Signed ROE (monitoring, listed containment actions, credential rotation if used, WhatsApp HITL)
+- [ ] Primary + secondary WhatsApp admin numbers designated
+- [ ] TT Computer Misuse Act justifications accepted by client
+- [ ] Operators assigned per [OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md)
 
 ---
 
-## 2. Environment Preparation
+## 2. Environment
 
-- [ ] Linux host (Ubuntu 22.04+ recommended) with Docker
-- [ ] Network placement allows visibility of target assets
-- [ ] Firewall: only admin VPN/SSH can reach host management ports
-- [ ] Firewall: outbound allowed to WhatsApp Cloud API (if used)
-- [ ] Time synchronized (NTP)
-- [ ] Off-box backup destination prepared (`CF_BACKUP_DEST`)
+- [ ] Ubuntu 22.04+ host with Docker
+- [ ] Visibility to target assets per ROE
+- [ ] Firewall: management only via admin VPN/SSH
+- [ ] Outbound to WhatsApp Cloud API allowed
+- [ ] NTP synced
+- [ ] `CF_BACKUP_DEST` off-box path ready
 
 ---
 
-## 3. Configuration (no secrets in git)
+## 3. Configuration
 
 ```bash
-cp .env.example .env
-chmod 600 .env
-# Edit .env — never commit it
-
-# Mandatory safety until pilot sign-off
-CF_CONTAINMENT_LIVE=false
-CF_ALLOW_FORCE=false
-CF_WATCHDOG_FAIL_CLOSED=true
+cp .env.example .env && chmod 600 .env
+# CF_CONTAINMENT_LIVE=false
+# CF_ALLOW_FORCE=false
+# CF_WATCHDOG_FAIL_CLOSED=true
 ```
 
-- [ ] All secrets only in `.env` or a secrets manager
-- [ ] `.env` is **not** committed (confirmed in `.gitignore`)
-- [ ] WhatsApp / LDAP / Azure credentials not present in any tracked file
+- [ ] No secrets in git
+- [ ] `.env` permissions 600
 
 ---
 
-## 4. Pre-Flight Tests (Dry-Run)
+## 4. Dry-run pre-flight
 
 ```bash
+./scripts/check_client_ready.sh
 python3 -m agents.healthcheck
 python3 -m agents.watchdog_agent --once
 python3 playbooks/execute.py --list
-
-# Tier 1 dry-run (no force required)
-# Tier 2 should go through WhatsApp when enabled
 python3 playbooks/breaker.py status
 python3 playbooks/evidence.py --client "PILOT-CLIENT" --engagement ENG-PILOT-001
-./scripts/backup_offbox.sh   # after setting CF_BACKUP_DEST
+./scripts/backup_offbox.sh
 ```
 
-- [ ] Health + watchdog run cleanly
-- [ ] Evidence pack generated
-- [ ] Circuit breaker CLOSED
-- [ ] Off-box backup succeeds
+- [ ] All checks pass
+- [ ] Evidence pack OK
+- [ ] Breaker CLOSED
 
 ---
 
-## 5. WhatsApp Webhook + TLS
+## 5. Live WhatsApp + TLS
 
-- [ ] Webhook container bound to `127.0.0.1:8089` only
-- [ ] TLS reverse proxy or tunnel in front (Caddy example: `docker/caddy.whatsapp.example`)
-- [ ] Meta Developer Console points to `https://your-host/...`
-- [ ] Verify token matches `CF_WHATSAPP_VERIFY_TOKEN`
-- [ ] Test APPROVE / DENY recorded under `logs/whatsapp_pending/`
+Complete **[WHATSAPP_TLS.md](WHATSAPP_TLS.md)** in full.
 
-**Do not expose dashboard/health on the public internet.**  
-Access via SSH tunnel:
+- [ ] Webhook on `127.0.0.1:8089` only
+- [ ] Public HTTPS (Caddy / Cloudflare Tunnel)
+- [ ] Meta webhook verified
+- [ ] APPROVE/DENY test successful
+- [ ] Dashboard/health **not** public
+
+---
+
+## 6. Operator process ready
+
+Complete **[OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md)** briefing.
+
+- [ ] Lead + on-call named
+- [ ] Shift-start checks practiced
+- [ ] Emergency stop known: `./scripts/disable_live_mode.sh`
+- [ ] Client briefed on WhatsApp alerts
+
+---
+
+## 7. Sign-off file
 
 ```bash
-ssh -L 8091:127.0.0.1:8091 -L 8090:127.0.0.1:8090 user@cf-host
+cp config/pilot_signoff.example.json config/pilot_signoff.json
+chmod 600 config/pilot_signoff.json
+# Set all flags true; fill client, engagement, names, date
+./scripts/enable_live_mode.sh --check
 ```
+
+- [ ] `checklist_complete: true`
+- [ ] `whatsapp_tls_verified: true`
+- [ ] `operator_runbook_acknowledged: true`
+- [ ] `roe_signed` / `nda_signed: true`
 
 ---
 
-## 6. Go-Live Decision (only after sections 1–5)
+## 8. Intentional live mode (only after 1–7)
+
+See **[GO_LIVE.md](GO_LIVE.md)**.
 
 ```bash
-# Explicit pilot sign-off required
-export CF_CONTAINMENT_LIVE=true
-# Keep CF_ALLOW_FORCE=false unless emergency supervised use
+./scripts/enable_live_mode.sh --enable
+# Type: ENABLE LIVE MODE
+docker compose -f docker/docker-compose.yml up -d
+python3 -m agents.healthcheck
 ```
 
-- [ ] Operator monitoring first 24–48 hours
-- [ ] Client briefed on WhatsApp messages
-- [ ] Rollback agreed: `CF_CONTAINMENT_LIVE=false` + `python3 playbooks/breaker.py trip`
-- [ ] Watchdog running with `CF_WATCHDOG_FAIL_CLOSED=true`
+- [ ] Operator on watch 24–48h
+- [ ] Rollback tested: `./scripts/disable_live_mode.sh`
 
 ---
 
-## 7. Ongoing
+## 9. Ongoing
 
-- [ ] Daily or on-demand Evidence Pack generation
-- [ ] Scheduled off-box backup (`scripts/backup_offbox.sh`)
-- [ ] Weekly review of circuit-breaker trips and held actions
-- [ ] Prefer WhatsApp APPROVE; avoid `--force`
-- [ ] Keep ROE and admin numbers up to date
+- [ ] Evidence packs after significant activity
+- [ ] Scheduled off-box backups
+- [ ] Weekly breaker / held-action review
+- [ ] Prefer WhatsApp APPROVE; avoid force
 
 ---
 
