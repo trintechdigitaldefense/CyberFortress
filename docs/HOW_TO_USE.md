@@ -1,15 +1,31 @@
 # CyberFortress — How to Use
 
-## 1. Install
+## Fast path (recommended)
 
 ```bash
 git clone https://github.com/trintechdigitaldefense/CyberFortress.git
 cd CyberFortress
-pip install -r requirements.txt
-cp .env.example .env && chmod 600 .env
+./install.sh    # deps + .env + folders
+./start.sh      # start everything
 ```
 
-## 2. Safety defaults (leave as-is until pilot sign-off)
+| Command | Action |
+|---------|--------|
+| `./install.sh` | Install requirements, create `.env`, runtime dirs |
+| `./start.sh` | Start all services (Docker if available, else local) |
+| `./stop.sh` | Stop all services |
+| `./start.sh status` | Show running status |
+| `./start.sh local` | Force local Python processes |
+| `./start.sh docker` | Force Docker Compose |
+
+After start:
+- Dashboard: http://127.0.0.1:8091  
+- Health: http://127.0.0.1:8090  
+- Default: **dry-run** (safe)
+
+---
+
+## Safety defaults (leave until pilot sign-off)
 
 ```bash
 CF_CONTAINMENT_LIVE=false
@@ -17,85 +33,80 @@ CF_ALLOW_FORCE=false
 CF_WATCHDOG_FAIL_CLOSED=true
 ```
 
-## 3. Preflight
+These are set in `.env` by `./install.sh`.
+
+---
+
+## Run a dry-run action
 
 ```bash
-./scripts/check_client_ready.sh
-python3 -m agents.healthcheck
-python3 -m agents.watchdog_agent --once
 python3 playbooks/execute.py --list
-```
-
-## 4. Run a dry-run action
-
-```bash
-# Tier 1 (ROE-allowed) — no force needed
 python3 playbooks/execute.py --action block_ip --target 203.0.113.50
-
-# Rollback
 python3 playbooks/execute.py --action unblock_ip --target 203.0.113.50
 ```
 
-Tier 2 actions need WhatsApp APPROVE when WhatsApp is enabled.
+Tier 2 needs WhatsApp APPROVE when WhatsApp is enabled.
 
-## 5. Dashboard
+---
+
+## Dashboard password (optional)
 
 ```bash
-export CF_DASHBOARD_USER=operator
-export CF_DASHBOARD_PASS='your-strong-password'
-python3 -m agents.dashboard
-# http://127.0.0.1:8091
+# in .env
+CF_DASHBOARD_USER=operator
+CF_DASHBOARD_PASS=your-strong-password
+./stop.sh && ./start.sh
 ```
 
-Remote:
+Remote access:
 
 ```bash
 ssh -L 8091:127.0.0.1:8091 -L 8090:127.0.0.1:8090 user@cf-host
 ```
 
-## 6. Evidence pack
+---
+
+## Evidence pack
 
 ```bash
 python3 playbooks/evidence.py --client "Acme Ltd" --engagement ENG-2026-001
 ```
 
-## 7. WhatsApp + TLS
+---
 
-Follow **docs/WHATSAPP_TLS.md**, then set:
+## WhatsApp + TLS
 
-```bash
-CF_WHATSAPP_ENABLED=true
-# + token, phone id, admins, verify token
-```
+Follow **docs/WHATSAPP_TLS.md**, set tokens in `.env`, then `./stop.sh && ./start.sh`.
 
-## 8. Go live (only after full checklist)
+---
+
+## Go live (only after full checklist)
 
 ```bash
 cp config/pilot_signoff.example.json config/pilot_signoff.json
 # Complete flags + authorized_actions
 ./scripts/enable_live_mode.sh --check
 ./scripts/enable_live_mode.sh --enable
-docker compose -f docker/docker-compose.yml up -d
+./stop.sh && ./start.sh
 ```
 
 Rollback live mode:
 
 ```bash
 ./scripts/disable_live_mode.sh
+./stop.sh && ./start.sh
 ```
 
-## 9. Operator daily use
+---
+
+## Operator daily use
 
 See **docs/OPERATOR_RUNBOOK.md** — shift start, APPROVE rules, emergency stop.
 
-## 10. Docker
+Emergency:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build
+./scripts/disable_live_mode.sh
+python3 playbooks/breaker.py trip --reason "Operator emergency stop"
+./stop.sh
 ```
-
-| Service | Address |
-|---------|---------|
-| Dashboard | `127.0.0.1:8091` |
-| Health | `127.0.0.1:8090` |
-| WhatsApp webhook | `127.0.0.1:8089` + TLS proxy |
