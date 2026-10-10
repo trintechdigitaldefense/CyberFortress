@@ -2,6 +2,9 @@
 
 **TrinTech Digital Defense positioning**
 
+> **Pricing:** not published yet. Platform is still being built and improved.  
+> Stay tuned — commercial numbers will be added when ready.
+
 ---
 
 ## One-liner
@@ -29,28 +32,24 @@
 
 ---
 
-## Packages & pricing (USD)
+## Packages (no prices yet)
 
-Pricing in USD; TT$ equivalent available on request.
-
-| Package | Scope | Price |
-|---------|--------|-------|
-| **Pilot** | 2-week dry-run + 1 optional gated live week; ROE + NDA; named WhatsApp admins; weekly evidence pack | **$2,000 fixed** |
-| **Managed CyberFortress** | Ongoing monitoring + operator cover; live mode under ROE; monthly evidence + backup | **$3,000 / month** |
-| **Add-on** | Bolt onto existing TrinTech VA / network audit clients | Quoted per engagement |
-
-Managed is positioned **above** Sentinel Standalone ($2,200/mo) because it includes **active response**, not detection-only.
-
-### Pilot details
+### 1) Pilot (recommended first engagement)
 - 2 weeks **dry-run** on client scope
-- ROE + NDA + named WhatsApp admins
+- **NDA + ROE** + named WhatsApp admins
 - Weekly evidence pack
 - Optional week of **gated live** for listed actions only
+- Requires completed `config/pilot_signoff.json` before any live mode
 
-### Managed details
+### 2) Managed CyberFortress
 - Ongoing monitoring + operator cover
 - Live mode under ROE
 - Monthly evidence + backup
+
+### 3) Add-on to existing TrinTech work
+- Bolt onto vulnerability assessment / network audit clients who need response capability
+
+Commercial terms: **TBD** — do not quote a fee from this repo until TrinTech publishes pricing.
 
 ---
 
@@ -60,6 +59,7 @@ Managed is positioned **above** Sentinel Standalone ($2,200/mo) because it inclu
 - High-impact actions need WhatsApp **`APPROVE <nonce>`** from a registered admin
 - Unknown numbers and bad codes are denied and logged
 - Only actions on the **ROE list** can run
+- Live mode blocked until **NDA + ROE + pilot_signoff.json** are complete
 - Emergency stop: disable live mode + trip circuit breaker
 - Full **evidence pack** for the client after incidents
 
@@ -72,6 +72,7 @@ Managed is positioned **above** Sentinel Standalone ($2,200/mo) because it inclu
 - “Replaces your entire IT team”
 - “Works with zero ROE”
 - Guaranteed prevention of all breaches
+- Any fixed price from this repository
 
 ---
 
@@ -82,14 +83,14 @@ Managed is positioned **above** Sentinel Standalone ($2,200/mo) because it inclu
 3. Tier 1 `block_ip` dry-run + CMA log line  
 4. Show Evidence Pack ZIP  
 5. Tier 2 isolate → WhatsApp `APPROVE <nonce>` (or mock path)  
-6. Show pilot checklist + go-live gate  
+6. Show ROE / NDA templates + pilot checklist + go-live gate  
 
 ---
 
 ## Leave-behind
 
 - Overview PDF / cheatsheet  
-- Pilot proposal (scope, **$2,000**, ROE summary)  
+- Pilot proposal (scope + ROE summary — **no price until published**)  
 - Sanitized sample evidence report  
 
 ---
