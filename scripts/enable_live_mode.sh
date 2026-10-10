@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Enable CF_CONTAINMENT_LIVE only after pilot sign-off.
+# Enable CF_CONTAINMENT_LIVE only after pilot sign-off (NDA + ROE + WhatsApp + checklist).
 # Usage:
 #   ./scripts/enable_live_mode.sh --check
 #   ./scripts/enable_live_mode.sh --enable
@@ -14,8 +14,8 @@ require_signoff() {
   if [[ ! -f "$SIGNOFF" ]]; then
     echo "[!] Missing $SIGNOFF"
     echo "    cp config/pilot_signoff.example.json config/pilot_signoff.json"
-    echo "    Complete all fields and set checklist flags to true."
-    echo "    See docs/GO_LIVE.md and docs/PILOT_DEPLOYMENT.md"
+    echo "    Sign NDA + ROE (docs/templates/), complete WhatsApp TLS, set all flags true."
+    echo "    See docs/GO_LIVE.md"
     exit 1
   fi
 
@@ -32,26 +32,47 @@ required_true = [
     "roe_signed",
     "nda_signed",
 ]
-missing = [k for k in required_true if not data.get(k) is True]
+missing = [k for k in required_true if data.get(k) is not True]
 if missing:
     print("[!] Sign-off incomplete. Set these to true in config/pilot_signoff.json:")
     for k in missing:
         print(f"    - {k}")
+    print("    Templates: docs/templates/NDA_TEMPLATE.md · docs/templates/ROE_TEMPLATE.md")
+    print("    WhatsApp:  docs/WHATSAPP_TLS.md · ./scripts/setup_whatsapp_live.sh")
     sys.exit(1)
 
-for field in ("client_name", "engagement_id", "signed_by", "signoff_date_utc"):
-    if not str(data.get(field, "")).strip() or str(data.get(field)).startswith("CLIENT") or str(data.get(field)).startswith("ENG-YYYY") or str(data.get(field)).startswith("YYYY"):
-        if field in ("client_name", "engagement_id", "signed_by", "signoff_date_utc"):
-            val = str(data.get(field, ""))
-            if not val or "CLIENT_LEGAL" in val or "ENG-YYYY" in val or val == "YYYY-MM-DD" or val == "Lead Operator Name":
-                print(f"[!] Replace placeholder value for: {field}")
-                sys.exit(1)
+for field in ("client_name", "engagement_id", "signed_by", "signoff_date_utc", "client_approver"):
+    val = str(data.get(field, "")).strip()
+    bad = (
+        not val
+        or "CLIENT_LEGAL" in val
+        or "ENG-YYYY" in val
+        or val == "YYYY-MM-DD"
+        or val == "Lead Operator Name"
+        or val == "Client Contact Name"
+    )
+    if bad:
+        print(f"[!] Replace placeholder value for: {field}")
+        sys.exit(1)
+
+actions = data.get("authorized_actions") or []
+if not isinstance(actions, list) or len(actions) < 1:
+    print("[!] authorized_actions must be a non-empty list (from signed ROE)")
+    sys.exit(1)
+
+admins = data.get("whatsapp_admins") or []
+if not isinstance(admins, list) or not any(str(a).strip() for a in admins):
+    print("[!] whatsapp_admins must list at least one E.164 number from ROE")
+    sys.exit(1)
 
 print("[+] Pilot sign-off looks complete")
 print(f"    Client      : {data.get('client_name')}")
 print(f"    Engagement  : {data.get('engagement_id')}")
 print(f"    Signed by   : {data.get('signed_by')}")
+print(f"    Client      : {data.get('client_approver')}")
 print(f"    Date (UTC)  : {data.get('signoff_date_utc')}")
+print(f"    ROE actions : {', '.join(actions)}")
+print(f"    WA admins   : {len(admins)} number(s)")
 PY
 }
 
@@ -87,7 +108,6 @@ case "$cmd" in
       echo "CF_CONTAINMENT_LIVE=true" >> "$ENV_FILE"
     fi
 
-    # Keep force disabled unless explicitly changed elsewhere
     if grep -q '^CF_ALLOW_FORCE=' "$ENV_FILE" 2>/dev/null; then
       sed -i.bak 's/^CF_ALLOW_FORCE=.*/CF_ALLOW_FORCE=false/' "$ENV_FILE"
       rm -f "$ENV_FILE.bak"
@@ -108,7 +128,7 @@ case "$cmd" in
     echo "[+] CF_WATCHDOG_FAIL_CLOSED=true"
     echo
     echo "Next steps:"
-    echo "  1. docker compose -f docker/docker-compose.yml up -d"
+    echo "  1. ./stop.sh && ./start.sh"
     echo "  2. python3 -m agents.healthcheck"
     echo "  3. Follow docs/OPERATOR_RUNBOOK.md for first 48 hours"
     echo "  4. Rollback: ./scripts/disable_live_mode.sh"
