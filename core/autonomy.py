@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 CyberFortress Autonomy Engine
-Tiered HITL + legal mapper + compliance + containment + circuit breaker.
+Tiered HITL + legal mapper + compliance + containment + circuit breaker + ROE allow-list.
 
 Safety:
   CF_CONTAINMENT_LIVE=false  → dry-run (default until pilot sign-off)
   CF_ALLOW_FORCE=false       → --force blocked; prefer WhatsApp APPROVE
+  ROE allow-list             → only authorized_actions from pilot_signoff.json
 """
 
 from enum import Enum
@@ -17,6 +18,7 @@ from core.whatsapp_gateway import request_approval as wa_request_approval, notif
 from agents.compliance_logger import write_cma_entry
 from core.containment.drivers import get_driver
 from core.circuit_breaker import breaker
+from core.roe import is_action_authorized
 
 logger = logging.getLogger("cf_autonomy")
 
@@ -33,6 +35,8 @@ TIER_1_ACTIONS = {
     "block_ip",
     "terminate_session",
     "deploy_decoy",
+    "unblock_ip",
+    "restore_endpoint",
 }
 
 TIER_2_ACTIONS = {
@@ -40,6 +44,7 @@ TIER_2_ACTIONS = {
     "subnet_isolation",
     "credential_rotation",
     "halt_operations",
+    "restore_subnet",
 }
 
 
@@ -75,7 +80,17 @@ def execute_with_autonomy(
 
     logger.info(f"Evaluating action={action} target={target} scope={scope} force={force} tier={tier.name}")
 
-    # Prefer WhatsApp APPROVE — force requires explicit CF_ALLOW_FORCE=true
+    # ROE allow-list — first gate
+    if not is_action_authorized(action):
+        write_cma_entry(
+            action,
+            target,
+            justification + " [BLOCKED — not in ROE authorized_actions]",
+            severity="CRITICAL",
+        )
+        logger.error(f"ROE deny: {action}")
+        return False
+
     if force and not ALLOW_FORCE:
         logger.error("FORCE requested but CF_ALLOW_FORCE is false — refusing")
         write_cma_entry(
