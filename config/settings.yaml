@@ -1,23 +1,27 @@
 # CyberFortress Configuration
 # Keep secrets out of this file — use environment variables or a secrets manager
+# See .env.example and docs/PILOT_DEPLOYMENT.md
 
 mode: development          # development | production
 log_level: INFO
 
 autonomy:
   default_tier: 2          # 1 = full, 2 = guarded
-  force_allowed: true      # allow --force override (restrict in production)
+  force_allowed: false     # prefer WhatsApp APPROVE; set CF_ALLOW_FORCE=true only when needed
 
 containment:
-  live: false              # CRITICAL: set true (or CF_CONTAINMENT_LIVE=true) only when ready for real actions
+  live: false              # CRITICAL: keep false until pilot sign-off (CF_CONTAINMENT_LIVE)
+
+watchdog:
+  fail_closed: true        # CF_WATCHDOG_FAIL_CLOSED — trip breaker if platform UNHEALTHY
+  interval_seconds: 60
 
 identity:
   provider: local_linux    # local_linux | ldap | azure_ad
-  # For LDAP set: CF_LDAP_SERVER, CF_LDAP_BIND_DN, CF_LDAP_BIND_PASSWORD, CF_LDAP_USER_BASE
-  # For Azure AD set: CF_AZURE_TENANT_ID, CF_AZURE_CLIENT_ID, CF_AZURE_CLIENT_SECRET
+  # Secrets via CF_LDAP_* / CF_AZURE_* env vars only
 
 whatsapp:
-  enabled: false           # set true when gateway is production-ready
+  enabled: false           # CF_WHATSAPP_ENABLED — require TLS reverse proxy for webhook
 
 compliance:
   cma_tag: "TT_CMA_TAG"
@@ -32,3 +36,8 @@ hunting:
 
 telemetry:
   poll_interval_seconds: 30
+
+hardening:
+  admin_bind_localhost: true   # dashboard/health/webhook on 127.0.0.1
+  non_root_containers: true
+  require_pilot_checklist: true  # docs/PILOT_DEPLOYMENT.md before go-live
