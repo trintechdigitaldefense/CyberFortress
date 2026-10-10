@@ -1,0 +1,29 @@
+# CyberFortress — TLS in front of WhatsApp webhook
+#
+# The webhook container listens on 127.0.0.1:8089 only.
+# Put a reverse proxy with valid HTTPS in front (Meta requires HTTPS).
+#
+# Option A: Caddy (auto HTTPS)
+#   1. Point DNS for webhook.yourdomain.tt to this host
+#   2. Install Caddy
+#   3. Use this file as /etc/caddy/Caddyfile (or import it)
+#   4. systemctl reload caddy
+#
+# Option B: Cloudflare Tunnel / ngrok for pilots without public DNS
+
+webhook.yourdomain.tt {
+	encode gzip
+
+	# Forward Meta Cloud API callbacks to local webhook only
+	reverse_proxy 127.0.0.1:8089
+
+	# Optional: restrict by User-Agent / rate limit at edge if available
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+	}
+}
+
+# Admin UIs stay on localhost — access via SSH tunnel:
+#   ssh -L 8091:127.0.0.1:8091 -L 8090:127.0.0.1:8090 user@cf-host
+#   then open http://localhost:8091
