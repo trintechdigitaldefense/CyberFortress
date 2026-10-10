@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
 CyberFortress Playbook Executor
-Run any playbook from the library with full autonomy + legal + WhatsApp HITL + real containment.
 
-Usage examples:
-    python3 playbooks/execute.py --action isolate_endpoint --target 10.0.5.12
-    python3 playbooks/execute.py --action subnet_isolation --target 10.0.5.0/24 --force
+Prefer WhatsApp APPROVE for Tier 2. --force is disabled unless CF_ALLOW_FORCE=true.
+Live containment requires CF_CONTAINMENT_LIVE=true (keep false until pilot sign-off).
+
+Usage:
     python3 playbooks/execute.py --list
+    python3 playbooks/execute.py --action isolate_endpoint --target 10.0.5.12
+    # Force only when explicitly allowed:
+    CF_ALLOW_FORCE=true python3 playbooks/execute.py --action block_ip --target 203.0.113.50 --force
 """
 
 import argparse
@@ -32,7 +35,11 @@ def main():
     )
     parser.add_argument("--action", help="Playbook name (see --list)")
     parser.add_argument("--target", help="Target asset / IP / subnet / hostname")
-    parser.add_argument("--force", action="store_true", help="Force execution (bypass HITL)")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force execution (bypass HITL). Requires CF_ALLOW_FORCE=true",
+    )
     parser.add_argument("--list", action="store_true", help="List all available playbooks")
     args = parser.parse_args()
 
@@ -42,7 +49,9 @@ def main():
     print("=" * 64)
 
     live = os.getenv("CF_CONTAINMENT_LIVE", "false").lower() == "true"
+    allow_force = os.getenv("CF_ALLOW_FORCE", "false").lower() == "true"
     print(f"Containment mode : {'LIVE' if live else 'DRY-RUN (safe)'}")
+    print(f"Force allowed    : {allow_force}")
     print("-" * 64)
 
     if args.list:
@@ -54,6 +63,13 @@ def main():
 
     if not args.action or not args.target:
         parser.error("--action and --target are required (or use --list)")
+
+    if args.force and not allow_force:
+        print("[!] --force is disabled.")
+        print("    Prefer WhatsApp APPROVE for Tier 2 actions.")
+        print("    To allow force overrides: export CF_ALLOW_FORCE=true")
+        print("    (Only use during supervised pilot / emergency.)")
+        return 3
 
     try:
         pb = get_playbook(args.action)
