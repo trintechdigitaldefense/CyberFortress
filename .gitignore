@@ -15,13 +15,19 @@ build/
 logs/
 *.log
 *.jsonl
+evidence/
+backups/
 
-# Secrets & local config overrides
+# Secrets — NEVER commit
 .env
 .env.*
+!.env.example
 config/secrets.yaml
+secrets/
 *.pem
 *.key
+*.p12
+*.pfx
 
 # IDE / OS
 .idea/
