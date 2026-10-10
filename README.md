@@ -8,30 +8,37 @@
 
 ## Overview
 
-CyberFortress is a containerized autonomous security platform built for Caribbean enterprise environments.  
-It reduces Mean Time to Containment (MTTC) while staying aligned with the Trinidad & Tobago Computer Misuse Act.
+CyberFortress reduces Mean Time to Containment while aligning with the Trinidad & Tobago Computer Misuse Act.
 
-**Before any client deployment:** complete **[docs/PILOT_DEPLOYMENT.md](docs/PILOT_DEPLOYMENT.md)**.
+### Client-ready path (required order)
+
+1. **[docs/PILOT_DEPLOYMENT.md](docs/PILOT_DEPLOYMENT.md)** — pilot checklist  
+2. **[docs/WHATSAPP_TLS.md](docs/WHATSAPP_TLS.md)** — live WhatsApp + HTTPS  
+3. **[docs/OPERATOR_RUNBOOK.md](docs/OPERATOR_RUNBOOK.md)** — operator process  
+4. **[docs/GO_LIVE.md](docs/GO_LIVE.md)** — intentional live mode only after sign-off  
+
+```bash
+./scripts/check_client_ready.sh
+# Live mode (gated):
+./scripts/enable_live_mode.sh --check
+./scripts/enable_live_mode.sh --enable   # requires config/pilot_signoff.json
+./scripts/disable_live_mode.sh           # emergency rollback
+```
 
 ---
 
-## Hardening (enforced in repo)
+## Hardening (enforced)
 
 | Control | Default |
 |---------|--------|
-| `CF_CONTAINMENT_LIVE` | `false` until pilot sign-off |
-| `CF_WATCHDOG_FAIL_CLOSED` | `true` (24/7 fail-closed) |
+| `CF_CONTAINMENT_LIVE` | `false` — enable only via gated script + sign-off |
+| `CF_WATCHDOG_FAIL_CLOSED` | `true` |
 | `CF_ALLOW_FORCE` | `false` — prefer WhatsApp APPROVE |
-| Dashboard / health / webhook | Bound to `127.0.0.1` only |
-| Containers | Non-root user `cfops` (uid 10001) |
-| Secrets | `.env` only — never commit (see `.env.example`) |
-| WhatsApp TLS | Reverse proxy example: `docker/caddy.whatsapp.example` |
-| Off-box backup | `scripts/backup_offbox.sh` for `logs/` + `evidence/` |
-
-```bash
-cp .env.example .env && chmod 600 .env
-# Keep CF_CONTAINMENT_LIVE=false until pilot sign-off
-```
+| Admin ports | `127.0.0.1` only |
+| Containers | non-root `cfops` |
+| Secrets | `.env` never committed |
+| WhatsApp | localhost webhook + TLS proxy |
+| Backup | `scripts/backup_offbox.sh` |
 
 ---
 
@@ -41,16 +48,13 @@ cp .env.example .env && chmod 600 .env
 |---------|--------|
 | Tiered Autonomy + WhatsApp HITL | ✅ |
 | Legal mapping (TT CMA) | ✅ |
-| Smart Escalation | ✅ |
-| Telemetry Fusion (file + API) | ✅ |
-| Containment Drivers | ✅ |
-| Identity Providers (Linux / LDAP / Azure AD) | ✅ |
-| Evidence Pack | ✅ |
-| Circuit Breaker | ✅ |
-| Real-Time Dashboard (`127.0.0.1:8091`) | ✅ |
-| Health Check (`127.0.0.1:8090`) | ✅ |
-| 24/7 Self-Monitoring Watchdog | ✅ |
-| Off-box backup script | ✅ |
+| Telemetry Fusion + Containment Drivers | ✅ |
+| Identity Providers | ✅ |
+| Evidence Pack + Circuit Breaker + Watchdog | ✅ |
+| Dashboard / Health (localhost) | ✅ |
+| Pilot checklist + Operator runbook | ✅ |
+| WhatsApp TLS guide | ✅ |
+| Gated live mode enable/disable | ✅ |
 
 ---
 
@@ -62,30 +66,16 @@ cd CyberFortress
 pip install -r requirements.txt
 cp .env.example .env && chmod 600 .env
 
+./scripts/check_client_ready.sh
 python3 -m agents.healthcheck
-python3 -m agents.watchdog_agent --once
-python3 playbooks/execute.py --list
-
-# Dashboard (local only)
 python3 -m agents.dashboard   # http://127.0.0.1:8091
-
-# Off-box backup
-export CF_BACKUP_DEST=/mnt/offbox/cyberfortress-backups
-./scripts/backup_offbox.sh
 ```
 
-Admin remote access via SSH tunnel:
+SSH tunnel for remote admin:
 
 ```bash
 ssh -L 8091:127.0.0.1:8091 -L 8090:127.0.0.1:8090 user@cf-host
 ```
-
----
-
-## Client readiness
-
-**Pilot-ready (supervised):** Yes — dry-run default, ROE/NDA, operator on watch.  
-**Unsupervised 24/7 production:** Only after full pilot checklist + live WhatsApp TLS + intentional `CF_CONTAINMENT_LIVE=true`.
 
 ---
 
@@ -99,8 +89,8 @@ docker compose -f docker/docker-compose.yml up -d --build
 |---------|------|
 | Dashboard | `127.0.0.1:8091` |
 | Health | `127.0.0.1:8090` |
-| WhatsApp Webhook | `127.0.0.1:8089` (TLS proxy in front) |
-| Watchdog | internal, fail-closed on |
+| WhatsApp Webhook | `127.0.0.1:8089` + TLS proxy |
+| Watchdog | fail-closed on |
 
 ---
 
