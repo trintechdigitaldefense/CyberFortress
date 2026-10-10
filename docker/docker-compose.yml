@@ -1,5 +1,14 @@
 version: "3.8"
 
+# ---------------------------------------------------------------------------
+# CyberFortress hardened defaults
+# - CF_CONTAINMENT_LIVE defaults to false (pilot sign-off required for live)
+# - CF_WATCHDOG_FAIL_CLOSED defaults to true
+# - Dashboard + health bound to 127.0.0.1 only (admin network)
+# - WhatsApp webhook stays internal; put TLS reverse proxy in front
+# - Secrets via env_file / host env only — never commit .env
+# ---------------------------------------------------------------------------
+
 services:
   threat_agent:
     build:
@@ -7,6 +16,10 @@ services:
       dockerfile: docker/Dockerfile
     container_name: cf_threat_agent
     restart: unless-stopped
+    user: "10001:10001"
+    env_file:
+      - path: ../.env
+        required: false
     volumes:
       - ../config:/app/config:ro
       - ../logs:/app/logs
@@ -14,6 +27,8 @@ services:
     environment:
       - CF_MODE=production
       - CF_LOG_LEVEL=INFO
+      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+      - CF_ALLOW_FORCE=${CF_ALLOW_FORCE:-false}
     networks:
       - cyberfortress_net
 
@@ -23,12 +38,17 @@ services:
       dockerfile: docker/Dockerfile
     container_name: cf_compliance_logger
     restart: unless-stopped
+    user: "10001:10001"
     command: ["python3", "-m", "agents.compliance_logger"]
+    env_file:
+      - path: ../.env
+        required: false
     volumes:
       - ../config:/app/config:ro
       - ../logs:/app/logs
     environment:
       - CF_MODE=production
+      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
     networks:
       - cyberfortress_net
 
@@ -38,7 +58,11 @@ services:
       dockerfile: docker/Dockerfile
     container_name: cf_fusion_agent
     restart: unless-stopped
+    user: "10001:10001"
     command: ["python3", "-m", "agents.telemetry_fusion_agent"]
+    env_file:
+      - path: ../.env
+        required: false
     volumes:
       - ../config:/app/config:ro
       - ../logs:/app/logs
@@ -46,6 +70,8 @@ services:
     environment:
       - CF_MODE=production
       - CF_LOG_LEVEL=INFO
+      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+      - CF_ALLOW_FORCE=${CF_ALLOW_FORCE:-false}
     networks:
       - cyberfortress_net
 
@@ -55,26 +81,38 @@ services:
       dockerfile: docker/Dockerfile
     container_name: cf_watchdog
     restart: unless-stopped
+    user: "10001:10001"
     command: ["python3", "-m", "agents.watchdog_agent"]
+    env_file:
+      - path: ../.env
+        required: false
     volumes:
       - ../config:/app/config:ro
       - ../logs:/app/logs
     environment:
       - CF_MODE=production
       - CF_WATCHDOG_INTERVAL=60
-      - CF_WATCHDOG_FAIL_CLOSED=${CF_WATCHDOG_FAIL_CLOSED:-false}
+      # 24/7 fail-closed: trip breaker if platform is UNHEALTHY
+      - CF_WATCHDOG_FAIL_CLOSED=${CF_WATCHDOG_FAIL_CLOSED:-true}
+      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
     networks:
       - cyberfortress_net
 
+  # WhatsApp webhook — internal only. Terminate TLS at reverse proxy / tunnel.
   whatsapp_webhook:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: cf_whatsapp_webhook
     restart: unless-stopped
+    user: "10001:10001"
     command: ["python3", "-m", "agents.whatsapp_webhook"]
+    # Bound to localhost so only local TLS proxy can reach it
     ports:
-      - "8089:8089"
+      - "127.0.0.1:8089:8089"
+    env_file:
+      - path: ../.env
+        required: false
     volumes:
       - ../logs:/app/logs
     environment:
@@ -84,33 +122,38 @@ services:
     networks:
       - cyberfortress_net
 
+  # Admin-only: bound to 127.0.0.1 — access via SSH tunnel or admin VPN
   health:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: cf_health
     restart: unless-stopped
+    user: "10001:10001"
     command: ["python3", "-m", "agents.healthcheck", "--serve"]
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
     volumes:
       - ../logs:/app/logs
       - ../evidence:/app/evidence
       - ../secrets:/app/secrets
     environment:
       - CF_HEALTH_PORT=8090
+      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
     networks:
       - cyberfortress_net
 
+  # Admin-only: bound to 127.0.0.1
   dashboard:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: cf_dashboard
     restart: unless-stopped
+    user: "10001:10001"
     command: ["python3", "-m", "agents.dashboard"]
     ports:
-      - "8091:8091"
+      - "127.0.0.1:8091:8091"
     volumes:
       - ../logs:/app/logs
       - ../evidence:/app/evidence
@@ -118,6 +161,7 @@ services:
       - CF_DASHBOARD_PORT=8091
       - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
       - CF_WHATSAPP_PENDING_DIR=/app/logs/whatsapp_pending
+      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
     networks:
       - cyberfortress_net
 
