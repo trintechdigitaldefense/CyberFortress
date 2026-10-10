@@ -11,19 +11,28 @@ echo " CyberFortress Install"
 echo " TrinTech Digital Defense"
 echo "=============================================="
 
-# Python
 if ! command -v python3 >/dev/null 2>&1; then
   echo "[!] python3 is required"
   exit 1
 fi
 echo "[+] Python: $(python3 --version)"
 
-# Dependencies
-echo "[+] Installing Python packages..."
-python3 -m pip install --user -q -r requirements.txt 2>/dev/null \
-  || python3 -m pip install -q -r requirements.txt
+echo "[+] Installing core Python packages..."
+if python3 -m pip install --user -q -r requirements.txt; then
+  echo "[+] Core packages installed"
+elif python3 -m pip install -q -r requirements.txt; then
+  echo "[+] Core packages installed (system pip)"
+else
+  echo "[!] Failed to install core requirements"
+  exit 1
+fi
 
-# Env file
+# Optional identity backends (do not fail install if network/PyPI issues)
+echo "[+] Optional identity packages (ldap3, msal) — best effort..."
+python3 -m pip install --user -q ldap3 msal 2>/dev/null \
+  || python3 -m pip install -q ldap3 msal 2>/dev/null \
+  || echo "[i] Optional ldap3/msal skipped (install later if using LDAP/Azure AD)"
+
 if [[ ! -f .env ]]; then
   cp .env.example .env
   chmod 600 .env
@@ -32,24 +41,17 @@ else
   echo "[+] .env already exists — left unchanged"
 fi
 
-# Runtime dirs
-mkdir -p logs evidence secrets telemetry/sentinel telemetry/mirage
+mkdir -p logs evidence secrets telemetry/sentinel telemetry/mirage logs/pids logs/whatsapp_pending
 chmod 700 secrets 2>/dev/null || true
-echo "[+] Runtime dirs ready (logs, evidence, secrets, telemetry)"
+echo "[+] Runtime dirs ready"
 
-# Scripts executable
 chmod +x install.sh start.sh stop.sh 2>/dev/null || true
 chmod +x scripts/*.sh 2>/dev/null || true
 
 echo
 echo "[+] Install complete."
-echo
-echo "  Start everything:  ./start.sh"
-echo "  Stop everything:   ./stop.sh"
-echo "  Status:            ./start.sh status"
-echo
-echo "  Dashboard:  http://127.0.0.1:8091"
-echo "  Health:     http://127.0.0.1:8090"
-echo
-echo "  Safety defaults: LIVE=off  FORCE=off  (dry-run)"
+echo "  Start: ./start.sh"
+echo "  Stop:  ./stop.sh"
+echo "  Dashboard: http://127.0.0.1:8091"
+echo "  Safety: LIVE=off FORCE=off (dry-run)"
 echo "=============================================="
