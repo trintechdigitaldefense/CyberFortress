@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 CyberFortress Threat Hunting Agent
-AI-driven continuous threat hunting component.
+Rules-driven continuous threat hunting — pulls telemetry cycles and
+feeds the fusion/escalation pipeline. No ML model ships in this MVP.
 """
 
 import time
@@ -17,16 +18,16 @@ logger = logging.getLogger("cf_threat_agent")
 
 
 def hunt_cycle():
-    """One hunting cycle — placeholder for real AI + telemetry logic."""
+    """One hunting cycle — rules/telemetry placeholder for MVP."""
     ts = datetime.now(timezone.utc).isoformat()
     logger.info(f"Hunting cycle started at {ts}")
-    # TODO: pull telemetry, score anomalies, emit alerts
-    logger.info("Hunting cycle complete (MVP placeholder)")
+    # MVP: heartbeat + cycle log. Telemetry fusion agent owns alert ingestion.
+    logger.info("Hunting cycle complete (rules-driven MVP)")
 
 
 def main():
     logger.info("CyberFortress Threat Hunting Agent starting...")
-    logger.info("Mode: continuous | Goal: reduce MTTC")
+    logger.info("Mode: continuous rules-driven | Goal: reduce MTTC")
     while True:
         try:
             write_heartbeat("threat_agent", {"phase": "cycle_start"})
