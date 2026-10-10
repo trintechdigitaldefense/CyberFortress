@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
 CyberFortress Smart Escalation Engine
-Automatically promotes alerts based on velocity, lateral movement, and impact signals.
+Rules-based promotion by indicator, velocity, and impact signals.
+(No ML model in this MVP.)
 """
 
 from enum import Enum
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Optional
+from typing import List, Optional
 import logging
 
 logger = logging.getLogger("cf_escalation")
@@ -28,7 +29,6 @@ class AlertEvent:
     raw: Optional[dict] = None
 
 
-# Simple in-memory window for MVP (replace with Redis / DB later)
 _recent_events: List[AlertEvent] = []
 WINDOW_MINUTES = 15
 
@@ -40,40 +40,34 @@ def _prune_old_events():
 
 
 def ingest_event(source: str, indicator: str, target: str, raw: dict = None) -> AlertLevel:
-    """
-    Ingest a new detection event and return the recommended alert level.
-    """
     event = AlertEvent(source=source, indicator=indicator, target=target, raw=raw)
     _recent_events.append(event)
     _prune_old_events()
-
     level = _calculate_level(event)
     logger.info(f"Ingested {indicator} on {target} from {source} → {level.value}")
     return level
 
 
 def _calculate_level(event: AlertEvent) -> AlertLevel:
-    """
-    Basic rules (expand with ML / more signals later):
-    - Single decoy trigger or failed login spike → HIGH
-    - Multiple hosts in short window or data-exfil indicators → CRITICAL
-    - Everything else starts at LOW and can be promoted
-    """
     indicator = event.indicator.lower()
 
-    # Immediate CRITICAL signals
-    critical_keywords = ["exfil", "ransomware", "encryption", "mass_credential", "lateral"]
+    critical_keywords = [
+        "exfil", "ransomware", "encryption", "mass_credential", "lateral",
+    ]
     if any(k in indicator for k in critical_keywords):
         return AlertLevel.CRITICAL
 
-    # Count related events in the window
     same_target = sum(1 for e in _recent_events if e.target == event.target)
     unique_targets = len({e.target for e in _recent_events})
 
     if unique_targets >= 3 or same_target >= 4:
         return AlertLevel.CRITICAL
 
-    if "decoy" in indicator or "credential" in indicator or "bruteforce" in indicator:
+    high_keywords = [
+        "decoy", "credential", "bruteforce", "reverse_shell", "shell",
+        "c2", "beacon", "malware",
+    ]
+    if any(k in indicator for k in high_keywords):
         return AlertLevel.HIGH
 
     if same_target >= 2:
@@ -83,17 +77,19 @@ def _calculate_level(event: AlertEvent) -> AlertLevel:
 
 
 def recommend_playbook(level: AlertLevel, indicator: str) -> str:
-    """Suggest the most appropriate playbook for the current level + indicator."""
+    ind = indicator.lower()
     if level == AlertLevel.CRITICAL:
-        if "exfil" in indicator.lower() or "encryption" in indicator.lower():
+        if "exfil" in ind or "encryption" in ind:
             return "halt_operations"
         return "subnet_isolation"
 
     if level == AlertLevel.HIGH:
-        if "credential" in indicator.lower():
+        if "credential" in ind:
             return "credential_rotation"
-        if "decoy" in indicator.lower():
+        if "decoy" in ind:
             return "isolate_endpoint"
+        if "reverse_shell" in ind or "shell" in ind:
+            return "block_ip"
         return "isolate_endpoint"
 
-    return "block_ip"  # conservative default for LOW
+    return "block_ip"
