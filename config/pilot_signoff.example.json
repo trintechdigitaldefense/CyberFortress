@@ -6,6 +6,8 @@
   "operator_runbook_acknowledged": false,
   "roe_signed": false,
   "nda_signed": false,
+  "roe_document": "path/or/filename of signed ROE PDF",
+  "nda_document": "path/or/filename of signed NDA PDF",
   "authorized_actions": [
     "block_ip",
     "terminate_session",
@@ -21,5 +23,5 @@
   "signed_by_role": "TrinTech Lead Operator",
   "client_approver": "Client Contact Name",
   "signoff_date_utc": "YYYY-MM-DD",
-  "notes": "Pilot sign-off for intentional live mode. authorized_actions is the ROE allow-list enforced by CyberFortress."
+  "notes": "Pilot sign-off for intentional live mode. authorized_actions is the ROE allow-list enforced by CyberFortress. Complete NDA + ROE templates under docs/templates/ before setting flags to true."
 }
