@@ -1,9 +1,15 @@
-# CyberFortress core dependencies (required for MVP demo)
-pyyaml>=6.0
-requests>=2.31.0
-python-dateutil>=2.8.2
+# CyberFortress core — pinned for CI reproducibility (Brief 2 Task 7)
+pyyaml==6.0.2
+requests==2.32.3
+python-dateutil==2.9.0.post0
 
-# Optional identity providers — install when needed:
-#   pip install ldap3 msal
-# ldap3>=2.9.1
-# msal>=1.24.0
+# Test / CI
+pytest==8.3.4
+pytest-cov==6.0.0
+ruff==0.8.4
+bandit==1.8.0
+pip-audit==2.7.3
+
+# Optional identity (install when needed)
+# ldap3==2.9.1
+# msal==1.31.1
