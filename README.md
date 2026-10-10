@@ -8,7 +8,36 @@
 
 ---
 
-## Start here (close-out docs)
+## One-command start
+
+```bash
+git clone https://github.com/trintechdigitaldefense/CyberFortress.git
+cd CyberFortress
+./install.sh
+./start.sh
+```
+
+That’s it.
+
+| Command | What it does |
+|---------|----------------|
+| `./install.sh` | Installs Python deps, creates `.env`, runtime folders |
+| `./start.sh` | Starts **everything** (Docker if available, else local processes) |
+| `./stop.sh` | Stops everything |
+| `./start.sh status` | Shows what’s running |
+
+After start:
+
+- **Dashboard:** http://127.0.0.1:8091  
+- **Health:** http://127.0.0.1:8090  
+- **Default mode:** dry-run (`CF_CONTAINMENT_LIVE=false`)
+
+Force local (no Docker): `./start.sh local`  
+Force Docker: `./start.sh docker`
+
+---
+
+## Docs
 
 | Doc | Purpose |
 |-----|---------|
@@ -21,50 +50,16 @@
 | [docs/OPERATOR_RUNBOOK.md](docs/OPERATOR_RUNBOOK.md) | Shift process |
 | [docs/GO_LIVE.md](docs/GO_LIVE.md) | Intentional live mode |
 
-```bash
-./scripts/check_client_ready.sh
-```
-
 ---
 
 ## What’s included
 
 - Tiered autonomy (Tier 1 act / Tier 2 WhatsApp APPROVE)
-- **ROE allow-list** (`authorized_actions` in pilot sign-off)
-- Containment + **rollback** playbooks
-- CMA-mapped audit log + Evidence Pack
-- Circuit breaker + 24/7 fail-closed watchdog
-- Dashboard with optional **HTTP Basic Auth** (`127.0.0.1`)
-- Gated live mode (`enable_live_mode.sh` / `disable_live_mode.sh`)
-- Identity providers: local Linux, LDAP/AD, Azure AD
+- ROE allow-list · containment + rollback playbooks
+- CMA audit log · Evidence Pack · circuit breaker · 24/7 watchdog
+- Dashboard (optional auth) · gated live mode
 
----
-
-## Hardened defaults
-
-| Control | Default |
-|---------|--------|
-| Live containment | **OFF** |
-| `--force` | **OFF** |
-| Watchdog fail-closed | **ON** |
-| Admin UIs | localhost only |
-| Containers | non-root |
-
----
-
-## Quick start
-
-```bash
-git clone https://github.com/trintechdigitaldefense/CyberFortress.git
-cd CyberFortress
-pip install -r requirements.txt
-cp .env.example .env && chmod 600 .env
-
-./scripts/check_client_ready.sh
-python3 playbooks/execute.py --list
-export CF_DASHBOARD_PASS='change-me'
-python3 -m agents.dashboard   # http://127.0.0.1:8091
-```
+**Safety defaults:** live OFF · force OFF · admin UIs on localhost only.
 
 ---
 
