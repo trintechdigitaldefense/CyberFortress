@@ -1,0 +1,23 @@
+{
+  "client_name": "CLIENT_LEGAL_NAME",
+  "engagement_id": "ENG-YYYY-NNN",
+  "checklist_complete": false,
+  "whatsapp_tls_verified": false,
+  "operator_runbook_acknowledged": false,
+  "roe_signed": false,
+  "nda_signed": false,
+  "authorized_actions": [
+    "block_ip",
+    "terminate_session",
+    "deploy_decoy",
+    "isolate_endpoint"
+  ],
+  "whatsapp_admins": [
+    "+1868xxxxxxxx"
+  ],
+  "signed_by": "Lead Operator Name",
+  "signed_by_role": "TrinTech Lead Operator",
+  "client_approver": "Client Contact Name",
+  "signoff_date_utc": "YYYY-MM-DD",
+  "notes": "Pilot sign-off for intentional live mode. Set checklist_complete and related flags to true only when docs/PILOT_DEPLOYMENT.md is fully done."
+}
