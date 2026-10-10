@@ -49,6 +49,23 @@ services:
     networks:
       - cyberfortress_net
 
+  watchdog:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_watchdog
+    restart: unless-stopped
+    command: ["python3", "-m", "agents.watchdog_agent"]
+    volumes:
+      - ../config:/app/config:ro
+      - ../logs:/app/logs
+    environment:
+      - CF_MODE=production
+      - CF_WATCHDOG_INTERVAL=60
+      - CF_WATCHDOG_FAIL_CLOSED=${CF_WATCHDOG_FAIL_CLOSED:-false}
+    networks:
+      - cyberfortress_net
+
   whatsapp_webhook:
     build:
       context: ..
