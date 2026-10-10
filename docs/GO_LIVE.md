@@ -3,52 +3,48 @@
 **TrinTech Digital Defense — CyberFortress**
 
 Live containment (`CF_CONTAINMENT_LIVE=true`) is **never** the default.  
-It is enabled only after pilot checklist completion and explicit sign-off.
+It is enabled only after legal + operational gates are complete.
 
 ---
 
 ## Prerequisites (all required)
 
-1. **docs/PILOT_DEPLOYMENT.md** checklist completed and filed
-2. **docs/WHATSAPP_TLS.md** completed — live WhatsApp + HTTPS working
-3. **docs/OPERATOR_RUNBOOK.md** understood by on-call operators
-4. Signed NDA + ROE authorizing listed containment actions
-5. Sign-off record present: `config/pilot_signoff.json` (from example template)
+| # | Gate | Evidence |
+|---|------|----------|
+| 1 | **NDA signed** | `docs/templates/NDA_TEMPLATE.md` → signed PDF; `nda_signed: true` |
+| 2 | **ROE signed** | `docs/templates/ROE_TEMPLATE.md` → signed PDF; `roe_signed: true`; same `authorized_actions` + WhatsApp admins |
+| 3 | **WhatsApp + HTTPS** | `docs/WHATSAPP_TLS.md` + `./scripts/setup_whatsapp_live.sh` + `./scripts/verify_whatsapp.sh`; `whatsapp_tls_verified: true` |
+| 4 | **Operator runbook** | `docs/OPERATOR_RUNBOOK.md` acknowledged; flag true |
+| 5 | **Pilot checklist** | `docs/PILOT_DEPLOYMENT.md` complete; `checklist_complete: true` |
+| 6 | **Sign-off file** | `config/pilot_signoff.json` (from example; **gitignored**) |
+
+```bash
+cp config/pilot_signoff.example.json config/pilot_signoff.json
+chmod 600 config/pilot_signoff.json
+# Edit every field — no placeholders left
+```
 
 ---
 
 ## Enable live mode (controlled)
 
 ```bash
-# 1. Confirm sign-off file exists and is valid
 ./scripts/enable_live_mode.sh --check
-
-# 2. Enable (writes env flag + reminds operator process)
-./scripts/enable_live_mode.sh --enable
-
-# 3. Restart services so containers pick up CF_CONTAINMENT_LIVE=true
-docker compose -f docker/docker-compose.yml up -d
-
-# 4. Verify
-python3 -m agents.healthcheck
-# Containment live should report true
+./scripts/enable_live_mode.sh --enable   # type: ENABLE LIVE MODE
+./stop.sh && ./start.sh
+python3 -m agents.healthcheck           # containment_live must be true
 ```
 
-The enable script **refuses** to run if:
-- `config/pilot_signoff.json` is missing or incomplete
-- Required fields (client, signed_by, date, checklist_complete) are absent
-- Operator does not type the confirmation phrase
+The enable script **refuses** if sign-off is missing, flags are false, or placeholders remain.
 
 ---
 
-## Disable live mode (rollback)
+## Disable (rollback)
 
 ```bash
 ./scripts/disable_live_mode.sh
-docker compose -f docker/docker-compose.yml up -d
+./stop.sh && ./start.sh
 python3 playbooks/breaker.py trip --reason "Live mode disabled by operator"
-# Optional: reset breaker after situation is stable
-# python3 playbooks/breaker.py reset
 ```
 
 ---
@@ -57,36 +53,19 @@ python3 playbooks/breaker.py trip --reason "Live mode disabled by operator"
 
 | Mode | Behaviour |
 |------|-----------|
-| DRY-RUN (default) | Drivers log intended iptables/session/etc. actions only |
-| LIVE | Drivers execute real containment on the host/network |
+| DRY-RUN (default) | Drivers log intended actions only |
+| LIVE | Drivers execute real containment |
 
-Tier rules still apply:
-- Tier 1: execute + notify
-- Tier 2: WhatsApp APPROVE required (`CF_ALLOW_FORCE` still false unless emergency)
+Tier rules still apply: Tier 1 execute+notify; Tier 2 WhatsApp `APPROVE <nonce>`.
 
 ---
 
 ## First 48 hours after go-live
 
-- [ ] Operator on watch per OPERATOR_RUNBOOK
-- [ ] Watchdog running with fail-closed
-- [ ] Evidence pack at 24h and 48h
-- [ ] Off-box backup scheduled
-- [ ] Client knows how WhatsApp alerts look and who approves
-
----
-
-## Sign-off file
-
-Copy and complete:
-
-```bash
-cp config/pilot_signoff.example.json config/pilot_signoff.json
-chmod 600 config/pilot_signoff.json
-# Edit with client name, dates, operator names, checklist confirmation
-```
-
-`config/pilot_signoff.json` is gitignored — do not commit client sign-offs.
+- [ ] Operator on watch per OPERATOR_RUNBOOK  
+- [ ] Watchdog fail-closed on  
+- [ ] Evidence pack at 24h and 48h  
+- [ ] Client knows who can approve on WhatsApp  
 
 ---
 
