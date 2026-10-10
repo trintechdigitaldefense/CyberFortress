@@ -1,64 +1,58 @@
 # CyberFortress
 
-**Autonomous Incident Response & Operations Platform**  
+**Autonomous Incident Response Platform**  
 *TrinTech Digital Defense · Trinidad & Tobago* 🇹🇹  
-**PROTECTED ASSET**
+**PROTECTED ASSET — MVP CLOSED**
+
+> Fast containment, WhatsApp approval for big moves, full TT Computer Misuse Act audit trail.
 
 ---
 
-## Overview
+## Start here (close-out docs)
 
-CyberFortress reduces Mean Time to Containment while aligning with the Trinidad & Tobago Computer Misuse Act.
-
-### Client-ready path (required order)
-
-1. **[docs/PILOT_DEPLOYMENT.md](docs/PILOT_DEPLOYMENT.md)** — pilot checklist  
-2. **[docs/WHATSAPP_TLS.md](docs/WHATSAPP_TLS.md)** — live WhatsApp + HTTPS  
-3. **[docs/OPERATOR_RUNBOOK.md](docs/OPERATOR_RUNBOOK.md)** — operator process  
-4. **[docs/GO_LIVE.md](docs/GO_LIVE.md)** — intentional live mode only after sign-off  
+| Doc | Purpose |
+|-----|---------|
+| **[docs/OVERVIEW.md](docs/OVERVIEW.md)** | What it is |
+| **[docs/HOW_TO_USE.md](docs/HOW_TO_USE.md)** | How to operate |
+| **[docs/HOW_TO_SELL.md](docs/HOW_TO_SELL.md)** | How to package & sell |
+| **[docs/CHEATSHEET.md](docs/CHEATSHEET.md)** | Commands & switches |
+| [docs/PILOT_DEPLOYMENT.md](docs/PILOT_DEPLOYMENT.md) | Pilot checklist |
+| [docs/WHATSAPP_TLS.md](docs/WHATSAPP_TLS.md) | Live WhatsApp + HTTPS |
+| [docs/OPERATOR_RUNBOOK.md](docs/OPERATOR_RUNBOOK.md) | Shift process |
+| [docs/GO_LIVE.md](docs/GO_LIVE.md) | Intentional live mode |
 
 ```bash
 ./scripts/check_client_ready.sh
-# Live mode (gated):
-./scripts/enable_live_mode.sh --check
-./scripts/enable_live_mode.sh --enable   # requires config/pilot_signoff.json
-./scripts/disable_live_mode.sh           # emergency rollback
 ```
 
 ---
 
-## Hardening (enforced)
+## What’s included
+
+- Tiered autonomy (Tier 1 act / Tier 2 WhatsApp APPROVE)
+- **ROE allow-list** (`authorized_actions` in pilot sign-off)
+- Containment + **rollback** playbooks
+- CMA-mapped audit log + Evidence Pack
+- Circuit breaker + 24/7 fail-closed watchdog
+- Dashboard with optional **HTTP Basic Auth** (`127.0.0.1`)
+- Gated live mode (`enable_live_mode.sh` / `disable_live_mode.sh`)
+- Identity providers: local Linux, LDAP/AD, Azure AD
+
+---
+
+## Hardened defaults
 
 | Control | Default |
 |---------|--------|
-| `CF_CONTAINMENT_LIVE` | `false` — enable only via gated script + sign-off |
-| `CF_WATCHDOG_FAIL_CLOSED` | `true` |
-| `CF_ALLOW_FORCE` | `false` — prefer WhatsApp APPROVE |
-| Admin ports | `127.0.0.1` only |
-| Containers | non-root `cfops` |
-| Secrets | `.env` never committed |
-| WhatsApp | localhost webhook + TLS proxy |
-| Backup | `scripts/backup_offbox.sh` |
+| Live containment | **OFF** |
+| `--force` | **OFF** |
+| Watchdog fail-closed | **ON** |
+| Admin UIs | localhost only |
+| Containers | non-root |
 
 ---
 
-## Capabilities
-
-| Feature | Status |
-|---------|--------|
-| Tiered Autonomy + WhatsApp HITL | ✅ |
-| Legal mapping (TT CMA) | ✅ |
-| Telemetry Fusion + Containment Drivers | ✅ |
-| Identity Providers | ✅ |
-| Evidence Pack + Circuit Breaker + Watchdog | ✅ |
-| Dashboard / Health (localhost) | ✅ |
-| Pilot checklist + Operator runbook | ✅ |
-| WhatsApp TLS guide | ✅ |
-| Gated live mode enable/disable | ✅ |
-
----
-
-## Quick Start
+## Quick start
 
 ```bash
 git clone https://github.com/trintechdigitaldefense/CyberFortress.git
@@ -67,30 +61,10 @@ pip install -r requirements.txt
 cp .env.example .env && chmod 600 .env
 
 ./scripts/check_client_ready.sh
-python3 -m agents.healthcheck
+python3 playbooks/execute.py --list
+export CF_DASHBOARD_PASS='change-me'
 python3 -m agents.dashboard   # http://127.0.0.1:8091
 ```
-
-SSH tunnel for remote admin:
-
-```bash
-ssh -L 8091:127.0.0.1:8091 -L 8090:127.0.0.1:8090 user@cf-host
-```
-
----
-
-## Docker
-
-```bash
-docker compose -f docker/docker-compose.yml up -d --build
-```
-
-| Service | Bind |
-|---------|------|
-| Dashboard | `127.0.0.1:8091` |
-| Health | `127.0.0.1:8090` |
-| WhatsApp Webhook | `127.0.0.1:8089` + TLS proxy |
-| Watchdog | fail-closed on |
 
 ---
 
