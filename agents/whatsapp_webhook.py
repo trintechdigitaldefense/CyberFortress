@@ -1,32 +1,105 @@
 #!/usr/bin/env python3
 """
-CyberFortress WhatsApp Webhook Receiver
+CyberFortress WhatsApp Webhook Receiver (hardened)
 
-Receives Meta Cloud API webhook callbacks for interactive button replies
-and writes decisions into the pending-approval store used by the gateway.
-
-Run with a simple WSGI/ASGI server or behind ngrok / Cloudflare Tunnel
-for public HTTPS endpoint required by Meta.
-
-Environment:
-  CF_WHATSAPP_VERIFY_TOKEN   — must match what you set in Meta Developer Console
-  CF_WHATSAPP_PENDING_DIR    — shared with gateway (default ./logs/whatsapp_pending)
+- Only CF_WHATSAPP_ADMINS numbers can approve
+- Requires APPROVE <nonce> or DENY <nonce> matching pending request
+- Unknown sender → DENY-UNKNOWN-SENDER + log
 """
 
-import os
 import json
 import logging
-from pathlib import Path
+import os
+import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+
+from core.whatsapp_gateway import (
+    is_allowed_approver,
+    hash_sender,
+    PENDING_DIR,
+)
 
 logger = logging.getLogger("cf_whatsapp_webhook")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [WHATSAPP_WEBHOOK] %(levelname)s %(message)s")
 
 VERIFY_TOKEN = os.getenv("CF_WHATSAPP_VERIFY_TOKEN", "cf_verify_token_change_me")
-PENDING_DIR = Path(os.getenv("CF_WHATSAPP_PENDING_DIR", "./logs/whatsapp_pending"))
-PENDING_DIR.mkdir(parents=True, exist_ok=True)
 PORT = int(os.getenv("CF_WHATSAPP_WEBHOOK_PORT", "8089"))
+PENDING_DIR.mkdir(parents=True, exist_ok=True)
+
+APPROVE_RE = re.compile(r"^APPROVE\s+([A-Fa-f0-9]{4,12})$", re.I)
+DENY_RE = re.compile(r"^DENY\s+([A-Fa-f0-9]{4,12})$", re.I)
+
+
+def record_decision(
+    request_id: str,
+    decision: str,
+    sender: str,
+    provided_nonce: str,
+) -> None:
+    """Shared by webhook and mock demo helper."""
+    pending_path = PENDING_DIR / f"{request_id}.json"
+    if not pending_path.exists():
+        logger.warning(f"No pending request {request_id}")
+        return
+
+    meta = json.loads(pending_path.read_text(encoding="utf-8"))
+    expected = str(meta.get("nonce", "")).upper()
+    provided = provided_nonce.upper().strip()
+
+    if not is_allowed_approver(sender):
+        payload = {
+            "decision": "DENY-UNKNOWN-SENDER",
+            "sender_hash": hash_sender(sender),
+            "nonce_ok": False,
+        }
+        (PENDING_DIR / f"{request_id}.decision").write_text(json.dumps(payload), encoding="utf-8")
+        logger.warning(f"Unknown sender denied for {request_id} hash={payload['sender_hash']}")
+        return
+
+    nonce_ok = secrets_compare(expected, provided)
+    if decision.upper() == "APPROVE" and not nonce_ok:
+        payload = {
+            "decision": "DENY-BAD-NONCE",
+            "sender_hash": hash_sender(sender),
+            "nonce_ok": False,
+        }
+    else:
+        payload = {
+            "decision": decision.upper(),
+            "sender_hash": hash_sender(sender),
+            "nonce_ok": nonce_ok,
+        }
+
+    (PENDING_DIR / f"{request_id}.decision").write_text(json.dumps(payload), encoding="utf-8")
+    logger.info(f"Recorded {payload['decision']} for {request_id} nonce_ok={nonce_ok}")
+
+
+def secrets_compare(a: str, b: str) -> bool:
+    if len(a) != len(b):
+        return False
+    result = 0
+    for x, y in zip(a.encode(), b.encode()):
+        result |= x ^ y
+    return result == 0
+
+
+def _find_request_by_nonce(nonce: str) -> str | None:
+    nonce = nonce.upper()
+    for path in PENDING_DIR.glob("*.json"):
+        if path.name.endswith(".decision"):
+            continue
+        try:
+            meta = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if str(meta.get("nonce", "")).upper() == nonce:
+            # Skip if already decided
+            if (PENDING_DIR / f"{path.stem}.decision").exists():
+                continue
+            return path.stem
+    return None
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
@@ -34,7 +107,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
         logger.info("%s - %s", self.address_string(), format % args)
 
     def do_GET(self):
-        """Meta webhook verification challenge."""
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
         mode = qs.get("hub.mode", [None])[0]
@@ -52,7 +124,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        """Incoming message / button reply."""
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length)
         try:
@@ -69,58 +140,51 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
     def _process_payload(self, data: dict):
         try:
-            entries = data.get("entry", [])
-            for entry in entries:
+            for entry in data.get("entry", []):
                 for change in entry.get("changes", []):
                     value = change.get("value", {})
-                    messages = value.get("messages", [])
-                    for msg in messages:
+                    for msg in value.get("messages", []):
                         self._handle_message(msg)
         except Exception as e:
             logger.exception(f"Error processing webhook payload: {e}")
 
     def _handle_message(self, msg: dict):
-        """Extract button reply or text APPROVE/DENY."""
+        sender = str(msg.get("from", ""))
         msg_type = msg.get("type")
-        request_id = None
-        decision = None
+        text = ""
 
-        if msg_type == "interactive":
-            interactive = msg.get("interactive", {})
-            if interactive.get("type") == "button_reply":
-                button_id = interactive.get("button_reply", {}).get("id", "")
-                if button_id.startswith("approve_"):
-                    request_id = button_id[len("approve_"):]
-                    decision = "APPROVE"
-                elif button_id.startswith("deny_"):
-                    request_id = button_id[len("deny_"):]
-                    decision = "DENY"
+        if msg_type == "text":
+            text = msg.get("text", {}).get("body", "").strip()
+        elif msg_type == "interactive":
+            # Buttons no longer sufficient alone — require text nonce path
+            logger.info("Interactive button ignored; reply APPROVE <nonce> as text")
+            return
+        else:
+            return
 
-        elif msg_type == "text":
-            text = msg.get("text", {}).get("body", "").strip().upper()
-            if text in ("APPROVE", "YES", "OK"):
-                # Without request_id we cannot safely match — log only
-                logger.info(f"Received free-text APPROVE from {msg.get('from')} (no request_id)")
-                return
-            if text in ("DENY", "NO", "CANCEL"):
-                logger.info(f"Received free-text DENY from {msg.get('from')} (no request_id)")
-                return
+        m_ok = APPROVE_RE.match(text)
+        m_no = DENY_RE.match(text)
+        if not m_ok and not m_no:
+            logger.info(f"Ignoring non-decision text from hash={hash_sender(sender)}")
+            return
 
-        if request_id and decision:
-            decision_file = PENDING_DIR / f"{request_id}.decision"
-            decision_file.write_text(decision, encoding="utf-8")
-            logger.info(f"Recorded decision {decision} for request {request_id}")
+        decision = "APPROVE" if m_ok else "DENY"
+        nonce = (m_ok or m_no).group(1)
+        request_id = _find_request_by_nonce(nonce)
+        if not request_id:
+            logger.warning(f"No pending request for nonce from hash={hash_sender(sender)}")
+            return
+
+        record_decision(request_id, decision, sender, nonce)
 
 
 def main():
-    logger.info(f"Starting WhatsApp webhook receiver on port {PORT}")
-    logger.info(f"Verify token: {VERIFY_TOKEN}")
-    logger.info(f"Pending dir: {PENDING_DIR}")
+    logger.info(f"Starting WhatsApp webhook on port {PORT}")
+    logger.info("Approvals require: APPROVE <nonce> from registered admin only")
     server = HTTPServer(("0.0.0.0", PORT), WebhookHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        logger.info("Shutting down webhook receiver")
         server.server_close()
 
 
