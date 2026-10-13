@@ -124,6 +124,11 @@ def collect_dashboard_data():
         packs = list_evidence_packs(5)
     except Exception:
         packs = []
+    try:
+        from core.containment.firewall import firewall_status
+        fw = firewall_status()
+    except Exception as e:
+        fw = {"message": str(e), "live_mode": live, "rule_count": 0, "rules": []}
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "client_name": CLIENT_NAME,
@@ -152,11 +157,13 @@ def collect_dashboard_data():
         "agents": _agent_heartbeats(),
         "auth_enabled": bool(DASH_PASS),
         "evidence_packs": packs,
+        "firewall": fw,
         "stats": {
             "total_actions_shown": len(actions),
             "pending_approvals": len(pending),
             "by_severity": by_severity,
             "evidence_packs": len(packs),
+            "firewall_rules": fw.get("rule_count", 0),
         },
         "recent_actions": actions[:30],
         "pending_approvals": pending,
@@ -197,6 +204,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         elif path == "/api/status":
             self._json(200, collect_dashboard_data())
+        elif path == "/api/firewall":
+            try:
+                from core.containment.firewall import firewall_status
+                self._json(200, {"ok": True, **firewall_status()})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
         elif path == "/api/evidence":
             try:
                 from core.evidence.pack import list_evidence_packs
@@ -206,7 +219,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif path == "/api/evidence/download":
             qs = parse_qs(parsed.query)
             name = (qs.get("name") or [""])[0]
-            # Only serve basename ZIPs under evidence/
             safe = Path(name).name
             if not safe.endswith(".zip") or ".." in name:
                 self._json(400, {"ok": False, "error": "invalid name"})
