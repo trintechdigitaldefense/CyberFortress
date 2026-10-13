@@ -42,6 +42,9 @@ class IPTablesDriver(ContainmentDriver):
     name = "iptables"
 
     def execute(self, target: str, action: str = "block_ip", **kwargs) -> Dict[str, Any]:
+        """Active firewall via dedicated CF_BLOCK chain (see core.containment.firewall)."""
+        from core.containment.firewall import block_ip, unblock_ip, ensure_chain
+
         result = {
             "driver": self.name,
             "action": action,
@@ -53,41 +56,19 @@ class IPTablesDriver(ContainmentDriver):
         }
 
         try:
-            if action in ("block_ip", "isolate_endpoint"):
-                for direction, chain in [("INPUT", "src"), ("OUTPUT", "dst")]:
-                    cmd = ["iptables", "-I", direction, "1", "-s" if chain == "src" else "-d", target, "-j", "DROP"]
-                    self._run(cmd)
-                result["details"] = f"iptables DROP rules inserted for {target}"
-                result["success"] = True
-
-            elif action == "subnet_isolation":
-                for direction, flag in [("INPUT", "-s"), ("OUTPUT", "-d"), ("FORWARD", "-s")]:
-                    cmd = ["iptables", "-I", direction, "1", flag, target, "-j", "DROP"]
-                    self._run(cmd)
-                result["details"] = f"Subnet isolation rules applied for {target}"
-                result["success"] = True
-
-            elif action in ("unblock_ip", "restore_endpoint"):
-                # Best-effort delete matching DROP rules (may need multiple passes in production)
-                for direction, flag in [("INPUT", "-s"), ("OUTPUT", "-d")]:
-                    cmd = ["iptables", "-D", direction, flag, target, "-j", "DROP"]
-                    self._run(cmd, check=False)
-                result["details"] = f"iptables DROP rules removed (best-effort) for {target}"
-                result["success"] = True
-
-            elif action == "restore_subnet":
-                for direction, flag in [("INPUT", "-s"), ("OUTPUT", "-d"), ("FORWARD", "-s")]:
-                    cmd = ["iptables", "-D", direction, flag, target, "-j", "DROP"]
-                    self._run(cmd, check=False)
-                result["details"] = f"Subnet isolation rules removed (best-effort) for {target}"
-                result["success"] = True
-
+            ensure_chain(dry_run=self.dry_run)
+            if action in ("block_ip", "isolate_endpoint", "subnet_isolation"):
+                fw = block_ip(target, dry_run=self.dry_run, comment=f"CF:{action}")
+                result["success"] = fw.get("success", False)
+                result["details"] = fw.get("details", "")
+                result["firewall"] = fw
+            elif action in ("unblock_ip", "restore_endpoint", "restore_subnet"):
+                fw = unblock_ip(target, dry_run=self.dry_run)
+                result["success"] = fw.get("success", False)
+                result["details"] = fw.get("details", "")
+                result["firewall"] = fw
             else:
                 result["details"] = f"Unsupported action for IPTablesDriver: {action}"
-
-        except subprocess.CalledProcessError as e:
-            result["details"] = f"iptables failed: {e.stderr.decode() if e.stderr else str(e)}"
-            logger.error(result["details"])
         except Exception as e:
             result["details"] = str(e)
             logger.exception("IPTablesDriver error")
@@ -145,13 +126,11 @@ class DecoyDeployer(ContainmentDriver):
         try:
             if self.dry_run:
                 logger.info(f"[DRY-RUN] Would write decoy to {decoy_path}")
-                result["details"] = f"Dry-run: decoy would be placed at {decoy_path}"
+                result["details"] = f"[DRY-RUN] decoy at {decoy_path}"
                 result["success"] = True
             else:
-                with open(decoy_path, "w", encoding="utf-8") as f:
-                    f.write(decoy_content)
-                os.chmod(decoy_path, 0o644)
-                result["details"] = f"Decoy deployed at {decoy_path}"
+                Path(decoy_path).write_text(decoy_content, encoding="utf-8")
+                result["details"] = f"Decoy written to {decoy_path}"
                 result["success"] = True
         except Exception as e:
             result["details"] = str(e)
@@ -163,21 +142,20 @@ class CredentialRotator(ContainmentDriver):
     name = "credential_rotator"
 
     def execute(self, target: str, action: str = "credential_rotation", **kwargs) -> Dict[str, Any]:
-        provider_name = kwargs.get("provider") or os.getenv("CF_IDENTITY_PROVIDER", "local_linux")
-        idp = get_identity_provider(provider_name)
         result = {
             "driver": self.name,
             "action": action,
             "target": target,
-            "provider": idp.name,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "dry_run": self.dry_run,
             "success": False,
             "details": "",
-            "rotated": [],
         }
-        if target.lower() in ("all", "fleet", "*"):
-            users = idp.list_users() or ["(fleet-wide — no users returned by provider)"]
+        idp = get_identity_provider()
+        if target in ("*", "all", ""):
+            users = idp.list_users() or []
+            if not users:
+                users = ["(no users returned by provider)"]
         else:
             users = [u.strip() for u in target.split(",") if u.strip()]
         try:
