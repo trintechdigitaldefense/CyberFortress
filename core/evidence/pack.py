@@ -1,44 +1,58 @@
 #!/usr/bin/env python3
 """
 CyberFortress Evidence Pack Generator
-Creates a professional, client-ready evidence package containing:
-- All CMA-mapped actions
-- Timestamps and justifications
-- Approval status
-- Summary suitable for clients or regulators
 
-Output: a timestamped folder + optional ZIP.
+Creates a client-ready evidence package:
+  01_Executive_Report.md   — clean narrative for clients / counsel
+  01_Executive_Report.html — same report, browser-friendly
+  02_Full_Audit.json       — machine-readable summary + actions
+  03_Raw_CMA_Audit.jsonl   — copy of the audit chain (if present)
+  MANIFEST.sha256          — file integrity hashes
+
+Output: timestamped folder under ./evidence/ + optional ZIP.
 """
+
+from __future__ import annotations
 
 import json
 import hashlib
+import logging
+import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-import logging
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("cf_evidence")
 
-LOG_DIR = Path("./logs")
-EVIDENCE_ROOT = Path("./evidence")
+EVIDENCE_ROOT = Path(os.getenv("CF_EVIDENCE_DIR", "./evidence"))
+AUDIT_PATH = Path(os.getenv("CF_AUDIT_PATH", "./logs/cma_audit.jsonl"))
+
+
+def _esc(val: Any) -> str:
+    return (
+        str(val if val is not None else "")
+        .replace("&", "&")
+        .replace("<", "<")
+        .replace(">", ">")
+        .replace('"', """)
+    )
 
 
 class EvidencePack:
-    def __init__(self, client_name: str = "Client", engagement_id: str = None):
+    def __init__(self, client_name: str = "Client", engagement_id: Optional[str] = None):
         self.client_name = client_name
         self.engagement_id = engagement_id or datetime.now(timezone.utc).strftime("ENG-%Y%m%d-%H%M")
         self.created_at = datetime.now(timezone.utc)
         self.actions: List[Dict[str, Any]] = []
         self.pack_dir: Optional[Path] = None
+        self.meta: Dict[str, Any] = {}
 
-    def load_from_audit_log(self, audit_path: str = "./logs/cma_audit.jsonl") -> int:
-        """Load all entries from the compliance JSONL log."""
-        path = Path(audit_path)
+    def load_from_audit_log(self, audit_path: Optional[str] = None) -> int:
+        path = Path(audit_path) if audit_path else AUDIT_PATH
         if not path.exists():
-            logger.warning(f"No audit log found at {path}")
+            logger.warning("No audit log at %s", path)
             return 0
-
         count = 0
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
@@ -46,171 +60,306 @@ class EvidencePack:
                 if not line:
                     continue
                 try:
-                    entry = json.loads(line)
-                    self.actions.append(entry)
+                    self.actions.append(json.loads(line))
                     count += 1
                 except json.JSONDecodeError:
                     continue
-        logger.info(f"Loaded {count} audit entries")
+        logger.info("Loaded %s audit entries", count)
         return count
 
-    def add_action(self, entry: Dict[str, Any]):
-        self.actions.append(entry)
+    def _platform_context(self) -> Dict[str, Any]:
+        live = os.getenv("CF_CONTAINMENT_LIVE", "false").lower() == "true"
+        ctx: Dict[str, Any] = {
+            "mode": "LIVE PROTECTION" if live else "PRACTICE MODE (dry-run)",
+            "containment_live": live,
+            "whatsapp_enabled": os.getenv("CF_WHATSAPP_ENABLED", "false").lower() == "true",
+            "identity_provider": os.getenv("CF_IDENTITY_PROVIDER", "local_linux"),
+        }
+        try:
+            from core.circuit_breaker import breaker
+            ctx["circuit_breaker"] = breaker.status()
+        except Exception:
+            ctx["circuit_breaker"] = {"state": "UNKNOWN"}
+        try:
+            from core.roe import roe_status
+            ctx["roe"] = roe_status()
+        except Exception:
+            ctx["roe"] = {"signoff_present": False, "source": "unknown"}
+        try:
+            from core.audit_chain import verify_chain
+            ok, idx, msg = verify_chain(AUDIT_PATH)
+            ctx["audit_integrity"] = {"ok": ok, "message": msg, "broken_index": idx}
+        except Exception as e:
+            ctx["audit_integrity"] = {"ok": False, "message": str(e), "broken_index": None}
+        return ctx
 
     def _generate_summary(self) -> Dict[str, Any]:
-        total = len(self.actions)
-        by_severity = {}
-        by_action = {}
-        approved = 0
-        held = 0
-
+        by_severity: Dict[str, int] = {}
+        by_action: Dict[str, int] = {}
+        approved = held = 0
         for a in self.actions:
             sev = a.get("severity", "INFO")
             by_severity[sev] = by_severity.get(sev, 0) + 1
             act = a.get("action", "unknown")
             by_action[act] = by_action.get(act, 0) + 1
-            just = a.get("legislative_justification", "")
+            just = str(a.get("legislative_justification", ""))
             if "APPROVED" in just or "FORCE" in just:
                 approved += 1
             if "HELD" in just:
                 held += 1
-
+        ctx = self._platform_context()
         return {
             "client": self.client_name,
             "engagement_id": self.engagement_id,
             "generated_at": self.created_at.isoformat(),
-            "total_actions": total,
+            "total_actions": len(self.actions),
             "approved_or_forced": approved,
             "held": held,
             "by_severity": by_severity,
             "by_action": by_action,
+            **ctx,
         }
 
-    def _write_human_report(self, path: Path):
-        """Write a clean, client-friendly Markdown report."""
-        summary = self._generate_summary()
-
+    def _write_human_report(self, path: Path) -> None:
+        s = self._generate_summary()
+        ai = s.get("audit_integrity") or {}
+        roe = s.get("roe") or {}
+        cb = s.get("circuit_breaker") or {}
         lines = [
-            f"# CyberFortress Evidence Report",
-            f"",
+            "# CyberFortress — Evidence Report",
+            "",
             f"**Client:** {self.client_name}  ",
             f"**Engagement ID:** {self.engagement_id}  ",
             f"**Generated:** {self.created_at.strftime('%Y-%m-%d %H:%M UTC')}  ",
-            f"**Prepared by:** TrinTech Digital Defense",
-            f"",
-            f"---",
-            f"",
-            f"## Executive Summary",
-            f"",
-            f"- Total protective actions recorded: **{summary['total_actions']}**",
-            f"- Actions approved / forced: **{summary['approved_or_forced']}**",
-            f"- Actions held pending approval: **{summary['held']}**",
-            f"",
-            f"### Breakdown by Severity",
+            "**Prepared by:** TrinTech Digital Defense (Trinidad & Tobago)",
+            "",
+            "---",
+            "",
+            "## 1. Platform status at time of report",
+            "",
+            "| Item | Value |",
+            "|------|-------|",
+            f"| Operating mode | {s.get('mode')} |",
+            f"| Circuit breaker | {cb.get('state', '—')} |",
+            f"| ROE source | {roe.get('source', '—')} |",
+            f"| Pilot sign-off on file | {'Yes' if roe.get('signoff_present') else 'No'} |",
+            f"| Audit chain integrity | {'OK' if ai.get('ok') else 'CHECK NEEDED'} — {ai.get('message', '')} |",
+            f"| WhatsApp approvals | {'Enabled' if s.get('whatsapp_enabled') else 'Not connected'} |",
+            "",
+            "## 2. Executive summary",
+            "",
+            f"This report lists protective actions recorded by CyberFortress for **{self.client_name}**. "
+            "Each action is rules-driven and mapped to the Trinidad and Tobago Computer Misuse Act "
+            "for authorized defensive use.",
+            "",
+            f"- **Total actions recorded:** {s['total_actions']}",
+            f"- **Approved or force-executed:** {s['approved_or_forced']}",
+            f"- **Held pending human approval:** {s['held']}",
+            "",
         ]
-
-        for sev, count in summary["by_severity"].items():
-            lines.append(f"- {sev}: {count}")
-
+        if s["total_actions"] == 0:
+            lines += [
+                "> No protective actions were in the audit log when this pack was generated. "
+                "That is normal on a fresh install or before the first detection cycle.",
+                "",
+            ]
+        lines += ["### Severity", ""]
+        if s["by_severity"]:
+            for sev, count in sorted(s["by_severity"].items()):
+                lines.append(f"- **{sev}:** {count}")
+        else:
+            lines.append("- None")
+        lines += ["", "### Action types", ""]
+        if s["by_action"]:
+            for act, count in sorted(s["by_action"].items(), key=lambda x: (-x[1], x[0])):
+                lines.append(f"- `{act}`: {count}")
+        else:
+            lines.append("- None")
         lines += [
-            f"",
-            f"### Breakdown by Action Type",
+            "",
+            "---",
+            "",
+            "## 3. Detailed action log",
+            "",
+            "Times are UTC. Justifications are the legislative notes written into the audit trail at the time of the action.",
+            "",
         ]
-        for act, count in summary["by_action"].items():
-            lines.append(f"- `{act}`: {count}")
-
-        lines += [
-            f"",
-            f"---",
-            f"",
-            f"## Detailed Action Log",
-            f"",
-            f"All actions below are mapped to the Trinidad and Tobago Computer Misuse Act",
-            f"and include the exact legislative justification used at the time of execution.",
-            f"",
-        ]
-
+        if not self.actions:
+            lines.append("_No actions to list._")
+            lines.append("")
         for i, a in enumerate(self.actions, 1):
             lines += [
-                f"### {i}. {a.get('action', 'unknown').upper()} on {a.get('target', 'unknown')}",
-                f"",
-                f"- **Time:** {a.get('timestamp', 'N/A')}",
-                f"- **Severity:** {a.get('severity', 'N/A')}",
-                f"- **Justification:** {a.get('legislative_justification', 'N/A')}",
-                f"",
+                f"### {i}. `{a.get('action', 'unknown')}` → `{a.get('target', 'unknown')}`",
+                "",
+                "| Field | Value |",
+                "|-------|-------|",
+                f"| Time | {a.get('timestamp', 'N/A')} |",
+                f"| Severity | {a.get('severity', 'N/A')} |",
+                f"| Entry hash | `{(a.get('entry_hash') or '—')[:16]}…` |",
+                f"| Justification | {a.get('legislative_justification', 'N/A')} |",
+                "",
             ]
-
         lines += [
-            f"---",
-            f"",
-            f"## Integrity Note",
-            f"",
-            f"This evidence pack was generated by CyberFortress.",
-            f"A SHA-256 manifest is included so any alteration of the files can be detected.",
-            f"",
-            f"*TrinTech Digital Defense — Defend. Detect. Dominate.*",
+            "---",
+            "",
+            "## 4. Integrity",
+            "",
+            "- `MANIFEST.sha256` lists SHA-256 digests of every file in this pack.",
+            "- `03_Raw_CMA_Audit.jsonl` is the append-only audit chain (when present).",
+            "- Re-verify on the host: `python3 scripts/verify_audit_chain.py`",
+            "",
+            "---",
+            "",
+            "*Authorized defensive use only. Not for offensive activity.*",
+            "",
         ]
-
         path.write_text("\n".join(lines), encoding="utf-8")
 
-    def build(self, output_root: str = "./evidence") -> Path:
-        """Create the evidence pack folder and files."""
-        EVIDENCE_ROOT.mkdir(parents=True, exist_ok=True)
+    def _write_html_report(self, path: Path) -> None:
+        s = self._generate_summary()
+        ai = s.get("audit_integrity") or {}
+        roe = s.get("roe") or {}
+        cb = s.get("circuit_breaker") or {}
+        rows = []
+        for a in self.actions:
+            rows.append(
+                "<tr>"
+                f"<td>{_esc(a.get('timestamp', ''))}</td>"
+                f"<td><code>{_esc(a.get('action', ''))}</code></td>"
+                f"<td>{_esc(a.get('target', ''))}</td>"
+                f"<td>{_esc(a.get('severity', ''))}</td>"
+                f"<td>{_esc(a.get('legislative_justification', ''))}</td>"
+                "</tr>"
+            )
+        table = "\n".join(rows) if rows else '<tr><td colspan="5">No actions recorded</td></tr>'
+        html = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<title>CyberFortress Evidence — {_esc(self.client_name)}</title>
+<style>
+body{{font-family:system-ui,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem;color:#0f172a;line-height:1.5}}
+h1{{font-size:1.4rem}}h2{{font-size:1.1rem;margin-top:1.5rem;border-bottom:1px solid #e2e8f0;padding-bottom:.3rem}}
+table{{border-collapse:collapse;width:100%;font-size:.9rem;margin:.75rem 0}}
+th,td{{border:1px solid #e2e8f0;padding:.45rem .6rem;text-align:left;vertical-align:top}}
+th{{background:#f1f5f9}}
+.meta{{color:#475569;font-size:.9rem}}
+.badge{{display:inline-block;padding:.15rem .5rem;border-radius:6px;background:#e0f2fe;font-size:.8rem}}
+footer{{margin-top:2rem;color:#64748b;font-size:.8rem}}
+</style></head><body>
+<h1>CyberFortress Evidence Report</h1>
+<p class="meta">
+<strong>Client:</strong> {_esc(self.client_name)} ·
+<strong>Engagement:</strong> {_esc(self.engagement_id)} ·
+<strong>Generated:</strong> {self.created_at.strftime('%Y-%m-%d %H:%M UTC')}<br>
+TrinTech Digital Defense · Trinidad & Tobago
+</p>
+<h2>Platform status</h2>
+<table>
+<tr><th>Item</th><th>Value</th></tr>
+<tr><td>Mode</td><td><span class="badge">{_esc(s.get('mode'))}</span></td></tr>
+<tr><td>Circuit breaker</td><td>{_esc(cb.get('state', '—'))}</td></tr>
+<tr><td>ROE</td><td>{_esc(roe.get('source', '—'))} (sign-off: {'yes' if roe.get('signoff_present') else 'no'})</td></tr>
+<tr><td>Audit integrity</td><td>{'OK' if ai.get('ok') else 'CHECK'} — {_esc(ai.get('message', ''))}</td></tr>
+</table>
+<h2>Executive summary</h2>
+<ul>
+<li>Total actions: <strong>{s['total_actions']}</strong></li>
+<li>Approved / forced: <strong>{s['approved_or_forced']}</strong></li>
+<li>Held for approval: <strong>{s['held']}</strong></li>
+</ul>
+<p>Rules-driven protective actions mapped to the Computer Misuse Act for authorized defensive use.</p>
+<h2>Action log</h2>
+<table>
+<thead><tr><th>Time (UTC)</th><th>Action</th><th>Target</th><th>Severity</th><th>Justification</th></tr></thead>
+<tbody>
+{table}
+</tbody>
+</table>
+<footer>Integrity: see MANIFEST.sha256 and 03_Raw_CMA_Audit.jsonl. Verify with scripts/verify_audit_chain.py.<br>
+Authorized defensive use only.</footer>
+</body></html>
+"""
+        path.write_text(html, encoding="utf-8")
+
+    def build(self, output_root: Optional[str] = None) -> Path:
+        root = Path(output_root) if output_root else EVIDENCE_ROOT
+        root.mkdir(parents=True, exist_ok=True)
         stamp = self.created_at.strftime("%Y%m%d_%H%M%S")
-        self.pack_dir = EVIDENCE_ROOT / f"{self.engagement_id}_{stamp}"
+        self.pack_dir = root / f"{self.engagement_id}_{stamp}"
         self.pack_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Human-readable report
         self._write_human_report(self.pack_dir / "01_Executive_Report.md")
+        self._write_html_report(self.pack_dir / "01_Executive_Report.html")
 
-        # 2. Full machine-readable audit
+        summary = self._generate_summary()
+        self.meta = summary
         with open(self.pack_dir / "02_Full_Audit.json", "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "summary": self._generate_summary(),
-                    "actions": self.actions,
-                },
-                f,
-                indent=2,
-            )
+            json.dump({"summary": summary, "actions": self.actions}, f, indent=2, default=str)
 
-        # 3. Raw JSONL copy (if exists)
-        audit_src = Path("./logs/cma_audit.jsonl")
-        if audit_src.exists():
-            shutil.copy(audit_src, self.pack_dir / "03_Raw_CMA_Audit.jsonl")
+        if AUDIT_PATH.exists():
+            shutil.copy(AUDIT_PATH, self.pack_dir / "03_Raw_CMA_Audit.jsonl")
 
-        # 4. Manifest with hashes for integrity
         manifest = {}
         for file in sorted(self.pack_dir.iterdir()):
             if file.is_file() and file.name != "MANIFEST.sha256":
-                h = hashlib.sha256(file.read_bytes()).hexdigest()
-                manifest[file.name] = h
-
+                manifest[file.name] = hashlib.sha256(file.read_bytes()).hexdigest()
         with open(self.pack_dir / "MANIFEST.sha256", "w", encoding="utf-8") as f:
             for name, digest in manifest.items():
                 f.write(f"{digest}  {name}\n")
 
-        logger.info(f"Evidence pack created at {self.pack_dir}")
+        logger.info("Evidence pack created at %s", self.pack_dir)
         return self.pack_dir
 
     def zip(self) -> Path:
-        """Create a ZIP of the pack for easy delivery."""
         if not self.pack_dir or not self.pack_dir.exists():
             raise RuntimeError("Call build() first")
         zip_path = shutil.make_archive(str(self.pack_dir), "zip", root_dir=self.pack_dir)
-        logger.info(f"Evidence ZIP created: {zip_path}")
+        logger.info("Evidence ZIP created: %s", zip_path)
         return Path(zip_path)
+
+
+def list_evidence_packs(limit: int = 10) -> List[Dict[str, Any]]:
+    root = EVIDENCE_ROOT
+    if not root.exists():
+        return []
+    zips = sorted(root.glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+    out = []
+    for z in zips[:limit]:
+        out.append({
+            "name": z.name,
+            "path": str(z),
+            "size_bytes": z.stat().st_size,
+            "modified": datetime.fromtimestamp(z.stat().st_mtime, tz=timezone.utc).isoformat(),
+        })
+    return out
 
 
 def generate_evidence_pack(
     client_name: str = "Client",
-    engagement_id: str = None,
+    engagement_id: Optional[str] = None,
     create_zip: bool = True,
 ) -> Path:
-    """Convenience function used by CLI and other modules."""
     pack = EvidencePack(client_name=client_name, engagement_id=engagement_id)
     pack.load_from_audit_log()
     pack.build()
     if create_zip:
         return pack.zip()
-    return pack.pack_dir
+    return pack.pack_dir  # type: ignore[return-value]
+
+
+def generate_evidence_pack_with_meta(
+    client_name: str = "Client",
+    create_zip: bool = True,
+) -> Dict[str, Any]:
+    pack = EvidencePack(client_name=client_name)
+    n = pack.load_from_audit_log()
+    folder = pack.build()
+    zip_path = pack.zip() if create_zip else None
+    return {
+        "ok": True,
+        "actions_loaded": n,
+        "folder": str(folder),
+        "path": str(zip_path) if zip_path else str(folder),
+        "zip": str(zip_path) if zip_path else None,
+        "summary": pack.meta,
+        "files": sorted(p.name for p in folder.iterdir() if p.is_file()),
+    }
