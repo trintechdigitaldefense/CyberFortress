@@ -6,7 +6,8 @@ Uses a dedicated chain CF_BLOCK so rules are visible, countable, and removable
 without touching unrelated host policy.
 
 Safety:
-  - Mutations only when dry_run=False AND CF_CONTAINMENT_LIVE=true
+  - Chain setup (ensure_chain) runs when the firewall agent starts (empty chain = no blocks)
+  - DROP rules only when CF_CONTAINMENT_LIVE=true (armed containment)
   - status() is always read-only
 """
 
@@ -24,47 +25,67 @@ logger = logging.getLogger("cf_firewall")
 
 CHAIN = os.getenv("CF_IPTABLES_CHAIN", "CF_BLOCK")
 LIVE_MODE = os.getenv("CF_CONTAINMENT_LIVE", "false").lower() == "true"
+AUTO_START = os.getenv("CF_FIREWALL_AUTO_START", "true").lower() == "true"
 
 
 def _iptables_bin() -> Optional[str]:
     return shutil.which("iptables")
 
 
-def _run(cmd: List[str], dry_run: bool) -> subprocess.CompletedProcess:
-    if dry_run or not LIVE_MODE:
-        logger.info("[DRY-RUN/SAFE] Would execute: %s", " ".join(cmd))
-        return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
+def _run_real(cmd: List[str]) -> subprocess.CompletedProcess:
     logger.info("Executing: %s", " ".join(cmd))
     return subprocess.run(cmd, capture_output=True, check=False)
+
+
+def _run_block(cmd: List[str], dry_run: bool) -> subprocess.CompletedProcess:
+    if dry_run or not LIVE_MODE:
+        logger.info("[STANDBY] Would execute: %s", " ".join(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
+    return _run_real(cmd)
 
 
 def _run_read(cmd: List[str]) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, check=False)
 
 
-def ensure_chain(dry_run: bool = True) -> Dict[str, Any]:
+def ensure_chain(dry_run: bool = False, force_infra: bool = False) -> Dict[str, Any]:
     ipt = _iptables_bin()
     if not ipt:
-        return {"ok": False, "error": "iptables not found on PATH"}
+        return {"ok": False, "error": "iptables not found on PATH", "chain": CHAIN}
+
+    do_real = (not dry_run) and (LIVE_MODE or AUTO_START or force_infra)
 
     steps = []
-    r = _run([ipt, "-N", CHAIN], dry_run=dry_run)
-    steps.append({"cmd": f"iptables -N {CHAIN}", "rc": r.returncode})
+    if do_real:
+        r = _run_real([ipt, "-N", CHAIN])
+        steps.append({"cmd": f"iptables -N {CHAIN}", "rc": r.returncode})
+    else:
+        logger.info("[STANDBY] Would create chain %s", CHAIN)
+        steps.append({"cmd": f"iptables -N {CHAIN}", "rc": 0, "simulated": True})
 
     for parent in ("INPUT", "OUTPUT"):
-        chk = _run_read([ipt, "-C", parent, "-j", CHAIN])
-        if chk.returncode != 0:
-            r = _run([ipt, "-I", parent, "1", "-j", CHAIN], dry_run=dry_run)
-            steps.append({"cmd": f"iptables -I {parent} -j {CHAIN}", "rc": r.returncode})
+        chk = _run_read([ipt, "-C", parent, "-j", CHAIN]) if do_real or ipt else None
+        if do_real:
+            if chk is not None and chk.returncode != 0:
+                r = _run_real([ipt, "-I", parent, "1", "-j", CHAIN])
+                steps.append({"cmd": f"iptables -I {parent} -j {CHAIN}", "rc": r.returncode})
+            else:
+                steps.append({"cmd": f"jump {parent}->{CHAIN}", "rc": 0, "already": True})
         else:
-            steps.append({"cmd": f"jump {parent}->{CHAIN}", "rc": 0, "already": True})
+            steps.append({"cmd": f"jump {parent}->{CHAIN}", "rc": 0, "simulated": True})
 
     return {
         "ok": True,
         "chain": CHAIN,
-        "dry_run": dry_run or (not LIVE_MODE),
+        "infrastructure": do_real,
         "live_mode": LIVE_MODE,
+        "auto_start": AUTO_START,
         "steps": steps,
+        "message": (
+            f"Chain {CHAIN} ready (empty until containment actions add DROP rules)"
+            if do_real
+            else f"Chain {CHAIN} setup simulated (set CF_FIREWALL_AUTO_START=true and install iptables)"
+        ),
     }
 
 
@@ -84,8 +105,8 @@ def block_ip(target: str, dry_run: bool = True, comment: str = "CyberFortress") 
     if result["dry_run"]:
         result["success"] = True
         result["details"] = (
-            f"[DRY-RUN] Would ensure chain {CHAIN} and DROP src/dst {target} "
-            f"(iptables={'yes' if ipt else 'not on PATH'})"
+            f"[MONITORING] Would DROP src/dst {target} in {CHAIN} "
+            f"(arm containment with CF_CONTAINMENT_LIVE=true to apply)"
         )
         return result
 
@@ -93,7 +114,7 @@ def block_ip(target: str, dry_run: bool = True, comment: str = "CyberFortress") 
         result["details"] = "iptables binary not found"
         return result
 
-    ensure_chain(dry_run=False)
+    ensure_chain(dry_run=False, force_infra=True)
     cmt = re.sub(r"[^A-Za-z0-9_.:-]", "_", comment)[:40]
     cmds = [
         [ipt, "-A", CHAIN, "-s", target, "-j", "DROP", "-m", "comment", "--comment", cmt],
@@ -102,7 +123,7 @@ def block_ip(target: str, dry_run: bool = True, comment: str = "CyberFortress") 
     details = []
     ok = True
     for cmd in cmds:
-        r = _run(cmd, dry_run=False)
+        r = _run_block(cmd, dry_run=False)
         details.append(" ".join(cmd[1:]))
         if r.returncode != 0:
             ok = False
@@ -129,7 +150,7 @@ def unblock_ip(target: str, dry_run: bool = True) -> Dict[str, Any]:
 
     if result["dry_run"]:
         result["success"] = True
-        result["details"] = f"[DRY-RUN] Would remove DROP rules for {target} from {CHAIN}"
+        result["details"] = f"[MONITORING] Would remove DROP rules for {target} from {CHAIN}"
         return result
 
     if not ipt:
@@ -140,7 +161,7 @@ def unblock_ip(target: str, dry_run: bool = True) -> Dict[str, Any]:
     for _ in range(8):
         for flag in ("-s", "-d"):
             cmd = [ipt, "-D", CHAIN, flag, target, "-j", "DROP"]
-            r = _run(cmd, dry_run=False)
+            r = _run_block(cmd, dry_run=False)
             if r.returncode == 0:
                 removed += 1
     result["success"] = True
@@ -177,7 +198,13 @@ def list_cf_rules() -> List[Dict[str, str]]:
                     }
                 )
             else:
-                rules.append({"num": parts[0], "raw": line[:120], "target": parts[3] if len(parts) > 3 else ""})
+                rules.append(
+                    {
+                        "num": parts[0],
+                        "raw": line[:120],
+                        "target": parts[3] if len(parts) > 3 else "",
+                    }
+                )
         except Exception:
             rules.append({"raw": line[:120]})
     return rules[:50]
@@ -186,12 +213,15 @@ def list_cf_rules() -> List[Dict[str, str]]:
 def firewall_status() -> Dict[str, Any]:
     ipt = _iptables_bin()
     live = os.getenv("CF_CONTAINMENT_LIVE", "false").lower() == "true"
+    auto = os.getenv("CF_FIREWALL_AUTO_START", "true").lower() == "true"
     status: Dict[str, Any] = {
         "backend": "iptables",
         "chain": CHAIN,
         "iptables_present": bool(ipt),
         "live_mode": live,
-        "mode_label": "ARMED" if live else "STANDBY (monitoring only)",
+        "auto_start": auto,
+        "service": "running",
+        "mode_label": "ARMED" if live else "RUNNING (standby for DROP rules)",
         "chain_exists": False,
         "rule_count": 0,
         "rules": [],
@@ -200,6 +230,7 @@ def firewall_status() -> Dict[str, Any]:
     }
     if not ipt:
         status["message"] = "iptables not installed or not on PATH"
+        status["mode_label"] = "UNAVAILABLE"
         return status
 
     r = _run_read([ipt, "-L", CHAIN, "-n"])
@@ -208,23 +239,27 @@ def firewall_status() -> Dict[str, Any]:
         rules = list_cf_rules()
         status["rules"] = rules
         status["rule_count"] = len(rules)
-        status["message"] = (
-            f"Chain {CHAIN} present with {status['rule_count']} rule(s)"
-            if status["rule_count"]
-            else f"Chain {CHAIN} present (empty)"
-        )
+        if live:
+            status["mode_label"] = "ARMED"
+            status["message"] = f"Chain {CHAIN} active · {status['rule_count']} DROP rule(s)"
+        else:
+            status["mode_label"] = "RUNNING"
+            status["message"] = (
+                f"Firewall service up · chain {CHAIN} ready · "
+                f"{status['rule_count']} rule(s) · containment not armed (no new DROP from alerts)"
+            )
     else:
-        status["message"] = f"Chain {CHAIN} not created yet (created on first armed block)"
-        err = (r.stderr or b"").decode(errors="replace").strip()
-        if err:
-            status["iptables_error"] = err[:200]
+        status["message"] = (
+            f"Chain {CHAIN} not present yet — firewall agent will create it on start "
+            f"(needs root + iptables)"
+        )
 
     who = _run_read(["id", "-u"])
     try:
         status["running_as_uid"] = int((who.stdout or b"0").decode().strip() or "0")
     except Exception:
         status["running_as_uid"] = None
-    if live and status.get("running_as_uid") not in (0, None):
-        status["warning"] = "Containment armed but process is not root — iptables may fail"
+    if status.get("running_as_uid") not in (0, None) and auto:
+        status["warning"] = "Not root — cannot create/manage iptables rules (start with sudo for full firewall)"
 
     return status
