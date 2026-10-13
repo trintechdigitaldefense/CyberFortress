@@ -14,8 +14,8 @@ Env:
   CF_WHATSAPP_PHONE_NUMBER_ID=...
   CF_WHATSAPP_ADMINS=+1868xxxxxxxx,+1868yyyyyyyy
   CF_WHATSAPP_VERIFY_TOKEN=...
-  CF_APPROVAL_TIMEOUT=900   # seconds (default 15 min)
-  CF_WHATSAPP_MOCK=true     # demo without live Meta API
+  CF_APPROVAL_TIMEOUT=900
+  CF_WHATSAPP_MOCK=true
 """
 
 from __future__ import annotations
@@ -39,7 +39,6 @@ WHATSAPP_MOCK = os.getenv("CF_WHATSAPP_MOCK", "false").lower() == "true"
 WHATSAPP_TOKEN = os.getenv("CF_WHATSAPP_TOKEN", "")
 PHONE_NUMBER_ID = os.getenv("CF_WHATSAPP_PHONE_NUMBER_ID", "")
 ADMIN_NUMBERS = [n.strip() for n in os.getenv("CF_WHATSAPP_ADMINS", "").split(",") if n.strip()]
-# Default 15 minutes per Task 3
 APPROVAL_TIMEOUT = int(os.getenv("CF_APPROVAL_TIMEOUT", "900"))
 GRAPH_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages" if PHONE_NUMBER_ID else ""
 
@@ -63,7 +62,6 @@ def is_allowed_approver(sender: str) -> bool:
 
 
 def hash_sender(sender: str) -> str:
-    """One-way hash for evidence packs (do not store raw numbers in exports)."""
     return hashlib.sha256(_normalize_number(sender).encode()).hexdigest()[:16]
 
 
@@ -103,42 +101,20 @@ def _format_approval_message(
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     mins = max(1, APPROVAL_TIMEOUT // 60)
     return (
-        f"🚨 *CyberFortress Tier 2 Approval Required*\n\n"
-        f"*ID:* `{request_id}`\n"
-        f"*Time:* {ts}\n"
-        f"*Severity:* {severity}\n"
-        f"*Action:* {action}\n"
-        f"*Target:* {target}\n"
-        f"*Legal:* {justification}\n\n"
-        f"Reply exactly:\n"
-        f"`APPROVE {nonce}`\n"
-        f"or\n"
-        f"`DENY {nonce}`\n\n"
-        f"Only registered admin numbers can approve.\n"
-        f"_Timeout in {mins} min → automatic DENY._"
-    )
-
-
-def send_notification(message: str, level: str = "INFO") -> bool:
-    if not ADMIN_NUMBERS:
-        logger.warning("No CF_WHATSAPP_ADMINS configured")
-        return False
-    ok = True
-    for num in ADMIN_NUMBERS:
-        if not _send_text(num, message):
-            ok = False
-    return ok
-
-
-def notify_tier1(action: str, target: str, justification: str) -> None:
-    msg = (
-        f"✅ *CyberFortress Tier 1 Action Executed*\n"
+        f"CyberFortress Tier 2 Approval Required\n\n"
+        f"ID: {request_id}\n"
+        f"Time: {ts}\n"
+        f"Severity: {severity}\n"
         f"Action: {action}\n"
         f"Target: {target}\n"
-        f"Justification: {justification}\n"
-        f"Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+        f"Legal: {justification}\n\n"
+        f"Reply exactly:\n"
+        f"APPROVE {nonce}\n"
+        f"or\n"
+        f"DENY {nonce}\n\n"
+        f"Only registered admin numbers can approve.\n"
+        f"Timeout in {mins} min → automatic DENY."
     )
-    send_notification(msg, level="INFO")
 
 
 def _write_pending(request_id: str, meta: dict) -> None:
@@ -146,24 +122,11 @@ def _write_pending(request_id: str, meta: dict) -> None:
     path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
 
-def _read_decision(request_id: str) -> Optional[dict]:
-    """Decision file is JSON: {decision, sender_hash, nonce_ok, ...}"""
-    decision_file = PENDING_DIR / f"{request_id}.decision"
-    if not decision_file.exists():
-        return None
-    raw = decision_file.read_text(encoding="utf-8").strip()
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        # Legacy plain APPROVE/DENY
-        return {"decision": raw.upper(), "sender_hash": None, "nonce_ok": False, "legacy": True}
-
-
-def log_approval_event(
+def _log_approval_decision(
+    result: str,
     request_id: str,
     action: str,
     target: str,
-    result: str,
     sender_hash: Optional[str] = None,
     nonce: Optional[str] = None,
 ) -> None:
@@ -172,7 +135,7 @@ def log_approval_event(
         "tag": "TT_CMA_TAG",
         "action": f"whatsapp_approval:{result}",
         "target": target,
-        "severity": "INFO" if result == "APPROVE" else "INFO",
+        "severity": "INFO",
         "legislative_justification": (
             f"HITL decision for {action} on {target} | "
             f"request={request_id} | result={result} | "
@@ -184,9 +147,14 @@ def log_approval_event(
         "sender_hash": sender_hash,
         "nonce": nonce,
     }
-    AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(AUDIT_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry) + "\n")
+    try:
+        from core.audit_chain import append_chained
+
+        append_chained(AUDIT_PATH, entry)
+    except Exception:
+        AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(AUDIT_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
     logger.info(f"Approval audit: {result} for {request_id}")
 
 
@@ -197,75 +165,71 @@ def request_approval(
     justification: str = "Authorized defensive action under TT Computer Misuse Act",
 ) -> bool:
     request_id = f"CF-{int(time.time())}-{secrets.token_hex(3)}"
-    nonce = secrets.token_hex(3).upper()  # 6 hex chars
+    nonce = secrets.token_hex(3).upper()
 
     meta = {
+        "request_id": request_id,
+        "nonce": nonce,
         "action": action,
         "target": target,
         "severity": severity,
         "justification": justification,
-        "created": datetime.now(timezone.utc).isoformat(),
-        "nonce": nonce,
-        "request_id": request_id,
-        "timeout_seconds": APPROVAL_TIMEOUT,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": time.time() + APPROVAL_TIMEOUT,
     }
     _write_pending(request_id, meta)
 
+    body = _format_approval_message(action, target, severity, justification, request_id, nonce)
+
     if not ADMIN_NUMBERS:
         logger.warning("No admins configured — treating as DENY")
-        log_approval_event(request_id, action, target, "DENY-NO-ADMINS", nonce=nonce)
-        return False
-
-    message = _format_approval_message(action, target, severity, justification, request_id, nonce)
-    for num in ADMIN_NUMBERS:
-        _send_text(num, message)
-
-    # Mock path for demos without live Meta: write a helper file operators can use
-    if WHATSAPP_MOCK or not WHATSAPP_ENABLED:
-        helper = PENDING_DIR / f"{request_id}.mock_hint"
-        helper.write_text(
-            f"MOCK MODE — to approve in demo:\n"
-            f"python3 -c \"from agents.whatsapp_webhook import record_decision; "
-            f"record_decision('{request_id}', 'APPROVE', '{ADMIN_NUMBERS[0]}', '{nonce}')\"\n",
+        _log_approval_decision("DENY-NO-ADMINS", request_id, action, target)
+        (PENDING_DIR / f"{request_id}.decision").write_text(
+            json.dumps({"decision": "DENY-NO-ADMINS", "nonce_ok": False}),
             encoding="utf-8",
         )
-        logger.info(f"Mock approval hint written: {helper}")
+        return False
 
-    logger.info(f"Waiting up to {APPROVAL_TIMEOUT}s for APPROVE {nonce} on {request_id}...")
+    for admin in ADMIN_NUMBERS:
+        _send_text(admin, body)
+
+    # Poll for decision file (webhook or mock writes it)
     deadline = time.time() + APPROVAL_TIMEOUT
-
+    decision_path = PENDING_DIR / f"{request_id}.decision"
     while time.time() < deadline:
-        dec = _read_decision(request_id)
-        if dec:
-            decision = str(dec.get("decision", "")).upper()
-            sender_hash = dec.get("sender_hash")
-            nonce_ok = bool(dec.get("nonce_ok"))
-
-            if dec.get("legacy"):
-                # Plain APPROVE without nonce is no longer accepted
-                logger.warning(f"Legacy decision without nonce rejected for {request_id}")
-                log_approval_event(request_id, action, target, "DENY-INVALID-FORMAT", sender_hash, nonce)
-                return False
-
+        if decision_path.exists():
+            try:
+                data = json.loads(decision_path.read_text(encoding="utf-8"))
+            except Exception:
+                time.sleep(1)
+                continue
+            decision = str(data.get("decision", "")).upper()
+            nonce_ok = bool(data.get("nonce_ok", False))
             if decision == "APPROVE" and nonce_ok:
-                log_approval_event(request_id, action, target, "APPROVE", sender_hash, nonce)
+                _log_approval_decision(
+                    "APPROVE",
+                    request_id,
+                    action,
+                    target,
+                    sender_hash=data.get("sender_hash"),
+                    nonce=nonce,
+                )
                 return True
-            if decision == "APPROVE" and not nonce_ok:
-                log_approval_event(request_id, action, target, "DENY-BAD-NONCE", sender_hash, nonce)
-                return False
-            if decision == "DENY":
-                log_approval_event(request_id, action, target, "DENY", sender_hash, nonce)
-                return False
-            if decision in ("DENY-UNKNOWN-SENDER", "DENY-BAD-NONCE"):
-                log_approval_event(request_id, action, target, decision, sender_hash, nonce)
-                return False
+            _log_approval_decision(
+                decision or "DENY",
+                request_id,
+                action,
+                target,
+                sender_hash=data.get("sender_hash"),
+                nonce=nonce,
+            )
+            return False
         time.sleep(2)
 
-    logger.warning(f"Request {request_id} timed out — TIMEOUT-DENY")
-    log_approval_event(request_id, action, target, "TIMEOUT-DENY", nonce=nonce)
-    # Persist decision for operators
+    logger.warning(f"Approval timeout for {request_id}")
+    _log_approval_decision("DENY-TIMEOUT", request_id, action, target, nonce=nonce)
     (PENDING_DIR / f"{request_id}.decision").write_text(
-        json.dumps({"decision": "TIMEOUT-DENY", "sender_hash": None, "nonce_ok": False}),
+        json.dumps({"decision": "DENY-TIMEOUT", "nonce_ok": False}),
         encoding="utf-8",
     )
     return False
