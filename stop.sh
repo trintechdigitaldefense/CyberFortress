@@ -37,7 +37,6 @@ if [[ -d "$PID_DIR" ]]; then
 fi
 
 # 2) Kill orphan agents from earlier runs (pid file lost / different cwd)
-#    Match python -m agents.<name> only — safe for multi-tool hosts
 kill_module() {
   local mod="$1"
   if command -v pkill >/dev/null 2>&1; then
@@ -65,6 +64,7 @@ kill_module "agents.threat_hunting_agent"
 kill_module "agents.telemetry_fusion_agent"
 kill_module "agents.compliance_logger"
 kill_module "agents.watchdog_agent"
+kill_module "agents.firewall_agent"
 sleep 0.3
 
 # 3) Free ports if anything still listens
@@ -88,7 +88,6 @@ free_port() {
       echo "  · freed port $port (lsof)"
     fi
   fi
-  # ss + /proc fallback (common on minimal containers)
   if command -v ss >/dev/null 2>&1; then
     local pids
     pids=$(ss -lptn "sport = :$port" 2>/dev/null | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | sort -u)
