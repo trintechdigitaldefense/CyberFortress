@@ -19,13 +19,13 @@ AUDIT_PATH = Path(os.getenv("CF_AUDIT_PATH", "./logs/cma_audit.jsonl"))
 
 
 def _esc(val: Any) -> str:
-    return (
-        str(val if val is not None else "")
-        .replace("&", "&")
-        .replace("<", "<")
-        .replace(">", ">")
-        .replace('"', """)
-    )
+    # Build replacements without embedding HTML entities that APIs may unescape
+    s = str(val if val is not None else "")
+    s = s.replace("&", "&" + "amp;")
+    s = s.replace("<", "&" + "lt;")
+    s = s.replace(">", "&" + "gt;")
+    s = s.replace('"', "&" + "quot;")
+    return s
 
 
 class EvidencePack:
@@ -246,7 +246,7 @@ class EvidencePack:
             "<p class=\"meta\"><strong>Client:</strong> {} - "
             "<strong>Engagement:</strong> {} - "
             "<strong>Generated:</strong> {}<br>"
-            "TrinTech Digital Defense - Trinidad & Tobago</p>"
+            "TrinTech Digital Defense - Trinidad and Tobago</p>"
             "<h2>Platform status</h2><table>"
             "<tr><th>Item</th><th>Value</th></tr>"
             "<tr><td>Mode</td><td><span class=\"badge\">{}</span></td></tr>"
