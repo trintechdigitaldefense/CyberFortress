@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # CyberFortress — stop everything
-# Usage: bash stop.sh   (or ./stop.sh after chmod)
+# Usage: bash stop.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -20,6 +20,7 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   echo "  · Docker services stopped (if any)"
 fi
 
+# 1) Kill tracked PIDs
 if [[ -d "$PID_DIR" ]]; then
   for f in "$PID_DIR"/*.pid; do
     [[ -f "$f" ]] || continue
@@ -27,7 +28,7 @@ if [[ -d "$PID_DIR" ]]; then
     pid=$(cat "$f" 2>/dev/null || true)
     if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
-      sleep 0.2
+      sleep 0.15
       kill -9 "$pid" 2>/dev/null || true
       echo "  · stopped $name (pid $pid)"
     fi
@@ -35,12 +36,47 @@ if [[ -d "$PID_DIR" ]]; then
   done
 fi
 
-# Free HTTP ports in case orphans remain
+# 2) Kill orphan agents from earlier runs (pid file lost / different cwd)
+#    Match python -m agents.<name> only — safe for multi-tool hosts
+kill_module() {
+  local mod="$1"
+  if command -v pkill >/dev/null 2>&1; then
+    if pkill -f "python3? -m ${mod}" 2>/dev/null; then
+      echo "  · pkill ${mod}"
+    fi
+  elif command -v pgrep >/dev/null 2>&1; then
+    local pids
+    pids=$(pgrep -f "python3? -m ${mod}" 2>/dev/null || true)
+    if [[ -n "${pids:-}" ]]; then
+      # shellcheck disable=SC2086
+      kill $pids 2>/dev/null || true
+      sleep 0.15
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+      echo "  · killed orphan ${mod}"
+    fi
+  fi
+}
+
+kill_module "agents.dashboard"
+kill_module "agents.healthcheck"
+kill_module "agents.whatsapp_webhook"
+kill_module "agents.threat_hunting_agent"
+kill_module "agents.telemetry_fusion_agent"
+kill_module "agents.compliance_logger"
+kill_module "agents.watchdog_agent"
+sleep 0.3
+
+# 3) Free ports if anything still listens
 free_port() {
   local port="$1"
   if command -v fuser >/dev/null 2>&1; then
-    fuser -k "${port}/tcp" >/dev/null 2>&1 || true
-  elif command -v lsof >/dev/null 2>&1; then
+    if fuser "${port}/tcp" >/dev/null 2>&1; then
+      fuser -k "${port}/tcp" >/dev/null 2>&1 || true
+      echo "  · freed port $port (fuser)"
+    fi
+  fi
+  if command -v lsof >/dev/null 2>&1; then
     local pids
     pids=$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
     if [[ -n "${pids:-}" ]]; then
@@ -49,7 +85,20 @@ free_port() {
       sleep 0.1
       # shellcheck disable=SC2086
       kill -9 $pids 2>/dev/null || true
-      echo "  · freed port $port"
+      echo "  · freed port $port (lsof)"
+    fi
+  fi
+  # ss + /proc fallback (common on minimal containers)
+  if command -v ss >/dev/null 2>&1; then
+    local pids
+    pids=$(ss -lptn "sport = :$port" 2>/dev/null | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | sort -u)
+    if [[ -n "${pids:-}" ]]; then
+      # shellcheck disable=SC2086
+      kill $pids 2>/dev/null || true
+      sleep 0.1
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+      echo "  · freed port $port (ss)"
     fi
   fi
 }
