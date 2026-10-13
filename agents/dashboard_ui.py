@@ -47,7 +47,7 @@ a.link{color:var(--accent);text-decoration:none}a.link:hover{text-decoration:und
 <header>
 <div><h1>CYBER<span>FORTRESS</span></h1><div class="client" id="client-label">Protection status</div></div>
 <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
-<span id="mode-badge" class="badge dry">PRACTICE</span>
+<span id="mode-badge" class="badge dry">MONITORING</span>
 <span id="wd-badge" class="badge unknown">PLATFORM —</span>
 <span id="audit-badge" class="badge unknown">AUDIT —</span>
 <span id="breaker-badge" class="badge closed">BREAKER CLOSED</span>
@@ -62,7 +62,7 @@ a.link{color:var(--accent);text-decoration:none}a.link:hover{text-decoration:und
 <div class="grid">
 <div class="card"><h3>Platform</h3><div class="value" id="wd-val">—</div><div class="sub" id="wd-sub">Watchdog</div></div>
 <div class="card"><h3>Audit chain</h3><div class="value" id="audit-val">—</div><div class="sub" id="audit-sub">Integrity</div></div>
-<div class="card"><h3>ROE / sign-off</h3><div class="value" style="font-size:1rem" id="roe-val">—</div><div class="sub" id="roe-sub">Rules of engagement</div></div>
+<div class="card"><h3>Containment policy</h3><div class="value" style="font-size:1rem" id="policy-val">—</div><div class="sub" id="policy-sub">Allow-listed actions</div></div>
 <div class="card"><h3>Circuit breaker</h3><div class="value" id="breaker-val">—</div><div class="sub" id="breaker-reason">—</div></div>
 <div class="card"><h3>Waiting on you</h3><div class="value" id="pending-val">0</div><div class="sub">Approvals</div></div>
 <div class="card"><h3>Actions</h3><div class="value" id="actions-val">0</div><div class="sub" id="sev-breakdown">—</div></div>
@@ -88,7 +88,7 @@ a.link{color:var(--accent);text-decoration:none}a.link:hover{text-decoration:und
 <tbody id="packs-body"><tr><td colspan="3" class="empty">None yet — use Evidence pack</td></tr></tbody></table></div>
 <div class="panel-header" style="border-top:1px solid var(--border)">Active firewall rules (CF_BLOCK)</div>
 <div class="panel-body"><table><thead><tr><th>#</th><th>Source</th><th>Dest</th><th>Action</th></tr></thead>
-<tbody id="fw-rules-body"><tr><td colspan="4" class="empty">No CF rules (practice mode or empty chain)</td></tr></tbody></table>
+<tbody id="fw-rules-body"><tr><td colspan="4" class="empty">No CF rules yet</td></tr></tbody></table>
 <div class="issues" id="fw-msg" style="display:block;color:var(--muted)"></div></div>
 <div class="panel-header" style="border-top:1px solid var(--border);border-bottom:0">Agent heartbeats</div>
 <div class="agents" id="agents-box"></div>
@@ -115,22 +115,23 @@ return `<tr><td style="font-size:.72rem">${esc(p.name)}</td><td>${kb} KB</td><td
 async function refresh(){try{const d=await(await fetch('/api/status')).json();LAST=d;
 document.getElementById('client-label').textContent=(d.client_name||'Client')+' · protection status';
 const live=!!d.containment_live;document.getElementById('mode-val').textContent=d.mode_label||'—';document.getElementById('mode-help').textContent=d.mode_help||'';
-setBadge(document.getElementById('mode-badge'),live?'LIVE':'PRACTICE',live?'live':'dry');
+setBadge(document.getElementById('mode-badge'),live?'ACTIVE':'MONITORING',live?'live':'dry');
 const wd=(d.watchdog&&d.watchdog.overall)||'UNKNOWN';document.getElementById('wd-val').textContent=wd;
 document.getElementById('wd-sub').textContent=(d.watchdog&&d.watchdog.critical_count?d.watchdog.critical_count+' critical · ':'')+(d.watchdog&&d.watchdog.warning_count?d.watchdog.warning_count+' warnings':'Self-check OK');
 setBadge(document.getElementById('wd-badge'),'PLATFORM '+wd,wd==='HEALTHY'?'healthy':wd==='DEGRADED'?'degraded':wd==='UNHEALTHY'?'unhealthy':'unknown');
 const ai=d.audit_integrity||{};document.getElementById('audit-val').textContent=ai.ok?'OK':'CHECK';
 document.getElementById('audit-sub').textContent=ai.message||'Integrity';
 setBadge(document.getElementById('audit-badge'),ai.ok?'AUDIT OK':'AUDIT CHECK',ai.ok?'healthy':'unhealthy');
-const roe=d.roe||{};document.getElementById('roe-val').textContent=roe.signoff_present?'Signed off':(roe.source||'Default');
-document.getElementById('roe-sub').textContent=roe.signoff_present?'Pilot ROE on file':'Using default pilot allow-list';
+const pol=d.policy||d.roe||{};const acts=pol.authorized_actions||[];
+document.getElementById('policy-val').textContent=(pol.action_count!=null?pol.action_count:acts.length)+' actions';
+document.getElementById('policy-sub').textContent=pol.scope||'Allow-listed containment only';
 const cb=d.circuit_breaker||{};document.getElementById('breaker-val').textContent=cb.state||'—';
 document.getElementById('breaker-reason').textContent=cb.reason||(cb.state==='CLOSED'?'Normal':'—');
 setBadge(document.getElementById('breaker-badge'),'BREAKER '+(cb.state||'—'),cb.state==='OPEN'?'open':'closed');
 document.getElementById('pending-val').textContent=d.stats.pending_approvals;document.getElementById('actions-val').textContent=d.stats.total_actions_shown;
 const sev=d.stats.by_severity||{};document.getElementById('sev-breakdown').textContent=`C:${sev.CRITICAL||0} H:${sev.HIGH||0} I:${sev.INFO||0}`;
 document.getElementById('wa-val').textContent=d.whatsapp_enabled?'Connected':'Not connected';
-const fw=d.firewall||{};document.getElementById('fw-val').textContent=fw.live_mode?'LIVE':(fw.iptables_present===false?'N/A':'Practice');
+const fw=d.firewall||{};document.getElementById('fw-val').textContent=fw.live_mode?'ARMED':(fw.iptables_present===false?'N/A':'Standby');
 document.getElementById('fw-sub').textContent=(fw.chain||'CF_BLOCK')+' · '+(fw.rule_count||0)+' rules';
 const fwb=document.getElementById('fw-rules-body');const rules=fw.rules||[];
 fwb.innerHTML=rules.length?rules.map(r=>`<tr><td>${esc(r.num||'')}</td><td>${esc(r.source||'—')}</td><td>${esc(r.destination||'—')}</td><td>${esc(r.target||r.raw||'')}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">No CF rules yet</td></tr>';
@@ -145,7 +146,7 @@ if(issues.length){ib.style.display='block';ib.innerHTML=issues.map(i=>`• [${es
 }catch(e){console.error(e);toast('Could not refresh')}}
 document.getElementById('sev-tabs').addEventListener('click',ev=>{const t=ev.target.closest('.tab');if(!t)return;FILTER=t.dataset.sev;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));if(LAST)renderActions(LAST.recent_actions||[])});
 document.getElementById('btn-refresh').onclick=()=>{refresh();toast('Refreshed')};
-document.getElementById('btn-copy').onclick=()=>{if(!LAST)return;const s=[`CyberFortress — ${LAST.client_name||'Client'}`,`Mode: ${LAST.mode_label}`,`Platform: ${(LAST.watchdog&&LAST.watchdog.overall)||'—'}`,`Audit: ${((LAST.audit_integrity&&LAST.audit_integrity.ok)?'OK':'CHECK')}`,`ROE: ${((LAST.roe&&LAST.roe.source)||'—')}`,`Breaker: ${(LAST.circuit_breaker&&LAST.circuit_breaker.state)||'—'}`,`Firewall: ${((LAST.firewall&&LAST.firewall.mode_label)||'—')} rules=${(LAST.firewall&&LAST.firewall.rule_count)||0}`,`Actions: ${LAST.stats.total_actions_shown}`,`Pending: ${LAST.stats.pending_approvals}`,`Time: ${LAST.timestamp}`].join('\n');navigator.clipboard.writeText(s).then(()=>toast('Summary copied')).catch(()=>toast(s))};
+document.getElementById('btn-copy').onclick=()=>{if(!LAST)return;const s=[`CyberFortress — ${LAST.client_name||'Client'}`,`Mode: ${LAST.mode_label}`,`Platform: ${(LAST.watchdog&&LAST.watchdog.overall)||'—'}`,`Audit: ${((LAST.audit_integrity&&LAST.audit_integrity.ok)?'OK':'CHECK')}`,`Policy actions: ${((LAST.policy&&LAST.policy.action_count)!=null?LAST.policy.action_count:((LAST.roe&&LAST.roe.authorized_actions)||[]).length)}`,`Breaker: ${(LAST.circuit_breaker&&LAST.circuit_breaker.state)||'—'}`,`Firewall: ${((LAST.firewall&&LAST.firewall.mode_label)||'—')} rules=${(LAST.firewall&&LAST.firewall.rule_count)||0}`,`Actions: ${LAST.stats.total_actions_shown}`,`Pending: ${LAST.stats.pending_approvals}`,`Time: ${LAST.timestamp}`].join('\n');navigator.clipboard.writeText(s).then(()=>toast('Summary copied')).catch(()=>toast(s))};
 document.getElementById('btn-evidence').onclick=async()=>{const btn=document.getElementById('btn-evidence');btn.disabled=true;try{const j=await(await fetch('/api/evidence',{method:'POST'})).json();
 if(j.ok){const n=j.actions_loaded!=null?j.actions_loaded:'?';const name=(j.path||'').split('/').pop();toast(`Pack ready (${n} actions) → ${name||'evidence/'}`);refresh()}else toast(j.error||'Failed')}catch(e){toast('Evidence request failed')}btn.disabled=false};
 refresh();setInterval(refresh,5000);
