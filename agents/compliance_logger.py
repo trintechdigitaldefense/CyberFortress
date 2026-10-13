@@ -22,6 +22,7 @@ AUDIT_PATH = Path(os.getenv("CF_AUDIT_PATH", str(LOG_DIR / "cma_audit.jsonl")))
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [COMPLIANCE] %(levelname)s %(message)s",
+    force=True,
 )
 logger = logging.getLogger("cf_compliance_logger")
 
@@ -52,6 +53,7 @@ def write_cma_entry(action: str, target: str, justification: str, severity: str 
 
 def main():
     logger.info("CyberFortress Compliance Logger started (hash-chained audit)")
+    write_heartbeat("compliance_logger", {"phase": "started"})
     while True:
         write_heartbeat("compliance_logger", {"phase": "alive"})
         time.sleep(60)
