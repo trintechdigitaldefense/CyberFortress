@@ -39,7 +39,6 @@ def collect_status() -> dict:
             "mirage_api_set": bool(os.getenv("CF_MIRAGE_API_URL")),
         },
     }
-    # Overall readiness
     status["ready_for_pilot"] = (
         status["paths"]["logs_exist"]
         and status["circuit_breaker"]["state"] == "CLOSED"
@@ -72,8 +71,9 @@ def main():
     args = parser.parse_args()
 
     if args.serve:
-        logger.info(f"Health server listening on :{PORT}")
-        HTTPServer(("0.0.0.0", PORT), HealthHandler).serve_forever()
+        bind = os.getenv("CF_HEALTH_BIND", "127.0.0.1")
+        logger.info(f"Health server listening on {bind}:{PORT}")
+        HTTPServer((bind, PORT), HealthHandler).serve_forever()
     else:
         status = collect_status()
         if args.json:
