@@ -135,9 +135,9 @@ def collect_dashboard_data():
         "containment_live": live,
         "mode_label": "ACTIVE CONTAINMENT" if live else "MONITORING",
         "mode_help": (
-            "Containment is armed — approved actions can change the network firewall."
+            "Containment is armed — protective actions can add DROP rules to the CF_BLOCK firewall."
             if live
-            else "Detecting, correlating, and logging. Firewall rules are not applied until containment is armed by an operator."
+            else "Firewall service is running. Detecting, correlating, and logging. New DROP rules are applied only when containment is armed."
         ),
         "whatsapp_enabled": os.getenv("CF_WHATSAPP_ENABLED", "false").lower() == "true",
         "identity_provider": os.getenv("CF_IDENTITY_PROVIDER", "local_linux"),
