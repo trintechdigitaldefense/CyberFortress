@@ -85,7 +85,7 @@ def secrets_compare(a: str, b: str) -> bool:
     return result == 0
 
 
-def _find_request_by_nonce(nonce: str) -> str | None:
+def _find_request_by_nonce(nonce: str):
     nonce = nonce.upper()
     for path in PENDING_DIR.glob("*.json"):
         if path.name.endswith(".decision"):
@@ -95,7 +95,6 @@ def _find_request_by_nonce(nonce: str) -> str | None:
         except Exception:
             continue
         if str(meta.get("nonce", "")).upper() == nonce:
-            # Skip if already decided
             if (PENDING_DIR / f"{path.stem}.decision").exists():
                 continue
             return path.stem
@@ -156,7 +155,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
         if msg_type == "text":
             text = msg.get("text", {}).get("body", "").strip()
         elif msg_type == "interactive":
-            # Buttons no longer sufficient alone — require text nonce path
             logger.info("Interactive button ignored; reply APPROVE <nonce> as text")
             return
         else:
@@ -178,10 +176,14 @@ class WebhookHandler(BaseHTTPRequestHandler):
         record_decision(request_id, decision, sender, nonce)
 
 
+class ReusableHTTPServer(HTTPServer):
+    allow_reuse_address = True
+
+
 def main():
     logger.info(f"Starting WhatsApp webhook on port {PORT}")
     logger.info("Approvals require: APPROVE <nonce> from registered admin only")
-    server = HTTPServer(("0.0.0.0", PORT), WebhookHandler)
+    server = ReusableHTTPServer(("0.0.0.0", PORT), WebhookHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
