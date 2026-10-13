@@ -63,6 +63,10 @@ class HealthHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 
+class ReusableHTTPServer(HTTPServer):
+    allow_reuse_address = True
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
@@ -72,8 +76,9 @@ def main():
 
     if args.serve:
         bind = os.getenv("CF_HEALTH_BIND", "127.0.0.1")
-        logger.info(f"Health server listening on {bind}:{PORT}")
-        HTTPServer((bind, PORT), HealthHandler).serve_forever()
+        logger.info("Health server listening on %s:%s", bind, PORT)
+        server = ReusableHTTPServer((bind, PORT), HealthHandler)
+        server.serve_forever()
     else:
         status = collect_status()
         if args.json:
