@@ -8,6 +8,7 @@ from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 from core.circuit_breaker import breaker
+from agents.dashboard_ui import DASHBOARD_HTML
 
 logger = logging.getLogger("cf_dashboard")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [DASHBOARD] %(levelname)s %(message)s")
@@ -129,8 +130,6 @@ def collect_dashboard_data():
     }
 
 
-# Minimal shell UI is loaded from the long HTML constant below after Handler classes
-
 class DashboardHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         logger.info("%s - %s", self.address_string(), format % args)
@@ -195,9 +194,6 @@ def main():
     logger.info("Dashboard on http://%s:%s | auth=%s", BIND, PORT, auth)
     ReusableHTTPServer((BIND, PORT), DashboardHandler).serve_forever()
 
-
-# Keep interactive UI (imported constant path avoided — inline for single-file deploy)
-from agents.dashboard_ui import DASHBOARD_HTML  # noqa: E402  — filled by companion module if present
 
 if __name__ == "__main__":
     main()
