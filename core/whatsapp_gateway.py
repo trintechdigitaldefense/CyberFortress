@@ -102,7 +102,7 @@ def _format_approval_message(
     mins = max(1, APPROVAL_TIMEOUT // 60)
     return (
         f"CyberFortress Tier 2 Approval Required\n\n"
-        f"ID: {request_id}\n"
+        f"ID: `{request_id}`\n"
         f"Time: {ts}\n"
         f"Severity: {severity}\n"
         f"Action: {action}\n"
@@ -117,12 +117,40 @@ def _format_approval_message(
     )
 
 
+def send_notification(message: str, level: str = "INFO") -> bool:
+    if not ADMIN_NUMBERS:
+        logger.info(f"[notify/{level}] {message[:120]}")
+        return True
+    ok = True
+    for admin in ADMIN_NUMBERS:
+        if not _send_text(admin, f"[{level}] {message}"):
+            ok = False
+    return ok
+
+
+def notify_tier1(action: str, target: str, justification: str) -> None:
+    send_notification(
+        f"Tier-1 action executed: {action} on {target}. {justification}",
+        level="INFO",
+    )
+
+
 def _write_pending(request_id: str, meta: dict) -> None:
     path = PENDING_DIR / f"{request_id}.json"
     path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
 
-def _log_approval_decision(
+def _read_decision(request_id: str) -> Optional[dict]:
+    path = PENDING_DIR / f"{request_id}.decision"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def log_approval_event(
     result: str,
     request_id: str,
     action: str,
@@ -179,11 +207,19 @@ def request_approval(
     }
     _write_pending(request_id, meta)
 
+    # Mock helper for operators without live Meta
+    if WHATSAPP_MOCK or not WHATSAPP_ENABLED:
+        helper = PENDING_DIR / f"{request_id}.mock_approve.txt"
+        helper.write_text(
+            f"Demo: to approve write decision file or reply APPROVE {nonce}\n",
+            encoding="utf-8",
+        )
+
     body = _format_approval_message(action, target, severity, justification, request_id, nonce)
 
     if not ADMIN_NUMBERS:
         logger.warning("No admins configured — treating as DENY")
-        _log_approval_decision("DENY-NO-ADMINS", request_id, action, target)
+        log_approval_event("DENY-NO-ADMINS", request_id, action, target)
         (PENDING_DIR / f"{request_id}.decision").write_text(
             json.dumps({"decision": "DENY-NO-ADMINS", "nonce_ok": False}),
             encoding="utf-8",
@@ -193,20 +229,14 @@ def request_approval(
     for admin in ADMIN_NUMBERS:
         _send_text(admin, body)
 
-    # Poll for decision file (webhook or mock writes it)
     deadline = time.time() + APPROVAL_TIMEOUT
-    decision_path = PENDING_DIR / f"{request_id}.decision"
     while time.time() < deadline:
-        if decision_path.exists():
-            try:
-                data = json.loads(decision_path.read_text(encoding="utf-8"))
-            except Exception:
-                time.sleep(1)
-                continue
+        data = _read_decision(request_id)
+        if data:
             decision = str(data.get("decision", "")).upper()
             nonce_ok = bool(data.get("nonce_ok", False))
             if decision == "APPROVE" and nonce_ok:
-                _log_approval_decision(
+                log_approval_event(
                     "APPROVE",
                     request_id,
                     action,
@@ -215,7 +245,7 @@ def request_approval(
                     nonce=nonce,
                 )
                 return True
-            _log_approval_decision(
+            log_approval_event(
                 decision or "DENY",
                 request_id,
                 action,
@@ -227,7 +257,7 @@ def request_approval(
         time.sleep(2)
 
     logger.warning(f"Approval timeout for {request_id}")
-    _log_approval_decision("DENY-TIMEOUT", request_id, action, target, nonce=nonce)
+    log_approval_event("DENY-TIMEOUT", request_id, action, target, nonce=nonce)
     (PENDING_DIR / f"{request_id}.decision").write_text(
         json.dumps({"decision": "DENY-TIMEOUT", "nonce_ok": False}),
         encoding="utf-8",
