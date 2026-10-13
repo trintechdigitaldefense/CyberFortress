@@ -191,7 +191,7 @@ def firewall_status() -> Dict[str, Any]:
         "chain": CHAIN,
         "iptables_present": bool(ipt),
         "live_mode": live,
-        "mode_label": "LIVE FIREWALL" if live else "PRACTICE (no rules applied)",
+        "mode_label": "ARMED" if live else "STANDBY (monitoring only)",
         "chain_exists": False,
         "rule_count": 0,
         "rules": [],
@@ -214,7 +214,7 @@ def firewall_status() -> Dict[str, Any]:
             else f"Chain {CHAIN} present (empty)"
         )
     else:
-        status["message"] = f"Chain {CHAIN} not created yet (will be created on first live block)"
+        status["message"] = f"Chain {CHAIN} not created yet (created on first armed block)"
         err = (r.stderr or b"").decode(errors="replace").strip()
         if err:
             status["iptables_error"] = err[:200]
@@ -225,6 +225,6 @@ def firewall_status() -> Dict[str, Any]:
     except Exception:
         status["running_as_uid"] = None
     if live and status.get("running_as_uid") not in (0, None):
-        status["warning"] = "Live mode is on but process is not root — iptables may fail"
+        status["warning"] = "Containment armed but process is not root — iptables may fail"
 
     return status
