@@ -6,7 +6,7 @@ import os, json, logging, base64, hmac
 from datetime import datetime, timezone
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from core.circuit_breaker import breaker
 from agents.dashboard_ui import DASHBOARD_HTML
 
@@ -19,6 +19,7 @@ AUDIT_LOG = Path(os.getenv("CF_AUDIT_PATH", "./logs/cma_audit.jsonl"))
 PENDING_DIR = Path(os.getenv("CF_WHATSAPP_PENDING_DIR", "./logs/whatsapp_pending"))
 WATCHDOG_STATUS = Path(os.getenv("CF_WATCHDOG_STATUS", "./logs/watchdog_status.json"))
 HEARTBEAT_DIR = Path(os.getenv("CF_LOG_DIR", "./logs")) / "heartbeats"
+EVIDENCE_DIR = Path(os.getenv("CF_EVIDENCE_DIR", "./evidence"))
 DASH_USER = os.getenv("CF_DASHBOARD_USER", "operator")
 DASH_PASS = os.getenv("CF_DASHBOARD_PASS", "")
 CLIENT_NAME = os.getenv("CF_CLIENT_NAME", "Client")
@@ -90,6 +91,23 @@ def _agent_heartbeats():
     return out
 
 
+def _audit_integrity():
+    try:
+        from core.audit_chain import verify_chain
+        ok, idx, msg = verify_chain(AUDIT_LOG)
+        return {"ok": ok, "message": msg, "broken_index": idx}
+    except Exception as e:
+        return {"ok": False, "message": str(e), "broken_index": None}
+
+
+def _roe():
+    try:
+        from core.roe import roe_status
+        return roe_status()
+    except Exception as e:
+        return {"signoff_present": False, "source": "error", "error": str(e), "authorized_actions": []}
+
+
 def collect_dashboard_data():
     actions = _read_recent_actions(50)
     pending = _pending_approvals()
@@ -99,6 +117,13 @@ def collect_dashboard_data():
         sev = a.get("severity", "INFO")
         by_severity[sev] = by_severity.get(sev, 0) + 1
     live = os.getenv("CF_CONTAINMENT_LIVE", "false").lower() == "true"
+    audit = _audit_integrity()
+    roe = _roe()
+    try:
+        from core.evidence.pack import list_evidence_packs
+        packs = list_evidence_packs(5)
+    except Exception:
+        packs = []
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "client_name": CLIENT_NAME,
@@ -118,12 +143,20 @@ def collect_dashboard_data():
             "warning_count": wd.get("warning_count", 0),
             "critical_count": wd.get("critical_count", 0),
         },
+        "audit_integrity": audit,
+        "roe": {
+            "signoff_present": bool(roe.get("signoff_present")),
+            "source": roe.get("source", "—"),
+            "authorized_actions": roe.get("authorized_actions", [])[:12],
+        },
         "agents": _agent_heartbeats(),
         "auth_enabled": bool(DASH_PASS),
+        "evidence_packs": packs,
         "stats": {
             "total_actions_shown": len(actions),
             "pending_approvals": len(pending),
             "by_severity": by_severity,
+            "evidence_packs": len(packs),
         },
         "recent_actions": actions[:30],
         "pending_approvals": pending,
@@ -142,7 +175,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Authentication required")
 
     def _json(self, code, obj):
-        body = json.dumps(obj).encode("utf-8")
+        body = json.dumps(obj, default=str).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Cache-Control", "no-cache")
@@ -153,7 +186,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not _auth_ok(self):
             return self._unauthorized()
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path in ("/", "/dashboard", "/index.html"):
             body = DASHBOARD_HTML.encode("utf-8")
             self.send_response(200)
@@ -163,6 +197,31 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         elif path == "/api/status":
             self._json(200, collect_dashboard_data())
+        elif path == "/api/evidence":
+            try:
+                from core.evidence.pack import list_evidence_packs
+                self._json(200, {"ok": True, "packs": list_evidence_packs(20)})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+        elif path == "/api/evidence/download":
+            qs = parse_qs(parsed.query)
+            name = (qs.get("name") or [""])[0]
+            # Only serve basename ZIPs under evidence/
+            safe = Path(name).name
+            if not safe.endswith(".zip") or ".." in name:
+                self._json(400, {"ok": False, "error": "invalid name"})
+                return
+            target = (EVIDENCE_DIR / safe).resolve()
+            if not str(target).startswith(str(EVIDENCE_DIR.resolve())) or not target.is_file():
+                self._json(404, {"ok": False, "error": "not found"})
+                return
+            data = target.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", f'attachment; filename="{safe}"')
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         else:
             self.send_response(404)
             self.end_headers()
@@ -173,10 +232,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/evidence":
             try:
-                from core.evidence.pack import generate_evidence_pack
-                name = CLIENT_NAME if CLIENT_NAME != "Client" else "Demo"
-                path_out = generate_evidence_pack(client_name=name, create_zip=True)
-                self._json(200, {"ok": True, "path": str(path_out)})
+                from core.evidence.pack import generate_evidence_pack_with_meta
+                name = CLIENT_NAME if CLIENT_NAME and CLIENT_NAME != "Client" else "Demo Client"
+                result = generate_evidence_pack_with_meta(client_name=name, create_zip=True)
+                self._json(200, result)
             except Exception as e:
                 logger.exception("evidence pack failed")
                 self._json(500, {"ok": False, "error": str(e)})
