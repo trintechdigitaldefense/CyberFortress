@@ -133,11 +133,11 @@ def collect_dashboard_data():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "client_name": CLIENT_NAME,
         "containment_live": live,
-        "mode_label": "LIVE PROTECTION" if live else "PRACTICE MODE (dry-run)",
+        "mode_label": "ACTIVE CONTAINMENT" if live else "MONITORING",
         "mode_help": (
-            "Real containment actions can run on the network."
+            "Containment is armed — approved actions can change the network firewall."
             if live
-            else "Watching and logging only — firewall is not changed until pilot sign-off."
+            else "Detecting, correlating, and logging. Firewall rules are not applied until containment is armed by an operator."
         ),
         "whatsapp_enabled": os.getenv("CF_WHATSAPP_ENABLED", "false").lower() == "true",
         "identity_provider": os.getenv("CF_IDENTITY_PROVIDER", "local_linux"),
@@ -149,10 +149,14 @@ def collect_dashboard_data():
             "critical_count": wd.get("critical_count", 0),
         },
         "audit_integrity": audit,
-        "roe": {
-            "signoff_present": bool(roe.get("signoff_present")),
-            "source": roe.get("source", "—"),
+        "policy": {
             "authorized_actions": roe.get("authorized_actions", [])[:12],
+            "action_count": len(roe.get("authorized_actions") or []),
+            "scope": "allow-listed containment only",
+        },
+        "roe": {
+            "authorized_actions": roe.get("authorized_actions", [])[:12],
+            "source": roe.get("source", "policy"),
         },
         "agents": _agent_heartbeats(),
         "auth_enabled": bool(DASH_PASS),
@@ -245,7 +249,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if path == "/api/evidence":
             try:
                 from core.evidence.pack import generate_evidence_pack_with_meta
-                name = CLIENT_NAME if CLIENT_NAME and CLIENT_NAME != "Client" else "Demo Client"
+                name = CLIENT_NAME if CLIENT_NAME else "Client"
                 result = generate_evidence_pack_with_meta(client_name=name, create_zip=True)
                 self._json(200, result)
             except Exception as e:
