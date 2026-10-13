@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""
-CyberFortress Evidence Pack Generator
-
-Creates a client-ready evidence package:
-  01_Executive_Report.md   — clean narrative for clients / counsel
-  01_Executive_Report.html — same report, browser-friendly
-  02_Full_Audit.json       — machine-readable summary + actions
-  03_Raw_CMA_Audit.jsonl   — copy of the audit chain (if present)
-  MANIFEST.sha256          — file integrity hashes
-
-Output: timestamped folder under ./evidence/ + optional ZIP.
-"""
+"""CyberFortress Evidence Pack Generator - client-ready MD/HTML reports."""
 
 from __future__ import annotations
 
@@ -126,11 +115,11 @@ class EvidencePack:
         roe = s.get("roe") or {}
         cb = s.get("circuit_breaker") or {}
         lines = [
-            "# CyberFortress — Evidence Report",
+            "# CyberFortress - Evidence Report",
             "",
-            f"**Client:** {self.client_name}  ",
-            f"**Engagement ID:** {self.engagement_id}  ",
-            f"**Generated:** {self.created_at.strftime('%Y-%m-%d %H:%M UTC')}  ",
+            "**Client:** {}  ".format(self.client_name),
+            "**Engagement ID:** {}  ".format(self.engagement_id),
+            "**Generated:** {}  ".format(self.created_at.strftime("%Y-%m-%d %H:%M UTC")),
             "**Prepared by:** TrinTech Digital Defense (Trinidad & Tobago)",
             "",
             "---",
@@ -139,22 +128,28 @@ class EvidencePack:
             "",
             "| Item | Value |",
             "|------|-------|",
-            f"| Operating mode | {s.get('mode')} |",
-            f"| Circuit breaker | {cb.get('state', '—')} |",
-            f"| ROE source | {roe.get('source', '—')} |",
-            f"| Pilot sign-off on file | {'Yes' if roe.get('signoff_present') else 'No'} |",
-            f"| Audit chain integrity | {'OK' if ai.get('ok') else 'CHECK NEEDED'} — {ai.get('message', '')} |",
-            f"| WhatsApp approvals | {'Enabled' if s.get('whatsapp_enabled') else 'Not connected'} |",
+            "| Operating mode | {} |".format(s.get("mode")),
+            "| Circuit breaker | {} |".format(cb.get("state", "-")),
+            "| ROE source | {} |".format(roe.get("source", "-")),
+            "| Pilot sign-off on file | {} |".format("Yes" if roe.get("signoff_present") else "No"),
+            "| Audit chain integrity | {} - {} |".format(
+                "OK" if ai.get("ok") else "CHECK NEEDED", ai.get("message", "")
+            ),
+            "| WhatsApp approvals | {} |".format(
+                "Enabled" if s.get("whatsapp_enabled") else "Not connected"
+            ),
             "",
             "## 2. Executive summary",
             "",
-            f"This report lists protective actions recorded by CyberFortress for **{self.client_name}**. "
-            "Each action is rules-driven and mapped to the Trinidad and Tobago Computer Misuse Act "
+            "This report lists protective actions recorded by CyberFortress for **{}**. ".format(
+                self.client_name
+            )
+            + "Each action is rules-driven and mapped to the Trinidad and Tobago Computer Misuse Act "
             "for authorized defensive use.",
             "",
-            f"- **Total actions recorded:** {s['total_actions']}",
-            f"- **Approved or force-executed:** {s['approved_or_forced']}",
-            f"- **Held pending human approval:** {s['held']}",
+            "- **Total actions recorded:** {}".format(s["total_actions"]),
+            "- **Approved or force-executed:** {}".format(s["approved_or_forced"]),
+            "- **Held pending human approval:** {}".format(s["held"]),
             "",
         ]
         if s["total_actions"] == 0:
@@ -166,13 +161,13 @@ class EvidencePack:
         lines += ["### Severity", ""]
         if s["by_severity"]:
             for sev, count in sorted(s["by_severity"].items()):
-                lines.append(f"- **{sev}:** {count}")
+                lines.append("- **{}:** {}".format(sev, count))
         else:
             lines.append("- None")
         lines += ["", "### Action types", ""]
         if s["by_action"]:
             for act, count in sorted(s["by_action"].items(), key=lambda x: (-x[1], x[0])):
-                lines.append(f"- `{act}`: {count}")
+                lines.append("- `{}`: {}".format(act, count))
         else:
             lines.append("- None")
         lines += [
@@ -181,7 +176,7 @@ class EvidencePack:
             "",
             "## 3. Detailed action log",
             "",
-            "Times are UTC. Justifications are the legislative notes written into the audit trail at the time of the action.",
+            "Times are UTC. Justifications are the legislative notes written into the audit trail.",
             "",
         ]
         if not self.actions:
@@ -189,14 +184,14 @@ class EvidencePack:
             lines.append("")
         for i, a in enumerate(self.actions, 1):
             lines += [
-                f"### {i}. `{a.get('action', 'unknown')}` → `{a.get('target', 'unknown')}`",
+                "### {}. `{}` -> `{}`".format(i, a.get("action", "unknown"), a.get("target", "unknown")),
                 "",
                 "| Field | Value |",
                 "|-------|-------|",
-                f"| Time | {a.get('timestamp', 'N/A')} |",
-                f"| Severity | {a.get('severity', 'N/A')} |",
-                f"| Entry hash | `{(a.get('entry_hash') or '—')[:16]}…` |",
-                f"| Justification | {a.get('legislative_justification', 'N/A')} |",
+                "| Time | {} |".format(a.get("timestamp", "N/A")),
+                "| Severity | {} |".format(a.get("severity", "N/A")),
+                "| Entry hash | `{}` |".format((a.get("entry_hash") or "-")[:16]),
+                "| Justification | {} |".format(a.get("legislative_justification", "N/A")),
                 "",
             ]
         lines += [
@@ -223,68 +218,78 @@ class EvidencePack:
         rows = []
         for a in self.actions:
             rows.append(
-                "<tr>"
-                f"<td>{_esc(a.get('timestamp', ''))}</td>"
-                f"<td><code>{_esc(a.get('action', ''))}</code></td>"
-                f"<td>{_esc(a.get('target', ''))}</td>"
-                f"<td>{_esc(a.get('severity', ''))}</td>"
-                f"<td>{_esc(a.get('legislative_justification', ''))}</td>"
-                "</tr>"
+                "<tr><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
+                    _esc(a.get("timestamp", "")),
+                    _esc(a.get("action", "")),
+                    _esc(a.get("target", "")),
+                    _esc(a.get("severity", "")),
+                    _esc(a.get("legislative_justification", "")),
+                )
             )
         table = "\n".join(rows) if rows else '<tr><td colspan="5">No actions recorded</td></tr>'
-        html = f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<title>CyberFortress Evidence — {_esc(self.client_name)}</title>
-<style>
-body{{font-family:system-ui,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem;color:#0f172a;line-height:1.5}}
-h1{{font-size:1.4rem}}h2{{font-size:1.1rem;margin-top:1.5rem;border-bottom:1px solid #e2e8f0;padding-bottom:.3rem}}
-table{{border-collapse:collapse;width:100%;font-size:.9rem;margin:.75rem 0}}
-th,td{{border:1px solid #e2e8f0;padding:.45rem .6rem;text-align:left;vertical-align:top}}
-th{{background:#f1f5f9}}
-.meta{{color:#475569;font-size:.9rem}}
-.badge{{display:inline-block;padding:.15rem .5rem;border-radius:6px;background:#e0f2fe;font-size:.8rem}}
-footer{{margin-top:2rem;color:#64748b;font-size:.8rem}}
-</style></head><body>
-<h1>CyberFortress Evidence Report</h1>
-<p class="meta">
-<strong>Client:</strong> {_esc(self.client_name)} ·
-<strong>Engagement:</strong> {_esc(self.engagement_id)} ·
-<strong>Generated:</strong> {self.created_at.strftime('%Y-%m-%d %H:%M UTC')}<br>
-TrinTech Digital Defense · Trinidad & Tobago
-</p>
-<h2>Platform status</h2>
-<table>
-<tr><th>Item</th><th>Value</th></tr>
-<tr><td>Mode</td><td><span class="badge">{_esc(s.get('mode'))}</span></td></tr>
-<tr><td>Circuit breaker</td><td>{_esc(cb.get('state', '—'))}</td></tr>
-<tr><td>ROE</td><td>{_esc(roe.get('source', '—'))} (sign-off: {'yes' if roe.get('signoff_present') else 'no'})</td></tr>
-<tr><td>Audit integrity</td><td>{'OK' if ai.get('ok') else 'CHECK'} — {_esc(ai.get('message', ''))}</td></tr>
-</table>
-<h2>Executive summary</h2>
-<ul>
-<li>Total actions: <strong>{s['total_actions']}</strong></li>
-<li>Approved / forced: <strong>{s['approved_or_forced']}</strong></li>
-<li>Held for approval: <strong>{s['held']}</strong></li>
-</ul>
-<p>Rules-driven protective actions mapped to the Computer Misuse Act for authorized defensive use.</p>
-<h2>Action log</h2>
-<table>
-<thead><tr><th>Time (UTC)</th><th>Action</th><th>Target</th><th>Severity</th><th>Justification</th></tr></thead>
-<tbody>
-{table}
-</tbody>
-</table>
-<footer>Integrity: see MANIFEST.sha256 and 03_Raw_CMA_Audit.jsonl. Verify with scripts/verify_audit_chain.py.<br>
-Authorized defensive use only.</footer>
-</body></html>
-"""
+        css = (
+            "body{font-family:system-ui,sans-serif;max-width:960px;margin:2rem auto;"
+            "padding:0 1rem;color:#0f172a;line-height:1.5}"
+            "h1{font-size:1.4rem}h2{font-size:1.1rem;margin-top:1.5rem;"
+            "border-bottom:1px solid #e2e8f0;padding-bottom:.3rem}"
+            "table{border-collapse:collapse;width:100%;font-size:.9rem;margin:.75rem 0}"
+            "th,td{border:1px solid #e2e8f0;padding:.45rem .6rem;text-align:left;vertical-align:top}"
+            "th{background:#f1f5f9}.meta{color:#475569;font-size:.9rem}"
+            ".badge{display:inline-block;padding:.15rem .5rem;border-radius:6px;"
+            "background:#e0f2fe;font-size:.8rem}"
+            "footer{margin-top:2rem;color:#64748b;font-size:.8rem}"
+        )
+        html = (
+            "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
+            "<title>CyberFortress Evidence - {}</title><style>{}</style></head><body>"
+            "<h1>CyberFortress Evidence Report</h1>"
+            "<p class=\"meta\"><strong>Client:</strong> {} - "
+            "<strong>Engagement:</strong> {} - "
+            "<strong>Generated:</strong> {}<br>"
+            "TrinTech Digital Defense - Trinidad & Tobago</p>"
+            "<h2>Platform status</h2><table>"
+            "<tr><th>Item</th><th>Value</th></tr>"
+            "<tr><td>Mode</td><td><span class=\"badge\">{}</span></td></tr>"
+            "<tr><td>Circuit breaker</td><td>{}</td></tr>"
+            "<tr><td>ROE</td><td>{} (sign-off: {})</td></tr>"
+            "<tr><td>Audit integrity</td><td>{} - {}</td></tr></table>"
+            "<h2>Executive summary</h2><ul>"
+            "<li>Total actions: <strong>{}</strong></li>"
+            "<li>Approved / forced: <strong>{}</strong></li>"
+            "<li>Held for approval: <strong>{}</strong></li></ul>"
+            "<p>Rules-driven protective actions mapped to the Computer Misuse Act "
+            "for authorized defensive use.</p>"
+            "<h2>Action log</h2><table>"
+            "<thead><tr><th>Time (UTC)</th><th>Action</th><th>Target</th>"
+            "<th>Severity</th><th>Justification</th></tr></thead>"
+            "<tbody>{}</tbody></table>"
+            "<footer>Integrity: see MANIFEST.sha256 and 03_Raw_CMA_Audit.jsonl. "
+            "Verify with scripts/verify_audit_chain.py.<br>"
+            "Authorized defensive use only.</footer></body></html>"
+        ).format(
+            _esc(self.client_name),
+            css,
+            _esc(self.client_name),
+            _esc(self.engagement_id),
+            self.created_at.strftime("%Y-%m-%d %H:%M UTC"),
+            _esc(s.get("mode")),
+            _esc(cb.get("state", "-")),
+            _esc(roe.get("source", "-")),
+            "yes" if roe.get("signoff_present") else "no",
+            "OK" if ai.get("ok") else "CHECK",
+            _esc(ai.get("message", "")),
+            s["total_actions"],
+            s["approved_or_forced"],
+            s["held"],
+            table,
+        )
         path.write_text(html, encoding="utf-8")
 
     def build(self, output_root: Optional[str] = None) -> Path:
         root = Path(output_root) if output_root else EVIDENCE_ROOT
         root.mkdir(parents=True, exist_ok=True)
         stamp = self.created_at.strftime("%Y%m%d_%H%M%S")
-        self.pack_dir = root / f"{self.engagement_id}_{stamp}"
+        self.pack_dir = root / "{}_{}".format(self.engagement_id, stamp)
         self.pack_dir.mkdir(parents=True, exist_ok=True)
 
         self._write_human_report(self.pack_dir / "01_Executive_Report.md")
@@ -304,7 +309,7 @@ Authorized defensive use only.</footer>
                 manifest[file.name] = hashlib.sha256(file.read_bytes()).hexdigest()
         with open(self.pack_dir / "MANIFEST.sha256", "w", encoding="utf-8") as f:
             for name, digest in manifest.items():
-                f.write(f"{digest}  {name}\n")
+                f.write("{}  {}\n".format(digest, name))
 
         logger.info("Evidence pack created at %s", self.pack_dir)
         return self.pack_dir
