@@ -34,6 +34,8 @@ AUDIT_LOG = Path(os.getenv("CF_AUDIT_PATH", str(LOG_DIR / "cma_audit.jsonl")))
 PENDING_DIR = Path(os.getenv("CF_WHATSAPP_PENDING_DIR", str(LOG_DIR / "whatsapp_pending")))
 
 HEARTBEAT_STALE_SECONDS = int(os.getenv("CF_WATCHDOG_HEARTBEAT_STALE", "180"))
+STARTUP_GRACE_SECONDS = int(os.getenv("CF_WATCHDOG_STARTUP_GRACE", "120"))
+PLATFORM_START_FILE = LOG_DIR / "platform_started_at"
 AUDIT_STALE_HOURS = float(os.getenv("CF_WATCHDOG_AUDIT_STALE_HOURS", "24"))
 MAX_PENDING_APPROVALS = int(os.getenv("CF_WATCHDOG_MAX_PENDING", "10"))
 MIN_FREE_MB = int(os.getenv("CF_WATCHDOG_MIN_FREE_MB", "200"))
@@ -109,12 +111,25 @@ def run_checks() -> Dict[str, Any]:
 
     write_heartbeat("watchdog", {"role": "self_monitor"})
 
+    now_ts = datetime.now(timezone.utc).timestamp()
+    if not PLATFORM_START_FILE.exists():
+        try:
+            PLATFORM_START_FILE.write_text(str(now_ts), encoding="utf-8")
+        except Exception:
+            pass
+    try:
+        platform_age = now_ts - float(PLATFORM_START_FILE.read_text(encoding="utf-8").strip())
+    except Exception:
+        platform_age = STARTUP_GRACE_SECONDS + 1
+
     hb_status = {}
     for comp in components:
         age = _heartbeat_age_seconds(comp)
         if age is None:
             if comp == "watchdog":
                 hb_status[comp] = {"ok": True, "age_s": 0}
+            elif platform_age < STARTUP_GRACE_SECONDS:
+                hb_status[comp] = {"ok": True, "age_s": None, "note": "startup_grace"}
             else:
                 hb_status[comp] = {"ok": False, "age_s": None, "note": "no heartbeat yet"}
                 issues.append({
