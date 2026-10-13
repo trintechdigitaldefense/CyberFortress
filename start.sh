@@ -129,6 +129,7 @@ start_local() {
   start_bg fusion_agent   python3 -m agents.telemetry_fusion_agent
   start_bg compliance     python3 -m agents.compliance_logger
   start_bg watchdog       python3 -m agents.watchdog_agent
+  start_bg firewall       python3 -m agents.firewall_agent
   start_bg whatsapp       python3 -m agents.whatsapp_webhook
   start_bg health         python3 -m agents.healthcheck --serve
   start_bg dashboard      python3 -m agents.dashboard
@@ -166,7 +167,8 @@ print_urls() {
   echo "  Health    : http://127.0.0.1:8090"
   echo "  Webhook   : http://127.0.0.1:8089  (put TLS in front for Meta)"
   echo
-  echo "  Mode: containment LIVE=${CF_CONTAINMENT_LIVE:-false} (dry-run unless signed off)"
+  echo "  Firewall: agent starts with platform (CF_BLOCK chain)"
+  echo "  Containment LIVE=${CF_CONTAINMENT_LIVE:-false} (DROP rules only when armed)"
 }
 
 status_local() {
