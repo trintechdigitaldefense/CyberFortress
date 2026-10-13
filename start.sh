@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # CyberFortress — one command to start everything
 # Usage:
-#   ./start.sh          # start all services
+#   ./start.sh          # start all services (Docker if daemon up, else local)
 #   ./start.sh status   # show status
-#   ./start.sh docker   # force Docker mode
+#   ./start.sh docker   # force Docker mode (fails if daemon down)
 #   ./start.sh local    # force local (no Docker) mode
 set -euo pipefail
 
@@ -21,24 +21,51 @@ fi
 
 MODE="${1:-start}"
 PID_DIR="$ROOT/logs/pids"
-mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage
+mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage logs/whatsapp_pending
 
-has_docker() {
-  command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1
+# CLI present AND compose plugin/binary works
+has_docker_cli() {
+  command -v docker >/dev/null 2>&1 || return 1
+  docker compose version >/dev/null 2>&1 || docker-compose version >/dev/null 2>&1
+}
+
+# Daemon actually reachable (fixes: CLI installed but dockerd not running)
+docker_daemon_up() {
+  has_docker_cli || return 1
+  docker info >/dev/null 2>&1
+}
+
+compose_cmd() {
+  if docker compose version >/dev/null 2>&1; then
+    echo "docker compose"
+  else
+    echo "docker-compose"
+  fi
 }
 
 start_docker() {
+  if ! docker_daemon_up; then
+    echo "[!] Docker CLI found but daemon is not running (no /var/run/docker.sock)."
+    echo "    Start Docker, or use: ./start.sh local"
+    exit 1
+  fi
   echo "[+] Starting CyberFortress via Docker Compose..."
-  docker compose -f docker/docker-compose.yml up -d --build
+  # shellcheck disable=SC2046
+  $(compose_cmd) -f docker/docker-compose.yml up -d --build
   echo
   echo "[+] All services started (Docker)."
   print_urls
-  echo "  Logs:  docker compose -f docker/docker-compose.yml logs -f"
+  echo "  Logs:  $(compose_cmd) -f docker/docker-compose.yml logs -f"
   echo "  Stop:  ./stop.sh"
 }
 
 start_local() {
   echo "[+] Starting CyberFortress locally (no Docker)..."
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "[!] python3 is required for local mode"
+    exit 1
+  fi
 
   start_bg() {
     local name="$1"
@@ -61,11 +88,13 @@ start_local() {
   start_bg health         python3 -m agents.healthcheck --serve
   start_bg dashboard      python3 -m agents.dashboard
 
+  sleep 1
   echo
   echo "[+] All local services started."
   print_urls
   echo "  Logs:  tail -f logs/*.out"
   echo "  Stop:  ./stop.sh"
+  echo "  Status: ./start.sh status"
 }
 
 print_urls() {
@@ -79,37 +108,47 @@ print_urls() {
 
 status_local() {
   echo "CyberFortress local process status:"
+  local any=0
   for f in "$PID_DIR"/*.pid; do
     [[ -f "$f" ]] || continue
+    any=1
     name=$(basename "$f" .pid)
-    pid=$(cat "$f")
-    if kill -0 "$pid" 2>/dev/null; then
+    pid=$(cat "$f" 2>/dev/null || echo "?")
+    if [[ "$pid" != "?" ]] && kill -0 "$pid" 2>/dev/null; then
       echo "  [UP]   $name  pid=$pid"
     else
       echo "  [DOWN] $name  (stale pid $pid)"
     fi
   done
-  if has_docker; then
+  if [[ "$any" -eq 0 ]]; then
+    echo "  (no local pid files — not started in local mode?)"
+  fi
+  if has_docker_cli; then
     echo
-    echo "Docker services (if any):"
-    docker compose -f docker/docker-compose.yml ps 2>/dev/null || true
+    if docker_daemon_up; then
+      echo "Docker services:"
+      $(compose_cmd) -f docker/docker-compose.yml ps 2>/dev/null || true
+    else
+      echo "Docker CLI present but daemon is down."
+    fi
   fi
 }
 
 case "$MODE" in
   start|"")
-    if has_docker; then
+    if docker_daemon_up; then
       start_docker
     else
-      echo "[i] Docker not found — starting local Python processes"
+      if has_docker_cli; then
+        echo "[i] Docker CLI found but daemon is not running — using local mode"
+        echo "    (start Docker later, or use ./start.sh docker when ready)"
+      else
+        echo "[i] Docker not found — starting local Python processes"
+      fi
       start_local
     fi
     ;;
   docker)
-    if ! has_docker; then
-      echo "[!] Docker Compose not available"
-      exit 1
-    fi
     start_docker
     ;;
   local)
