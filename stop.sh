@@ -20,7 +20,6 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   echo "  · Docker services stopped (if any)"
 fi
 
-# 1) Kill tracked PIDs
 if [[ -d "$PID_DIR" ]]; then
   for f in "$PID_DIR"/*.pid; do
     [[ -f "$f" ]] || continue
@@ -36,7 +35,6 @@ if [[ -d "$PID_DIR" ]]; then
   done
 fi
 
-# 2) Kill orphan agents from earlier runs (pid file lost / different cwd)
 kill_module() {
   local mod="$1"
   if command -v pkill >/dev/null 2>&1; then
@@ -65,9 +63,9 @@ kill_module "agents.telemetry_fusion_agent"
 kill_module "agents.compliance_logger"
 kill_module "agents.watchdog_agent"
 kill_module "agents.firewall_agent"
+kill_module "agents.daily_report_agent"
 sleep 0.3
 
-# 3) Free ports if anything still listens
 free_port() {
   local port="$1"
   if command -v fuser >/dev/null 2>&1; then
