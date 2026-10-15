@@ -1,22 +1,14 @@
 #!/usr/bin/env bash
 # CyberFortress — one command to start everything
-# Usage:
-#   bash start.sh          # works even without +x
-#   ./start.sh             # after chmod (install.sh does this)
-#   bash start.sh status
-#   bash start.sh local
-#   bash start.sh docker
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
-# Always make launcher scripts executable (fixes Permission denied on ./start.sh)
 chmod +x "$ROOT/start.sh" "$ROOT/stop.sh" "$ROOT/install.sh" 2>/dev/null || true
 chmod +x "$ROOT"/scripts/*.sh 2>/dev/null || true
 
-# Load .env if present
 if [[ -f .env ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -46,7 +38,6 @@ compose_cmd() {
   fi
 }
 
-# Free CF ports held by leftover processes (common cause of dashboard/health DOWN)
 free_port() {
   local port="$1"
   if command -v fuser >/dev/null 2>&1; then
@@ -88,7 +79,6 @@ start_local() {
     exit 1
   fi
 
-  # Clear stale pid tracking + free HTTP ports from previous runs
   if [[ -d "$PID_DIR" ]]; then
     for f in "$PID_DIR"/*.pid; do
       [[ -f "$f" ]] || continue
@@ -133,10 +123,10 @@ start_local() {
   start_bg whatsapp       python3 -m agents.whatsapp_webhook
   start_bg health         python3 -m agents.healthcheck --serve
   start_bg dashboard      python3 -m agents.dashboard
+  start_bg daily_report   python3 -m agents.daily_report_agent
 
   sleep 0.5
   echo
-  # Summary of UP/DOWN
   local up=0 down=0
   for f in "$PID_DIR"/*.pid; do
     [[ -f "$f" ]] || continue
@@ -168,6 +158,7 @@ print_urls() {
   echo "  Webhook   : http://127.0.0.1:8089  (put TLS in front for Meta)"
   echo
   echo "  Firewall: agent starts with platform (CF_BLOCK chain)"
+  echo "  Daily WA report: every ${CF_REPORT_INTERVAL_SECONDS:-86400}s → ${CF_WHATSAPP_REPORT_TO:-${CF_WHATSAPP_ADMINS:-(not set)}}"
   echo "  Containment LIVE=${CF_CONTAINMENT_LIVE:-false} (DROP rules only when armed)"
 }
 
@@ -188,7 +179,6 @@ status_local() {
   if [[ "$any" -eq 0 ]]; then
     echo "  (no local pid files — not started in local mode?)"
   fi
-  # Quick port check
   for port in 8089 8090 8091; do
     if command -v ss >/dev/null 2>&1; then
       if ss -ltn 2>/dev/null | grep -q ":${port} "; then
