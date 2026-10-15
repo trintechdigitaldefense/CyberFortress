@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CyberFortress WhatsApp HITL Gateway — hardened Tier 2 approvals
+CyberFortress WhatsApp HITL Gateway — hardened Tier 2 approvals + reports
 
 Security controls:
   - Approver allow-list (CF_WHATSAPP_ADMINS only)
@@ -12,7 +12,8 @@ Env:
   CF_WHATSAPP_ENABLED=true
   CF_WHATSAPP_TOKEN=...
   CF_WHATSAPP_PHONE_NUMBER_ID=...
-  CF_WHATSAPP_ADMINS=+1868xxxxxxxx,+1868yyyyyyyy
+  CF_WHATSAPP_ADMINS=+18683620679
+  CF_WHATSAPP_REPORT_TO=+18683620679
   CF_WHATSAPP_VERIFY_TOKEN=...
   CF_APPROVAL_TIMEOUT=900
   CF_WHATSAPP_MOCK=true
@@ -39,6 +40,7 @@ WHATSAPP_MOCK = os.getenv("CF_WHATSAPP_MOCK", "false").lower() == "true"
 WHATSAPP_TOKEN = os.getenv("CF_WHATSAPP_TOKEN", "")
 PHONE_NUMBER_ID = os.getenv("CF_WHATSAPP_PHONE_NUMBER_ID", "")
 ADMIN_NUMBERS = [n.strip() for n in os.getenv("CF_WHATSAPP_ADMINS", "").split(",") if n.strip()]
+REPORT_NUMBERS = [n.strip() for n in os.getenv("CF_WHATSAPP_REPORT_TO", "").split(",") if n.strip()] or ADMIN_NUMBERS
 APPROVAL_TIMEOUT = int(os.getenv("CF_APPROVAL_TIMEOUT", "900"))
 GRAPH_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages" if PHONE_NUMBER_ID else ""
 
@@ -128,6 +130,20 @@ def send_notification(message: str, level: str = "INFO") -> bool:
     return ok
 
 
+def send_report(message: str, level: str = "REPORT") -> bool:
+    """Send a status/report message to CF_WHATSAPP_REPORT_TO (or admins)."""
+    targets = REPORT_NUMBERS or ADMIN_NUMBERS
+    if not targets:
+        logger.info(f"[report/{level}] no recipients configured: {message[:120]}")
+        return False
+    ok = True
+    body = message if message.startswith("[") or message.startswith("*") else f"[{level}] {message}"
+    for num in targets:
+        if not _send_text(num, body):
+            ok = False
+    return ok
+
+
 def notify_tier1(action: str, target: str, justification: str) -> None:
     send_notification(
         f"Tier-1 action executed: {action} on {target}. {justification}",
@@ -207,7 +223,6 @@ def request_approval(
     }
     _write_pending(request_id, meta)
 
-    # Mock helper for operators without live Meta
     if WHATSAPP_MOCK or not WHATSAPP_ENABLED:
         helper = PENDING_DIR / f"{request_id}.mock_approve.txt"
         helper.write_text(
