@@ -1,5 +1,7 @@
 # CyberFortress
 
+[![ci](https://github.com/trintechdigitaldefense/CyberFortress/actions/workflows/ci.yml/badge.svg)](https://github.com/trintechdigitaldefense/CyberFortress/actions/workflows/ci.yml)
+
 **Autonomous Incident Response Platform**  
 *TrinTech Digital Defense · Trinidad & Tobago* 🇹🇹  
 **v0.3.0 — production monitoring platform**
