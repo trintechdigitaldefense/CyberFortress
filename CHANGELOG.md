@@ -1,27 +1,25 @@
 # Changelog
 
+## [v0.3.0-pilot] — 2026-10-19
+
+### Roadmap sprint (detection + cohesion)
+- **Real threat hunting loop** — agents pull telemetry each cycle, fuse, audit, optional auto-respond (still dry-run by default)
+- **Rule pack v1** — `config/rule_packs/default.yaml` (5 rules) with `pack_id` / `rule_id` on detections
+- **Telemetry file archive** — consumed JSON moved to `processed/` (quarantine on bad JSON)
+- **Detection audit entries** — every fused event written to hash-chained CMA log
+- **Firewall honesty** — `UNAVAILABLE` when host denies netfilter (Permission denied / CAP_NET_ADMIN)
+- **Docker parity** — compose runs threat, fusion, firewall (`cap_add: NET_ADMIN`), daily_report, dashboard, health
+- **Tests** — rule pack unit tests, firewall status, integration alert→audit chain
+
+### Safety unchanged
+- `CF_CONTAINMENT_LIVE=false` default · ROE / breaker / watchdog / WhatsApp nonce controls intact
+- No AI/ML claims
+
 ## [v0.2.0] — 2026-10-10
 
-### Brief 1 (hardening)
-- Removed unverifiable AI/ML claims; rules-driven wording only
-- Proprietary LICENSE (All Rights Reserved)
-- Hardened WhatsApp Tier 2: allow-list, `APPROVE <nonce>`, TIMEOUT-DENY
-- One-command `install.sh` / `start.sh` / `stop.sh`
-- NDA + ROE templates; pilot_signoff gate before live mode
-- Pricing removed from docs (still building)
-
-### Brief 2 (capability & accuracy) — this release
-- **Tamper-evident CMA audit chain** (`prev_hash` + `entry_hash`); `scripts/verify_audit_chain.py`
-- **Automated test suite** (`tests/unit`, `tests/integration`); `scripts/run_tests.sh` — 25 tests
-- **CI workflow** (`.github/workflows/ci.yml`): pytest + lint hooks
-- Pinned core dependency versions in `requirements.txt`
-- SECURITY.md added
-
-### Notes
-- Dry-run remains default; safety controls unchanged
-- Live Meta WhatsApp credentials still human-provided
-- GitHub repo description should be updated in UI if still showing AI wording
+### Brief 1–2
+- Hardening, audit chain, pytest suite, CI, WhatsApp Tier 2 nonce
 
 ## [v0.1.0] — 2026-10-09
 
-- Initial pilot MVP: autonomy, fusion, containment drivers, evidence pack, dashboard, watchdog
+- Initial pilot MVP

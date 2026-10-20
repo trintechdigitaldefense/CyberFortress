@@ -1,0 +1,30 @@
+pack_id: default_v1
+version: "1.0"
+description: Baseline detection rules for pilot deployments
+
+rules:
+  - id: CF-R001
+    name: decoy_trip
+    match_indicators: [decoy, honeypot, mirage_trip]
+    severity: HIGH
+    playbook: isolate_endpoint
+  - id: CF-R002
+    name: brute_force
+    match_indicators: [bruteforce, brute_force, failed_login_flood]
+    severity: HIGH
+    playbook: block_ip
+  - id: CF-R003
+    name: reverse_shell
+    match_indicators: [reverse_shell, shell, c2, beacon]
+    severity: HIGH
+    playbook: block_ip
+  - id: CF-R004
+    name: credential_theft
+    match_indicators: [credential, mass_credential, password_dump]
+    severity: HIGH
+    playbook: credential_rotation
+  - id: CF-R005
+    name: ransomware_exfil
+    match_indicators: [ransomware, encryption, exfil, lateral]
+    severity: CRITICAL
+    playbook: halt_operations
