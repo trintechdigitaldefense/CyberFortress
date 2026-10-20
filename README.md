@@ -4,7 +4,7 @@
 
 **Autonomous Incident Response Platform**  
 *TrinTech Digital Defense · Trinidad & Tobago* 🇹🇹  
-**v0.3.0 — production monitoring platform**
+**v0.3.1 — production monitoring platform**
 
 > Automated threat detection and tiered response — WhatsApp approval for high-impact moves, active firewall containment when armed, full TT Computer Misuse Act audit trail.
 
@@ -29,7 +29,17 @@ cd CyberFortress
 | `./stop.sh` | Stops everything |
 | `./start.sh status` | Shows what’s running |
 
-After start: **Dashboard** http://127.0.0.1:8091 · **Health** http://127.0.0.1:8090 · **monitoring mode** by default (firewall standby until an operator arms containment).
+After start: **Dashboard** http://127.0.0.1:8091 · **Health** http://127.0.0.1:8090 · **monitoring mode** by default.
+
+---
+
+## Live firewall host check
+
+```bash
+./scripts/check_netadmin.sh
+```
+
+Must pass on a real VM with `CAP_NET_ADMIN` before arming containment. See [docs/HOST_REQUIREMENTS.md](docs/HOST_REQUIREMENTS.md).
 
 ---
 
@@ -37,34 +47,22 @@ After start: **Dashboard** http://127.0.0.1:8091 · **Health** http://127.0.0.1:
 
 ```bash
 ./scripts/run_tests.sh
-# or: pytest tests/ -v
-```
-
-Verify audit chain:
-
-```bash
 python3 scripts/verify_audit_chain.py
-```
-
-Pilot drill (synthetic event → fusion → evidence pack):
-
-```bash
 bash scripts/pilot_dry_run.sh
 ```
 
 ---
 
-## Arming containment (operators only — not on the client dashboard)
-
-Containment stays in **monitoring** until an operator completes the offline go-live process:
+## Arming containment (operators only)
 
 1. **NDA** — [docs/templates/NDA_TEMPLATE.md](docs/templates/NDA_TEMPLATE.md)  
 2. **ROE** — [docs/templates/ROE_TEMPLATE.md](docs/templates/ROE_TEMPLATE.md)  
-3. **WhatsApp + HTTPS** — `./scripts/setup_whatsapp_live.sh` · [docs/WHATSAPP_TLS.md](docs/WHATSAPP_TLS.md)  
-4. **Authorization file** — `config/pilot_signoff.json` (operator host only; never shown on the dashboard)  
-5. **Arm** — `./scripts/enable_live_mode.sh --check` then `--enable`  
+3. **Host** — `./scripts/check_netadmin.sh`  
+4. **WhatsApp + HTTPS** — `./scripts/setup_whatsapp_live.sh`  
+5. **`config/pilot_signoff.json`** — all flags true, no placeholders  
+6. **Arm** — `./scripts/enable_live_mode.sh --check` then `--enable`  
 
-See [docs/GO_LIVE.md](docs/GO_LIVE.md). The client dashboard shows protection status only — not legal sign-off.
+See [docs/GO_LIVE.md](docs/GO_LIVE.md).
 
 ---
 
@@ -86,6 +84,7 @@ See [docs/GO_LIVE.md](docs/GO_LIVE.md). The client dashboard shows protection st
 | [docs/HOW_TO_USE.md](docs/HOW_TO_USE.md) | How to operate |
 | [docs/HOW_TO_SELL.md](docs/HOW_TO_SELL.md) | Positioning |
 | [docs/WHATSAPP_TLS.md](docs/WHATSAPP_TLS.md) | Live Meta WhatsApp + HTTPS |
+| [docs/HOST_REQUIREMENTS.md](docs/HOST_REQUIREMENTS.md) | VM + CAP_NET_ADMIN for live CF_BLOCK |
 | [docs/GO_LIVE.md](docs/GO_LIVE.md) | NDA / ROE / operator arming |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting |
