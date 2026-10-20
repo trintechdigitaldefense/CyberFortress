@@ -124,6 +124,7 @@ start_local() {
   start_bg health         python3 -m agents.healthcheck --serve
   start_bg dashboard      python3 -m agents.dashboard
   start_bg daily_report   python3 -m agents.daily_report_agent
+  start_bg weekly_evidence python3 -m agents.weekly_evidence_agent
 
   sleep 0.5
   echo
@@ -159,6 +160,7 @@ print_urls() {
   echo
   echo "  Firewall: agent starts with platform (CF_BLOCK chain)"
   echo "  Daily WA report: every ${CF_REPORT_INTERVAL_SECONDS:-86400}s → ${CF_WHATSAPP_REPORT_TO:-${CF_WHATSAPP_ADMINS:-(not set)}}"
+  echo "  Weekly evidence: every ${CF_WEEKLY_EVIDENCE_SECONDS:-604800}s"
   echo "  Containment LIVE=${CF_CONTAINMENT_LIVE:-false} (DROP rules only when armed)"
 }
 
