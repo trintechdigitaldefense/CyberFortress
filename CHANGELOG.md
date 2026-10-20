@@ -1,26 +1,28 @@
 # Changelog
 
+## [v0.3.2] — 2026-10-19
+
+### Ops & depth
+- **systemd** optional 24/7 units (`deploy/systemd/`)
+- **Weekly evidence agent** (`agents/weekly_evidence_agent.py`)
+- **Rule packs** retail / finance / smb (+ `CF_RULE_PACK_NAME`)
+- **Post-action verify** on live `block_ip` (VERIFY_OK / VERIFY_FAIL)
+- **CAPACITY.md** honest limits
+- **Multi-tenant** scaffold `config/tenants/` + `core/tenant.py`
+- **Adversarial tests** malformed JSON, injection fields, nonce file semantics
+
 ## [v0.3.1] — 2026-10-19
 
 ### Go-live hardening
-- **HOST_REQUIREMENTS.md** — VM / CAP_NET_ADMIN requirements for live CF_BLOCK
-- **scripts/check_netadmin.sh** — preflight netfilter capability
-- **pilot_signoff** requires `host_netadmin_verified`, real NDA/ROE document paths
-- **enable_live_mode.sh** runs netadmin check before `--enable`
-- GO_LIVE + PILOT_DEPLOYMENT updated
+- HOST_REQUIREMENTS, check_netadmin, pilot_signoff host_netadmin_verified
 
 ## [v0.3.0-pilot] — 2026-10-19
 
-### Roadmap sprint (detection + cohesion)
-- Real threat hunting loop, rule pack v1, telemetry archive, detection audit entries
-- Firewall UNAVAILABLE on permission denied, Docker parity, expanded tests
-
-### Safety unchanged
-- `CF_CONTAINMENT_LIVE=false` default · ROE / breaker / watchdog / WhatsApp nonce controls intact
+- Real detection loop, rule pack default, Docker parity, tests
 
 ## [v0.2.0] — 2026-10-10
 
-- Hardening, audit chain, pytest suite, CI, WhatsApp Tier 2 nonce
+- Hardening, audit chain, pytest, CI
 
 ## [v0.1.0] — 2026-10-09
 

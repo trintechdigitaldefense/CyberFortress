@@ -1,0 +1,22 @@
+[Unit]
+Description=CyberFortress agent (%i)
+After=network-online.target
+Wants=network-online.target
+PartOf=cyberfortress.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/CyberFortress
+EnvironmentFile=-/opt/CyberFortress/.env
+EnvironmentFile=-/etc/cyberfortress.env
+Environment=PYTHONPATH=/opt/CyberFortress
+Environment=CF_ROOT=/opt/CyberFortress
+ExecStart=/usr/bin/python3 -m agents.%i
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=cyberfortress.target

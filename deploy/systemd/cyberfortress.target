@@ -1,0 +1,16 @@
+[Unit]
+Description=CyberFortress platform
+Wants=cyberfortress-agent@threat_hunting_agent.service
+Wants=cyberfortress-agent@telemetry_fusion_agent.service
+Wants=cyberfortress-agent@compliance_logger.service
+Wants=cyberfortress-agent@watchdog_agent.service
+Wants=cyberfortress-agent@whatsapp_webhook.service
+Wants=cyberfortress-agent@healthcheck.service
+Wants=cyberfortress-agent@dashboard.service
+Wants=cyberfortress-agent@daily_report_agent.service
+Wants=cyberfortress-agent@weekly_evidence_agent.service
+Wants=cyberfortress-firewall.service
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target
