@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-CyberFortress Threat Hunting Agent
-Pulls telemetry each cycle and feeds fusion (detect → audit → optional respond).
-"""
+"""CyberFortress Threat Hunting Agent — telemetry cycle into fusion."""
 
 from __future__ import annotations
 
@@ -13,6 +10,7 @@ from datetime import datetime, timezone
 
 from core.telemetry.fusion import TelemetryFusion
 from core.rules import load_pack, pack_summary
+from core.tenant import apply_tenant_env
 from core.watchdog import write_heartbeat
 
 logging.basicConfig(
@@ -36,7 +34,8 @@ def hunt_cycle(fusion: TelemetryFusion) -> int:
 
 def main():
     logger.info("CyberFortress Threat Hunting Agent starting...")
-    load_pack()
+    apply_tenant_env()
+    load_pack(force=True)
     summary = pack_summary()
     logger.info("Rule pack: %s (%s rules)", summary.get("pack_id"), summary.get("rule_count"))
 
