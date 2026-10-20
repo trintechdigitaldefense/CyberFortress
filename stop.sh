@@ -64,6 +64,7 @@ kill_module "agents.compliance_logger"
 kill_module "agents.watchdog_agent"
 kill_module "agents.firewall_agent"
 kill_module "agents.daily_report_agent"
+kill_module "agents.weekly_evidence_agent"
 sleep 0.3
 
 free_port() {
