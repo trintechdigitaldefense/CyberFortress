@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Enable CF_CONTAINMENT_LIVE only after pilot sign-off (NDA + ROE + WhatsApp + checklist).
+# Enable CF_CONTAINMENT_LIVE only after pilot sign-off (NDA + ROE + host + WhatsApp).
 # Usage:
 #   ./scripts/enable_live_mode.sh --check
 #   ./scripts/enable_live_mode.sh --enable
@@ -9,13 +9,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SIGNOFF="$ROOT/config/pilot_signoff.json"
 ENV_FILE="$ROOT/.env"
+cd "$ROOT"
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 require_signoff() {
   if [[ ! -f "$SIGNOFF" ]]; then
     echo "[!] Missing $SIGNOFF"
     echo "    cp config/pilot_signoff.example.json config/pilot_signoff.json"
-    echo "    Sign NDA + ROE (docs/templates/), complete WhatsApp TLS, set all flags true."
-    echo "    See docs/GO_LIVE.md"
+    echo "    Sign NDA + ROE (docs/templates/), run ./scripts/check_netadmin.sh,"
+    echo "    complete WhatsApp TLS, set all flags true. See docs/GO_LIVE.md"
     exit 1
   fi
 
@@ -31,14 +33,16 @@ required_true = [
     "operator_runbook_acknowledged",
     "roe_signed",
     "nda_signed",
+    "host_netadmin_verified",
 ]
 missing = [k for k in required_true if data.get(k) is not True]
 if missing:
     print("[!] Sign-off incomplete. Set these to true in config/pilot_signoff.json:")
     for k in missing:
         print(f"    - {k}")
-    print("    Templates: docs/templates/NDA_TEMPLATE.md · docs/templates/ROE_TEMPLATE.md")
-    print("    WhatsApp:  docs/WHATSAPP_TLS.md · ./scripts/setup_whatsapp_live.sh")
+    print("    NDA/ROE:  docs/templates/")
+    print("    Host:     ./scripts/check_netadmin.sh → then host_netadmin_verified=true")
+    print("    WhatsApp: docs/WHATSAPP_TLS.md")
     sys.exit(1)
 
 for field in ("client_name", "engagement_id", "signed_by", "signoff_date_utc", "client_approver"):
@@ -53,6 +57,12 @@ for field in ("client_name", "engagement_id", "signed_by", "signoff_date_utc", "
     )
     if bad:
         print(f"[!] Replace placeholder value for: {field}")
+        sys.exit(1)
+
+for field in ("roe_document", "nda_document"):
+    val = str(data.get(field, "")).strip()
+    if not val or "path/or/filename" in val:
+        print(f"[!] Set real path/filename for signed document: {field}")
         sys.exit(1)
 
 actions = data.get("authorized_actions") or []
@@ -71,67 +81,59 @@ print(f"    Engagement  : {data.get('engagement_id')}")
 print(f"    Signed by   : {data.get('signed_by')}")
 print(f"    Client      : {data.get('client_approver')}")
 print(f"    Date (UTC)  : {data.get('signoff_date_utc')}")
-print(f"    ROE actions : {', '.join(actions)}")
-print(f"    WA admins   : {len(admins)} number(s)")
+print(f"    ROE doc     : {data.get('roe_document')}")
+print(f"    NDA doc     : {data.get('nda_document')}")
+print(f"    Actions     : {', '.join(actions)}")
+print(f"    WA admins   : {', '.join(str(a) for a in admins)}")
+print(f"    NET_ADMIN   : verified={data.get('host_netadmin_verified')}")
 PY
 }
 
-cmd="${1:---check}"
+require_netadmin_runtime() {
+  echo "[*] Runtime netfilter probe..."
+  if ! bash "$ROOT/scripts/check_netadmin.sh"; then
+    echo "[!] Host failed check_netadmin.sh — refuse to enable live containment"
+    echo "    Fix host (VM + CAP_NET_ADMIN) or keep MONITORING only."
+    echo "    docs/HOST_REQUIREMENTS.md"
+    exit 1
+  fi
+}
 
-case "$cmd" in
+set_live_env() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    cp "$ROOT/.env.example" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+  fi
+  if grep -q '^CF_CONTAINMENT_LIVE=' "$ENV_FILE" 2>/dev/null; then
+    sed -i.bak 's/^CF_CONTAINMENT_LIVE=.*/CF_CONTAINMENT_LIVE=true/' "$ENV_FILE"
+  else
+    echo "CF_CONTAINMENT_LIVE=true" >>"$ENV_FILE"
+  fi
+  chmod 600 "$ENV_FILE"
+  echo "[+] CF_CONTAINMENT_LIVE=true written to .env"
+  echo "    Restart: ./stop.sh && ./start.sh"
+}
+
+MODE="${1:-}"
+case "$MODE" in
   --check)
     require_signoff
-    echo "[+] Ready for intentional live mode (not enabled yet)"
-    echo "    Run: ./scripts/enable_live_mode.sh --enable"
+    require_netadmin_runtime
+    echo "[+] --check OK — safe to run --enable when ready"
     ;;
   --enable)
     require_signoff
+    require_netadmin_runtime
     echo
-    echo "WARNING: This enables REAL containment actions on the host/network."
+    echo "WARNING: This arms LIVE containment (real DROP rules when playbooks run)."
     echo "Type exactly: ENABLE LIVE MODE"
-    read -r confirm
-    if [[ "$confirm" != "ENABLE LIVE MODE" ]]; then
-      echo "[!] Aborted — confirmation phrase did not match"
+    read -r CONFIRM
+    if [[ "$CONFIRM" != "ENABLE LIVE MODE" ]]; then
+      echo "[!] Aborted — confirmation mismatch"
       exit 1
     fi
-
-    if [[ ! -f "$ENV_FILE" ]]; then
-      cp "$ROOT/.env.example" "$ENV_FILE"
-      chmod 600 "$ENV_FILE"
-      echo "[+] Created .env from example"
-    fi
-
-    if grep -q '^CF_CONTAINMENT_LIVE=' "$ENV_FILE" 2>/dev/null; then
-      sed -i.bak 's/^CF_CONTAINMENT_LIVE=.*/CF_CONTAINMENT_LIVE=true/' "$ENV_FILE"
-      rm -f "$ENV_FILE.bak"
-    else
-      echo "CF_CONTAINMENT_LIVE=true" >> "$ENV_FILE"
-    fi
-
-    if grep -q '^CF_ALLOW_FORCE=' "$ENV_FILE" 2>/dev/null; then
-      sed -i.bak 's/^CF_ALLOW_FORCE=.*/CF_ALLOW_FORCE=false/' "$ENV_FILE"
-      rm -f "$ENV_FILE.bak"
-    else
-      echo "CF_ALLOW_FORCE=false" >> "$ENV_FILE"
-    fi
-
-    if grep -q '^CF_WATCHDOG_FAIL_CLOSED=' "$ENV_FILE" 2>/dev/null; then
-      sed -i.bak 's/^CF_WATCHDOG_FAIL_CLOSED=.*/CF_WATCHDOG_FAIL_CLOSED=true/' "$ENV_FILE"
-      rm -f "$ENV_FILE.bak"
-    else
-      echo "CF_WATCHDOG_FAIL_CLOSED=true" >> "$ENV_FILE"
-    fi
-
-    chmod 600 "$ENV_FILE"
-    echo "[+] CF_CONTAINMENT_LIVE=true written to .env"
-    echo "[+] CF_ALLOW_FORCE=false (prefer WhatsApp APPROVE)"
-    echo "[+] CF_WATCHDOG_FAIL_CLOSED=true"
-    echo
-    echo "Next steps:"
-    echo "  1. ./stop.sh && ./start.sh"
-    echo "  2. python3 -m agents.healthcheck"
-    echo "  3. Follow docs/OPERATOR_RUNBOOK.md for first 48 hours"
-    echo "  4. Rollback: ./scripts/disable_live_mode.sh"
+    set_live_env
+    echo "[+] Live mode enabled. Confirm health shows containment_live=true after restart."
     ;;
   *)
     echo "Usage: $0 --check | --enable"

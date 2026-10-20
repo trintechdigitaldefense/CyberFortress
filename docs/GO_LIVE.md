@@ -1,41 +1,51 @@
-# Intentional Live Mode
+# CyberFortress — Go-Live (Arm Containment)
 
-**TrinTech Digital Defense — CyberFortress**
+**TrinTech Digital Defense**
 
-Live containment (`CF_CONTAINMENT_LIVE=true`) is **never** the default.  
-It is enabled only after legal + operational gates are complete.
+Live mode executes real containment (e.g. iptables `CF_BLOCK` DROP).  
+It is **blocked** until legal sign-off **and** the host can manage netfilter.
 
 ---
 
 ## Prerequisites (all required)
 
-| # | Gate | Evidence |
-|---|------|----------|
-| 1 | **NDA signed** | `docs/templates/NDA_TEMPLATE.md` → signed PDF; `nda_signed: true` |
-| 2 | **ROE signed** | `docs/templates/ROE_TEMPLATE.md` → signed PDF; `roe_signed: true`; same `authorized_actions` + WhatsApp admins |
-| 3 | **WhatsApp + HTTPS** | `docs/WHATSAPP_TLS.md` + `./scripts/setup_whatsapp_live.sh` + `./scripts/verify_whatsapp.sh`; `whatsapp_tls_verified: true` |
-| 4 | **Operator runbook** | `docs/OPERATOR_RUNBOOK.md` acknowledged; flag true |
-| 5 | **Pilot checklist** | `docs/PILOT_DEPLOYMENT.md` complete; `checklist_complete: true` |
-| 6 | **Sign-off file** | `config/pilot_signoff.json` (from example; **gitignored**) |
+| # | Item | How |
+|---|------|-----|
+| 1 | **NDA signed** | [templates/NDA_TEMPLATE.md](templates/NDA_TEMPLATE.md) → set `nda_signed: true` + `nda_document` |
+| 2 | **ROE signed** | [templates/ROE_TEMPLATE.md](templates/ROE_TEMPLATE.md) → `roe_signed: true` + `roe_document` + `authorized_actions` |
+| 3 | **Host can run firewall** | [HOST_REQUIREMENTS.md](HOST_REQUIREMENTS.md) · `./scripts/check_netadmin.sh` → `host_netadmin_verified: true` |
+| 4 | **WhatsApp + TLS** (for Tier 2) | [WHATSAPP_TLS.md](WHATSAPP_TLS.md) · `whatsapp_tls_verified: true` |
+| 5 | **Operator runbook** | [OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md) · `operator_runbook_acknowledged: true` |
+| 6 | **Checklist** | [PILOT_DEPLOYMENT.md](PILOT_DEPLOYMENT.md) · `checklist_complete: true` |
+
+Restricted containers that print `iptables: Permission denied` **must not** be armed. Use MONITORING only there.
+
+---
+
+## Create pilot_signoff.json
 
 ```bash
 cp config/pilot_signoff.example.json config/pilot_signoff.json
 chmod 600 config/pilot_signoff.json
-# Edit every field — no placeholders left
+# Edit every field — no placeholders
+# After ./scripts/check_netadmin.sh passes:
+#   "host_netadmin_verified": true
 ```
+
+`enable_live_mode.sh` refuses if any required flag is not `true` or placeholders remain.
 
 ---
 
-## Enable live mode (controlled)
+## Enable live mode
 
 ```bash
+./scripts/check_netadmin.sh
 ./scripts/enable_live_mode.sh --check
 ./scripts/enable_live_mode.sh --enable   # type: ENABLE LIVE MODE
 ./stop.sh && ./start.sh
-python3 -m agents.healthcheck           # containment_live must be true
+curl -s http://127.0.0.1:8090/health | python3 -m json.tool
+curl -s http://127.0.0.1:8091/api/firewall | python3 -m json.tool
 ```
-
-The enable script **refuses** if sign-off is missing, flags are false, or placeholders remain.
 
 ---
 
@@ -44,7 +54,6 @@ The enable script **refuses** if sign-off is missing, flags are false, or placeh
 ```bash
 ./scripts/disable_live_mode.sh
 ./stop.sh && ./start.sh
-python3 playbooks/breaker.py trip --reason "Live mode disabled by operator"
 ```
 
 ---
@@ -53,19 +62,10 @@ python3 playbooks/breaker.py trip --reason "Live mode disabled by operator"
 
 | Mode | Behaviour |
 |------|-----------|
-| DRY-RUN (default) | Drivers log intended actions only |
-| LIVE | Drivers execute real containment |
+| MONITORING (default) | Detect, audit, report; DROP not applied |
+| LIVE (armed) | Allow-listed playbooks can change the host firewall |
 
-Tier rules still apply: Tier 1 execute+notify; Tier 2 WhatsApp `APPROVE <nonce>`.
-
----
-
-## First 48 hours after go-live
-
-- [ ] Operator on watch per OPERATOR_RUNBOOK  
-- [ ] Watchdog fail-closed on  
-- [ ] Evidence pack at 24h and 48h  
-- [ ] Client knows who can approve on WhatsApp  
+Tier 1: execute + notify. Tier 2: WhatsApp `APPROVE <nonce>` still required.
 
 ---
 
