@@ -1,11 +1,5 @@
-# ---------------------------------------------------------------------------
-# CyberFortress hardened defaults
-# - CF_CONTAINMENT_LIVE defaults to false (pilot sign-off required for live)
-# - CF_WATCHDOG_FAIL_CLOSED defaults to true
-# - Dashboard + health bound to 127.0.0.1 only (admin network)
-# - WhatsApp webhook stays internal; put TLS reverse proxy in front
-# - Secrets via env_file / host env only — never commit .env
-# ---------------------------------------------------------------------------
+# CyberFortress — Docker Compose (parity with local start.sh)
+# Defaults: containment LIVE=false, fail-closed watchdog, localhost binds
 
 services:
   threat_agent:
@@ -15,6 +9,7 @@ services:
     container_name: cf_threat_agent
     restart: unless-stopped
     user: "10001:10001"
+    command: ["python3", "-m", "agents.threat_hunting_agent"]
     env_file:
       - path: ../.env
         required: false
@@ -24,29 +19,10 @@ services:
       - ../telemetry:/app/telemetry
     environment:
       - CF_MODE=production
-      - CF_LOG_LEVEL=INFO
       - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
       - CF_ALLOW_FORCE=${CF_ALLOW_FORCE:-false}
-    networks:
-      - cyberfortress_net
-
-  compliance_logger:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: cf_compliance_logger
-    restart: unless-stopped
-    user: "10001:10001"
-    command: ["python3", "-m", "agents.compliance_logger"]
-    env_file:
-      - path: ../.env
-        required: false
-    volumes:
-      - ../config:/app/config:ro
-      - ../logs:/app/logs
-    environment:
-      - CF_MODE=production
-      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+      - CF_AUTO_RESPOND=${CF_AUTO_RESPOND:-true}
+      - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
     networks:
       - cyberfortress_net
 
@@ -66,10 +42,24 @@ services:
       - ../logs:/app/logs
       - ../telemetry:/app/telemetry
     environment:
-      - CF_MODE=production
-      - CF_LOG_LEVEL=INFO
+      - CF_AUTO_RESPOND=${CF_AUTO_RESPOND:-true}
+      - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
       - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
-      - CF_ALLOW_FORCE=${CF_ALLOW_FORCE:-false}
+    networks:
+      - cyberfortress_net
+
+  compliance:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_compliance_logger
+    restart: unless-stopped
+    user: "10001:10001"
+    command: ["python3", "-m", "agents.compliance_logger"]
+    volumes:
+      - ../logs:/app/logs
+    environment:
+      - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
     networks:
       - cyberfortress_net
 
@@ -85,13 +75,32 @@ services:
       - path: ../.env
         required: false
     volumes:
-      - ../config:/app/config:ro
       - ../logs:/app/logs
     environment:
-      - CF_MODE=production
       - CF_WATCHDOG_INTERVAL=60
       - CF_WATCHDOG_FAIL_CLOSED=${CF_WATCHDOG_FAIL_CLOSED:-true}
       - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+    networks:
+      - cyberfortress_net
+
+  firewall:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_firewall
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    command: ["python3", "-m", "agents.firewall_agent"]
+    env_file:
+      - path: ../.env
+        required: false
+    volumes:
+      - ../logs:/app/logs
+    environment:
+      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+      - CF_FIREWALL_AUTO_START=${CF_FIREWALL_AUTO_START:-true}
     networks:
       - cyberfortress_net
 
@@ -117,6 +126,27 @@ services:
     networks:
       - cyberfortress_net
 
+  daily_report:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_daily_report
+    restart: unless-stopped
+    user: "10001:10001"
+    command: ["python3", "-m", "agents.daily_report_agent"]
+    env_file:
+      - path: ../.env
+        required: false
+    volumes:
+      - ../logs:/app/logs
+      - ../evidence:/app/evidence
+    environment:
+      - CF_REPORT_INTERVAL_SECONDS=${CF_REPORT_INTERVAL_SECONDS:-86400}
+      - CF_REPORT_ON_START=${CF_REPORT_ON_START:-true}
+      - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
+    networks:
+      - cyberfortress_net
+
   health:
     build:
       context: ..
@@ -127,6 +157,9 @@ services:
     command: ["python3", "-m", "agents.healthcheck", "--serve"]
     ports:
       - "127.0.0.1:8090:8090"
+    env_file:
+      - path: ../.env
+        required: false
     volumes:
       - ../logs:/app/logs
       - ../evidence:/app/evidence
@@ -147,9 +180,13 @@ services:
     command: ["python3", "-m", "agents.dashboard"]
     ports:
       - "127.0.0.1:8091:8091"
+    env_file:
+      - path: ../.env
+        required: false
     volumes:
       - ../logs:/app/logs
       - ../evidence:/app/evidence
+      - ../config:/app/config:ro
     environment:
       - CF_DASHBOARD_PORT=8091
       - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
