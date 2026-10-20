@@ -74,6 +74,20 @@ def ensure_chain(dry_run: bool = False, force_infra: bool = False) -> Dict[str, 
         else:
             steps.append({"cmd": f"jump {parent}->{CHAIN}", "rc": 0, "simulated": True})
 
+    probe = _run_read([ipt, "-L", CHAIN, "-n"]) if ipt else None
+    probe_err = (probe.stderr or b"").decode(errors="replace") if probe else ""
+    if probe and probe.returncode != 0 and "permission denied" in probe_err.lower():
+        return {
+            "ok": False,
+            "error": "Permission denied — host lacks netfilter capability (CAP_NET_ADMIN)",
+            "chain": CHAIN,
+            "infrastructure": False,
+            "live_mode": LIVE_MODE,
+            "auto_start": AUTO_START,
+            "steps": steps,
+            "message": "UNAVAILABLE: cannot manage iptables on this host",
+        }
+
     return {
         "ok": True,
         "chain": CHAIN,
@@ -234,6 +248,7 @@ def firewall_status() -> Dict[str, Any]:
         return status
 
     r = _run_read([ipt, "-L", CHAIN, "-n"])
+    err = (r.stderr or b"").decode(errors="replace").strip()
     if r.returncode == 0:
         status["chain_exists"] = True
         rules = list_cf_rules()
@@ -249,10 +264,19 @@ def firewall_status() -> Dict[str, Any]:
                 f"{status['rule_count']} rule(s) · containment not armed (no new DROP from alerts)"
             )
     else:
-        status["message"] = (
-            f"Chain {CHAIN} not present yet — firewall agent will create it on start "
-            f"(needs root + iptables)"
-        )
+        denied = "permission denied" in err.lower() or "operation not permitted" in err.lower()
+        if denied:
+            status["mode_label"] = "UNAVAILABLE"
+            status["message"] = (
+                f"Host blocked netfilter (Permission denied). "
+                f"Deploy on a VM/bare metal with CAP_NET_ADMIN, or privileged container. Detail: {err[:120]}"
+            )
+            status["host_blocked"] = True
+        else:
+            status["message"] = (
+                f"Chain {CHAIN} not present yet — firewall agent will create it on start "
+                f"(needs root + iptables). {err[:80]}"
+            )
 
     who = _run_read(["id", "-u"])
     try:
