@@ -1,0 +1,5 @@
+tenant_id: example_client
+client_name: Example Client Ltd
+engagement_id: ENG-DEMO-001
+whatsapp_report_to: "+18683620679"
+rule_pack: smb_v1

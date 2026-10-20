@@ -1,0 +1,29 @@
+pack_id: smb_v1
+version: "1.0"
+description: SMB / small business baseline
+rules:
+  - id: CF-SMB-001
+    name: rdp_bruteforce
+    match_indicators: [rdp, bruteforce, smb_bruteforce, failed_login_flood]
+    severity: HIGH
+    playbook: block_ip
+  - id: CF-SMB-002
+    name: phishing_callback
+    match_indicators: [phishing, callback, malware]
+    severity: HIGH
+    playbook: isolate_endpoint
+  - id: CF-SMB-003
+    name: decoy_trip
+    match_indicators: [decoy, honeypot, mirage_trip]
+    severity: HIGH
+    playbook: isolate_endpoint
+  - id: CF-SMB-004
+    name: ransomware
+    match_indicators: [ransomware, encryption, exfil]
+    severity: CRITICAL
+    playbook: halt_operations
+  - id: CF-SMB-005
+    name: reverse_shell
+    match_indicators: [reverse_shell, shell, c2, beacon]
+    severity: HIGH
+    playbook: block_ip

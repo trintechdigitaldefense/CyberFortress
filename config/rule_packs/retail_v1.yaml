@@ -1,0 +1,29 @@
+pack_id: retail_v1
+version: "1.0"
+description: Retail POS / e-commerce oriented rules
+rules:
+  - id: CF-RET-001
+    name: pos_malware
+    match_indicators: [pos_malware, card_skimmer, ram_scraper]
+    severity: CRITICAL
+    playbook: isolate_endpoint
+  - id: CF-RET-002
+    name: payment_fraud
+    match_indicators: [payment_fraud, cnp_abuse, checkout_flood]
+    severity: HIGH
+    playbook: block_ip
+  - id: CF-RET-003
+    name: inventory_scan
+    match_indicators: [inventory_scan, price_scrape]
+    severity: HIGH
+    playbook: block_ip
+  - id: CF-RET-004
+    name: decoy_trip
+    match_indicators: [decoy, honeypot, mirage_trip]
+    severity: HIGH
+    playbook: isolate_endpoint
+  - id: CF-RET-005
+    name: ransomware
+    match_indicators: [ransomware, encryption, exfil]
+    severity: CRITICAL
+    playbook: halt_operations

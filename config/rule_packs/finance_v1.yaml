@@ -1,0 +1,29 @@
+pack_id: finance_v1
+version: "1.0"
+description: Finance / banking oriented rules
+rules:
+  - id: CF-FIN-001
+    name: account_takeover
+    match_indicators: [account_takeover, ato, credential_stuffing]
+    severity: CRITICAL
+    playbook: credential_rotation
+  - id: CF-FIN-002
+    name: wire_fraud
+    match_indicators: [wire_fraud, bsc, business_email_compromise, bec]
+    severity: CRITICAL
+    playbook: halt_operations
+  - id: CF-FIN-003
+    name: swift_anomaly
+    match_indicators: [swift, core_banking, lateral]
+    severity: CRITICAL
+    playbook: subnet_isolation
+  - id: CF-FIN-004
+    name: brute_force
+    match_indicators: [bruteforce, brute_force, failed_login_flood]
+    severity: HIGH
+    playbook: block_ip
+  - id: CF-FIN-005
+    name: reverse_shell
+    match_indicators: [reverse_shell, shell, c2, beacon]
+    severity: HIGH
+    playbook: block_ip

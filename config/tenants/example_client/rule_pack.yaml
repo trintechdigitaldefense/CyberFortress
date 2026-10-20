@@ -1,0 +1,14 @@
+pack_id: example_client_custom
+version: "1.0"
+description: Example tenant override pack
+rules:
+  - id: CF-EX-001
+    name: decoy_trip
+    match_indicators: [decoy, honeypot]
+    severity: HIGH
+    playbook: isolate_endpoint
+  - id: CF-EX-002
+    name: brute_force
+    match_indicators: [bruteforce, brute_force]
+    severity: HIGH
+    playbook: block_ip
