@@ -1,32 +1,27 @@
 #!/usr/bin/env python3
-"""
-Telemetry Adapters for CyberFortress
-Normalize events from Sentinel, Mirage, CyberGuardian, and local sources
-into a common schema that the fusion engine and escalation can consume.
-"""
+"""Telemetry adapters — normalize Sentinel / Mirage / local file drops."""
+
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 import json
 import logging
+import os
 from pathlib import Path
 
 logger = logging.getLogger("cf_telemetry.adapters")
 
 
 class BaseAdapter(ABC):
-    """Base class for all telemetry source adapters."""
-
     source_name: str = "unknown"
 
     @abstractmethod
     def fetch_events(self, since: Optional[datetime] = None) -> List[Dict[str, Any]]:
-        """Return a list of normalized events."""
         pass
 
     def normalize(self, raw: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert a raw event into the CyberFortress common schema."""
         return {
             "source": self.source_name,
             "indicator": raw.get("indicator") or raw.get("type") or raw.get("event") or "unknown",
@@ -37,99 +32,87 @@ class BaseAdapter(ABC):
         }
 
 
-class SentinelAdapter(BaseAdapter):
-    """
-    Adapter for TrinTech Sentinel (Line of Defense Engine).
-    Expects either:
-      - JSON log files / API endpoint
-      - or a simple file drop in /var/log/sentinel/ or ./telemetry/sentinel/
-    """
+def _archive_file(path: Path) -> None:
+    try:
+        dest_dir = path.parent / "processed"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / path.name
+        if dest.exists():
+            dest = dest_dir / f"{path.stem}_{int(datetime.now().timestamp())}{path.suffix}"
+        path.rename(dest)
+    except Exception as e:
+        logger.warning("Could not archive %s: %s", path, e)
 
-    source_name = "sentinel"
 
+class _JsonDirAdapter(BaseAdapter):
+    def __init__(self, log_path: str, source_name: str):
+        self.source_name = source_name
+        self.log_path = Path(log_path)
+        self.log_path.mkdir(parents=True, exist_ok=True)
+        self.archive = os.getenv("CF_TELEMETRY_ARCHIVE", "true").lower() == "true"
+
+    def fetch_events(self, since: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        events: List[Dict[str, Any]] = []
+        for f in sorted(self.log_path.glob("*.json")):
+            if f.name.startswith("."):
+                continue
+            try:
+                with open(f, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                items = data if isinstance(data, list) else [data]
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    ev = self.normalize(item)
+                    ev["_source_file"] = str(f)
+                    events.append(ev)
+                if self.archive:
+                    _archive_file(f)
+            except json.JSONDecodeError as e:
+                logger.warning("Malformed JSON in %s: %s", f, e)
+                try:
+                    bad = self.log_path / "quarantine"
+                    bad.mkdir(exist_ok=True)
+                    f.rename(bad / f.name)
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.warning("Failed to read %s: %s", f, e)
+        return events
+
+
+class SentinelAdapter(_JsonDirAdapter):
     def __init__(self, log_path: str = "./telemetry/sentinel"):
-        self.log_path = Path(log_path)
-        self.log_path.mkdir(parents=True, exist_ok=True)
-
-    def fetch_events(self, since: Optional[datetime] = None) -> List[Dict[str, Any]]:
-        events = []
-        for f in sorted(self.log_path.glob("*.json")):
-            try:
-                with open(f, "r", encoding="utf-8") as fh:
-                    data = json.load(fh)
-                    if isinstance(data, list):
-                        for item in data:
-                            events.append(self.normalize(item))
-                    else:
-                        events.append(self.normalize(data))
-            except Exception as e:
-                logger.warning(f"Failed to read Sentinel file {f}: {e}")
-        return events
+        super().__init__(log_path, "sentinel")
 
 
-class MirageAdapter(BaseAdapter):
-    """
-    Adapter for TrinTech Mirage (Active Deception Platform).
-    Captures canary / honey-token / fake-service triggers.
-    """
-
-    source_name = "mirage"
-
+class MirageAdapter(_JsonDirAdapter):
     def __init__(self, log_path: str = "./telemetry/mirage"):
-        self.log_path = Path(log_path)
-        self.log_path.mkdir(parents=True, exist_ok=True)
-
-    def fetch_events(self, since: Optional[datetime] = None) -> List[Dict[str, Any]]:
-        events = []
-        for f in sorted(self.log_path.glob("*.json")):
-            try:
-                with open(f, "r", encoding="utf-8") as fh:
-                    data = json.load(fh)
-                    if isinstance(data, list):
-                        for item in data:
-                            # Force indicator to highlight deception
-                            item.setdefault("indicator", "decoy_trigger")
-                            events.append(self.normalize(item))
-                    else:
-                        data.setdefault("indicator", "decoy_trigger")
-                        events.append(self.normalize(data))
-            except Exception as e:
-                logger.warning(f"Failed to read Mirage file {f}: {e}")
-        return events
+        super().__init__(log_path, "mirage")
 
 
 class LocalLogAdapter(BaseAdapter):
-    """
-    Simple adapter that tails a JSONL or text log for local / custom sources.
-    Useful for CyberGuardian, custom agents, or syslog-style feeds.
-    """
-
     source_name = "local"
 
-    def __init__(self, log_file: str = "./telemetry/local/events.jsonl"):
-        self.log_file = Path(log_file)
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
-        if not self.log_file.exists():
-            self.log_file.touch()
+    def __init__(self, log_path: str = "./telemetry/local"):
+        self.log_path = Path(log_path)
+        self.log_path.mkdir(parents=True, exist_ok=True)
 
     def fetch_events(self, since: Optional[datetime] = None) -> List[Dict[str, Any]]:
         events = []
-        try:
-            with open(self.log_file, "r", encoding="utf-8") as fh:
-                for line in fh:
+        for f in sorted(self.log_path.glob("*.jsonl")):
+            try:
+                for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
                     line = line.strip()
                     if not line:
                         continue
                     try:
-                        raw = json.loads(line)
-                        events.append(self.normalize(raw))
+                        events.append(self.normalize(json.loads(line)))
                     except json.JSONDecodeError:
-                        # Treat plain text as a generic event
-                        events.append(self.normalize({
-                            "indicator": "local_log",
-                            "target": "unknown",
-                            "message": line,
-                        }))
-        except Exception as e:
-            logger.warning(f"Failed to read local log {self.log_file}: {e}")
+                        continue
+                dest = self.log_path / "processed"
+                dest.mkdir(exist_ok=True)
+                f.rename(dest / f.name)
+            except Exception as e:
+                logger.warning("Local log %s failed: %s", f, e)
         return events

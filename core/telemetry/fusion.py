@@ -1,39 +1,39 @@
 #!/usr/bin/env python3
-"""
-CyberFortress Telemetry Fusion Engine
-Collects, normalizes, and correlates events from multiple sources
-(Sentinel, Mirage, local logs, live APIs) and feeds them into the
-Escalation Engine + Autonomy decision path.
-"""
+"""Telemetry fusion — collect, correlate, audit, optional auto-respond."""
+
+from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from core.telemetry.adapters import SentinelAdapter, MirageAdapter, LocalLogAdapter, BaseAdapter
 from core.telemetry.api_connectors import SentinelAPIConnector, MirageAPIConnector
 from core.escalation import ingest_event, recommend_playbook, AlertLevel
 from core.autonomy import execute_with_autonomy
+from core.rules import resolve_playbook, pack_summary
 
 logger = logging.getLogger("cf_telemetry.fusion")
+
+AUDIT_PATH = Path(os.getenv("CF_AUDIT_PATH", "./logs/cma_audit.jsonl"))
 
 
 class TelemetryFusion:
     def __init__(self, auto_respond: bool = False):
         self.adapters: List[BaseAdapter] = []
         self.auto_respond = auto_respond
-        self._seen_ids = set()
+        self._seen_ids: set = set()
 
     def register(self, adapter: BaseAdapter):
         self.adapters.append(adapter)
-        logger.info(f"Registered adapter: {adapter.source_name}")
+        logger.info("Registered adapter: %s", adapter.source_name)
 
     def register_defaults(self):
-        """Register file-based + live API connectors."""
         self.register(SentinelAdapter())
         self.register(MirageAdapter())
         self.register(LocalLogAdapter())
-        # Live API connectors (no-op if env vars not set)
         self.register(SentinelAPIConnector())
         self.register(MirageAPIConnector())
 
@@ -43,22 +43,55 @@ class TelemetryFusion:
             try:
                 events = adapter.fetch_events()
                 all_events.extend(events)
-                logger.debug(f"{adapter.source_name}: {len(events)} events")
+                if events:
+                    logger.info("%s: %s events", adapter.source_name, len(events))
             except Exception as e:
-                logger.error(f"Adapter {adapter.source_name} failed: {e}")
+                logger.error("Adapter %s failed: %s", adapter.source_name, e)
         return all_events
+
+    def _audit_detection(self, event, level, playbook, rule_id, pack_id, executed):
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "tag": "TT_CMA_TAG",
+            "action": f"detection:{event.get('indicator', 'unknown')}",
+            "target": event.get("target", "unknown"),
+            "severity": level,
+            "legislative_justification": (
+                f"Rules-driven detection from {event.get('source')} | "
+                f"playbook={playbook} | rule={rule_id or 'escalation_default'} | "
+                f"pack={pack_id or 'n/a'} | auto_executed={executed}"
+            ),
+            "source": event.get("source", "fusion"),
+            "indicator": event.get("indicator"),
+            "recommended_playbook": playbook,
+            "rule_id": rule_id,
+            "pack_id": pack_id,
+            "auto_executed": executed,
+        }
+        try:
+            from core.audit_chain import append_chained
+
+            append_chained(AUDIT_PATH, entry)
+        except Exception as e:
+            logger.warning("Audit write failed: %s", e)
+            AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
+            import json
+
+            with open(AUDIT_PATH, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
 
     def process(self, events: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         if events is None:
             events = self.collect()
 
         results = []
-
         for event in events:
-            eid = f"{event['source']}:{event['indicator']}:{event['target']}:{event.get('timestamp', '')}"
+            eid = f"{event.get('source')}:{event.get('indicator')}:{event.get('target')}:{event.get('timestamp', '')}"
             if eid in self._seen_ids:
                 continue
             self._seen_ids.add(eid)
+            if len(self._seen_ids) > 5000:
+                self._seen_ids = set(list(self._seen_ids)[-2000:])
 
             level = ingest_event(
                 source=event["source"],
@@ -68,30 +101,42 @@ class TelemetryFusion:
             )
 
             recommended = recommend_playbook(level, event["indicator"])
+            playbook, rule_id, pack_id = resolve_playbook(event["indicator"], recommended)
 
             result = {
                 "event": event,
                 "escalated_level": level.value,
-                "recommended_playbook": recommended,
+                "recommended_playbook": playbook,
+                "rule_id": rule_id,
+                "pack_id": pack_id,
                 "auto_executed": False,
             }
 
             logger.info(
-                f"[{level.value}] {event['source']} → {event['indicator']} on {event['target']} "
-                f"| recommend: {recommended}"
+                "[%s] %s → %s on %s | playbook=%s rule=%s",
+                level.value,
+                event["source"],
+                event["indicator"],
+                event["target"],
+                playbook,
+                rule_id or "-",
             )
 
+            executed = False
             if self.auto_respond and level in (AlertLevel.HIGH, AlertLevel.CRITICAL):
-                logger.info(f"Auto-responding with playbook: {recommended}")
-                allowed = execute_with_autonomy(
-                    action=recommended,
-                    target=event["target"],
-                    scope="single" if level != AlertLevel.CRITICAL else "subnet",
-                    force=False,
-                    severity=level.value,
+                logger.info("Auto-responding with playbook: %s", playbook)
+                executed = bool(
+                    execute_with_autonomy(
+                        action=playbook,
+                        target=event["target"],
+                        scope="single" if level != AlertLevel.CRITICAL else "subnet",
+                        force=False,
+                        severity=level.value,
+                    )
                 )
-                result["auto_executed"] = allowed
+                result["auto_executed"] = executed
 
+            self._audit_detection(event, level.value, playbook, rule_id, pack_id, executed)
             results.append(result)
 
         return results
