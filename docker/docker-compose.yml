@@ -147,6 +147,28 @@ services:
     networks:
       - cyberfortress_net
 
+  weekly_evidence:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cf_weekly_evidence
+    restart: unless-stopped
+    user: "10001:10001"
+    command: ["python3", "-m", "agents.weekly_evidence_agent"]
+    env_file:
+      - path: ../.env
+        required: false
+    volumes:
+      - ../logs:/app/logs
+      - ../evidence:/app/evidence
+      - ../config:/app/config:ro
+    environment:
+      - CF_WEEKLY_EVIDENCE_SECONDS=${CF_WEEKLY_EVIDENCE_SECONDS:-604800}
+      - CF_WEEKLY_EVIDENCE_ON_START=${CF_WEEKLY_EVIDENCE_ON_START:-false}
+      - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
+    networks:
+      - cyberfortress_net
+
   health:
     build:
       context: ..
