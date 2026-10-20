@@ -5,6 +5,7 @@
 **Mandatory** before any client network placement and **before** live mode.
 
 Related docs:
+- **Host / CAP_NET_ADMIN:** [HOST_REQUIREMENTS.md](HOST_REQUIREMENTS.md)
 - **Live WhatsApp + TLS:** [WHATSAPP_TLS.md](WHATSAPP_TLS.md)
 - **Operator process:** [OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md)
 - **Intentional live mode:** [GO_LIVE.md](GO_LIVE.md)
@@ -12,6 +13,7 @@ Related docs:
 ```bash
 # Preflight
 ./scripts/check_client_ready.sh
+./scripts/check_netadmin.sh   # required before live CF_BLOCK
 ```
 
 ---
@@ -31,122 +33,42 @@ Related docs:
 
 ---
 
+## 0. Host (live firewall)
+
+- [ ] Pilot runs on **VM or bare metal** (not a netfilter-locked container)
+- [ ] `./scripts/check_netadmin.sh` passes
+- [ ] `host_netadmin_verified: true` in `config/pilot_signoff.json` before arming
+
+If check fails → **MONITORING only** until host is fixed.
+
 ## 1. Legal & Authorization
 
-- [ ] Signed NDA
-- [ ] Signed ROE (monitoring, listed containment actions, credential rotation if used, WhatsApp HITL)
+- [ ] Signed NDA ([templates/NDA_TEMPLATE.md](templates/NDA_TEMPLATE.md))
+- [ ] Signed ROE ([templates/ROE_TEMPLATE.md](templates/ROE_TEMPLATE.md)) — monitoring, listed containment actions, WhatsApp HITL
 - [ ] Primary + secondary WhatsApp admin numbers designated
 - [ ] TT Computer Misuse Act justifications accepted by client
 - [ ] Operators assigned per [OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md)
+- [ ] `config/pilot_signoff.json` filled (no placeholders; all flags true only after real signatures)
+
+## 2. Technical preflight
+
+- [ ] `./install.sh` and `./start.sh` healthy
+- [ ] Dashboard + health on localhost only
+- [ ] Dry-run pilot: `bash scripts/pilot_dry_run.sh`
+- [ ] Audit chain verifies
+
+## 3. WhatsApp
+
+- [ ] Meta token + phone number ID in `.env` (never committed)
+- [ ] TLS in front of webhook for inbound APPROVE
+- [ ] Test message / daily report path verified
+
+## 4. Go-live
+
+- [ ] `./scripts/enable_live_mode.sh --check`
+- [ ] `./scripts/enable_live_mode.sh --enable`
+- [ ] Restart; confirm `containment_live=true` and firewall not UNAVAILABLE
 
 ---
 
-## 2. Environment
-
-- [ ] Ubuntu 22.04+ host with Docker
-- [ ] Visibility to target assets per ROE
-- [ ] Firewall: management only via admin VPN/SSH
-- [ ] Outbound to WhatsApp Cloud API allowed
-- [ ] NTP synced
-- [ ] `CF_BACKUP_DEST` off-box path ready
-
----
-
-## 3. Configuration
-
-```bash
-cp .env.example .env && chmod 600 .env
-# CF_CONTAINMENT_LIVE=false
-# CF_ALLOW_FORCE=false
-# CF_WATCHDOG_FAIL_CLOSED=true
-```
-
-- [ ] No secrets in git
-- [ ] `.env` permissions 600
-
----
-
-## 4. Dry-run pre-flight
-
-```bash
-./scripts/check_client_ready.sh
-python3 -m agents.healthcheck
-python3 -m agents.watchdog_agent --once
-python3 playbooks/execute.py --list
-python3 playbooks/breaker.py status
-python3 playbooks/evidence.py --client "PILOT-CLIENT" --engagement ENG-PILOT-001
-./scripts/backup_offbox.sh
-```
-
-- [ ] All checks pass
-- [ ] Evidence pack OK
-- [ ] Breaker CLOSED
-
----
-
-## 5. Live WhatsApp + TLS
-
-Complete **[WHATSAPP_TLS.md](WHATSAPP_TLS.md)** in full.
-
-- [ ] Webhook on `127.0.0.1:8089` only
-- [ ] Public HTTPS (Caddy / Cloudflare Tunnel)
-- [ ] Meta webhook verified
-- [ ] APPROVE/DENY test successful
-- [ ] Dashboard/health **not** public
-
----
-
-## 6. Operator process ready
-
-Complete **[OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md)** briefing.
-
-- [ ] Lead + on-call named
-- [ ] Shift-start checks practiced
-- [ ] Emergency stop known: `./scripts/disable_live_mode.sh`
-- [ ] Client briefed on WhatsApp alerts
-
----
-
-## 7. Sign-off file
-
-```bash
-cp config/pilot_signoff.example.json config/pilot_signoff.json
-chmod 600 config/pilot_signoff.json
-# Set all flags true; fill client, engagement, names, date
-./scripts/enable_live_mode.sh --check
-```
-
-- [ ] `checklist_complete: true`
-- [ ] `whatsapp_tls_verified: true`
-- [ ] `operator_runbook_acknowledged: true`
-- [ ] `roe_signed` / `nda_signed: true`
-
----
-
-## 8. Intentional live mode (only after 1–7)
-
-See **[GO_LIVE.md](GO_LIVE.md)**.
-
-```bash
-./scripts/enable_live_mode.sh --enable
-# Type: ENABLE LIVE MODE
-docker compose -f docker/docker-compose.yml up -d
-python3 -m agents.healthcheck
-```
-
-- [ ] Operator on watch 24–48h
-- [ ] Rollback tested: `./scripts/disable_live_mode.sh`
-
----
-
-## 9. Ongoing
-
-- [ ] Evidence packs after significant activity
-- [ ] Scheduled off-box backups
-- [ ] Weekly breaker / held-action review
-- [ ] Prefer WhatsApp APPROVE; avoid force
-
----
-
-*Defend. Detect. Dominate.*  
-TrinTech Digital Defense
+*Defend. Detect. Dominate.*

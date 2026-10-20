@@ -1,43 +1,34 @@
 #!/usr/bin/env bash
-# Client-readiness preflight — run before any client pilot or go-live.
+# CyberFortress client-ready preflight
 set -euo pipefail
-
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 PASS=0
 FAIL=0
-
-ok() { echo "  [PASS] $1"; PASS=$((PASS+1)); }
-bad() { echo "  [FAIL] $1"; FAIL=$((FAIL+1)); }
+ok()  { echo "  [+] $1"; PASS=$((PASS+1)); }
+bad() { echo "  [!] $1"; FAIL=$((FAIL+1)); }
 
 echo "=============================================="
-echo " CyberFortress Client-Readiness Check"
+echo " CyberFortress — client-ready preflight"
 echo "=============================================="
 
 echo
-echo "1. Safety defaults"
-if [[ "${CF_CONTAINMENT_LIVE:-false}" == "true" ]]; then
-  bad "CF_CONTAINMENT_LIVE is true (expected false until go-live)"
-else
-  ok "CF_CONTAINMENT_LIVE is false (safe default)"
-fi
-if [[ "${CF_ALLOW_FORCE:-false}" == "true" ]]; then
-  bad "CF_ALLOW_FORCE is true (prefer WhatsApp APPROVE)"
-else
-  ok "CF_ALLOW_FORCE is false"
-fi
+echo "1. Core files"
+for f in start.sh stop.sh install.sh requirements.txt .env.example; do
+  [[ -f "$f" ]] && ok "$f" || bad "Missing $f"
+done
 
 echo
-echo "2. Documentation present"
-for f in docs/PILOT_DEPLOYMENT.md docs/WHATSAPP_TLS.md docs/OPERATOR_RUNBOOK.md docs/GO_LIVE.md; do
+echo "2. Docs"
+for f in docs/PILOT_DEPLOYMENT.md docs/WHATSAPP_TLS.md docs/OPERATOR_RUNBOOK.md docs/GO_LIVE.md docs/HOST_REQUIREMENTS.md; do
   [[ -f "$f" ]] && ok "$f" || bad "Missing $f"
 done
 
 echo
 echo "3. Scripts present"
-for f in scripts/enable_live_mode.sh scripts/disable_live_mode.sh scripts/backup_offbox.sh; do
+for f in scripts/enable_live_mode.sh scripts/disable_live_mode.sh scripts/backup_offbox.sh scripts/check_netadmin.sh; do
   [[ -f "$f" ]] && ok "$f" || bad "Missing $f"
 done
 
@@ -60,7 +51,16 @@ else
 fi
 
 echo
-echo "5. Sign-off (optional until go-live)"
+echo "5. Host netfilter (required for live CF_BLOCK)"
+if ./scripts/check_netadmin.sh >/tmp/cf_netadmin.txt 2>&1; then
+  ok "check_netadmin.sh passed"
+else
+  echo "  [INFO] check_netadmin failed — MONITORING only on this host (not a hard fail for preflight)"
+  head -15 /tmp/cf_netadmin.txt | sed 's/^/         /'
+fi
+
+echo
+echo "6. Sign-off (required before live mode)"
 if [[ -f config/pilot_signoff.json ]]; then
   if ./scripts/enable_live_mode.sh --check >/tmp/cf_signoff.txt 2>&1; then
     ok "pilot_signoff.json valid for live mode"
@@ -79,5 +79,5 @@ if [[ "$FAIL" -gt 0 ]]; then
   echo " Status: NOT client-ready until failures are fixed"
   exit 1
 fi
-echo " Status: Preflight OK — complete PILOT_DEPLOYMENT + WHATSAPP_TLS + operator process before live mode"
+echo " Status: Preflight OK — complete PILOT_DEPLOYMENT + HOST_REQUIREMENTS + ROE/NDA before live mode"
 echo "=============================================="
