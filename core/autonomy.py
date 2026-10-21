@@ -14,7 +14,7 @@ import logging
 import os
 
 from core.legal_mapper import get_justification
-from core.whatsapp_gateway import request_approval as wa_request_approval, notify_tier1
+from core.whatsapp_gateway import request_approval as wa_request_approval, notify_tier1, send_live_alert
 from agents.compliance_logger import write_cma_entry
 from core.containment.drivers import get_driver
 from core.circuit_breaker import breaker
@@ -80,7 +80,6 @@ def execute_with_autonomy(
 
     logger.info(f"Evaluating action={action} target={target} scope={scope} force={force} tier={tier.name}")
 
-    # ROE allow-list — first gate
     if not is_action_authorized(action):
         write_cma_entry(
             action,
@@ -128,6 +127,16 @@ def execute_with_autonomy(
         return True
 
     logger.info(f"Tier 2 — requesting WhatsApp APPROVE for {action} on {target}")
+    try:
+        send_live_alert(
+            title="Tier-2 approval requested",
+            detail=str(justification or "")[:300],
+            severity=str(severity or "HIGH"),
+            action=action,
+            target=target,
+        )
+    except Exception:
+        pass
     approved = wa_request_approval(
         action=action,
         target=target,

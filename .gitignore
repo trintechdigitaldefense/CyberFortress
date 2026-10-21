@@ -1,40 +1,26 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-.venv/
-*.egg-info/
-dist/
-build/
-
-# Logs & runtime
-logs/
-*.log
-*.jsonl
-evidence/
-backups/
-
-# Secrets — NEVER commit
+# Secrets & local runtime
 .env
 .env.*
 !.env.example
-config/secrets.yaml
-config/pilot_signoff.json
-secrets/
 *.pem
 *.key
-*.p12
-*.pfx
+secrets/
 
-# IDE / OS
-.idea/
-.vscode/
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Runtime / client data
+logs/
+evidence/
+config/pilot_signoff.json
+config/host_capability.json
+config/whatsapp_notify.json
+
+# OS
 .DS_Store
-Thumbs.db
-
-# Docker
-*.tar
+*.swp
