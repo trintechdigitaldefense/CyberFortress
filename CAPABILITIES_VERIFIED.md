@@ -1,16 +1,18 @@
-# CAPABILITIES_VERIFIED — v0.3.2
+# Capabilities verified
 
-**Date:** 2026-10-19
+**Last automated sandbox pass:** 2026-10-21
 
-| Area | Status |
-|------|--------|
-| Detection loop + rule packs (default/retail/finance/smb) | DONE |
-| Post-action verify (live block_ip) | DONE |
-| Weekly evidence agent | DONE |
-| systemd optional install | DONE |
-| Multi-tenant config root | DONE (scaffold) |
-| CAPACITY.md | DONE |
-| Adversarial tests | DONE |
-| Host NET_ADMIN + ROE signoff gate | DONE (0.3.1) |
-| Live Meta credentials | HUMAN |
-| Multi-tenant full isolation HA | PENDING |
+| Capability | Status |
+|------------|--------|
+| install.sh | OK |
+| pytest (41) | OK |
+| start.sh local (10 agents) | OK |
+| health / dashboard APIs | OK |
+| pilot_dry_run → evidence | OK |
+| operator_drill | OK |
+| audit chain | OK |
+| netadmin / CF_BLOCK (with iptables) | OK when package present |
+| Meta WhatsApp live send | Requires credentials (not in CI) |
+| Docker Compose | Requires docker daemon |
+
+Default remains **MONITORING** (`CF_CONTAINMENT_LIVE=false`).
