@@ -1,5 +1,8 @@
 tenant_id: example_client
 client_name: Example Client Ltd
-engagement_id: ENG-DEMO-001
-whatsapp_report_to: "+18683620679"
 rule_pack: smb_v1
+whatsapp_report_to: ""
+asset_criticality:
+  "10.0.0.5": 15
+  "fileserver": 20
+  "pos-01": 12
