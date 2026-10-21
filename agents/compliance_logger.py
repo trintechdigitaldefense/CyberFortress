@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""
-CyberFortress Compliance Logger
-Append-only CMA audit with SHA-256 hash chain (tamper-evident).
-"""
+"""CyberFortress Compliance Logger — hash-chained CMA audit + integrity heartbeats."""
+
+from __future__ import annotations
 
 import logging
 import os
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core.audit_chain import append_chained
-from core.watchdog import write_heartbeat
+from core.audit_chain import append_chained, verify_chain
+from core.agent_runtime import run_forever
 
 LOG_DIR = Path(os.getenv("CF_LOG_DIR", "./logs"))
 if Path("/app/logs").exists():
@@ -25,6 +23,8 @@ logging.basicConfig(
     force=True,
 )
 logger = logging.getLogger("cf_compliance_logger")
+
+INTERVAL = int(os.getenv("CF_COMPLIANCE_INTERVAL", "30"))
 
 
 def write_cma_entry(action: str, target: str, justification: str, severity: str = "INFO", **extra):
@@ -51,12 +51,28 @@ def write_cma_entry(action: str, target: str, justification: str, severity: str 
     return chained
 
 
+def _cycle():
+    ok, broken, msg = verify_chain(AUDIT_PATH)
+    lines = 0
+    if AUDIT_PATH.exists():
+        try:
+            with open(AUDIT_PATH, "r", encoding="utf-8") as f:
+                lines = sum(1 for _ in f)
+        except Exception:
+            lines = -1
+    if not ok:
+        logger.warning("Audit chain issue: %s (broken_index=%s)", msg, broken)
+    return {
+        "audit_ok": ok,
+        "audit_message": str(msg)[:120],
+        "audit_lines": lines,
+        "path": str(AUDIT_PATH),
+    }
+
+
 def main():
     logger.info("CyberFortress Compliance Logger started (hash-chained audit)")
-    write_heartbeat("compliance_logger", {"phase": "started"})
-    while True:
-        write_heartbeat("compliance_logger", {"phase": "alive"})
-        time.sleep(60)
+    run_forever("compliance_logger", _cycle, INTERVAL)
 
 
 if __name__ == "__main__":
