@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Enable CF_CONTAINMENT_LIVE only after pilot sign-off (NDA + ROE + host + WhatsApp).
+# Enable CF_CONTAINMENT_LIVE only after pilot sign-off + netadmin GREEN.
+# WhatsApp may be deferred (whatsapp_deferred=true) until credentials are ready.
 # Usage:
 #   ./scripts/enable_live_mode.sh --check
 #   ./scripts/enable_live_mode.sh --enable
@@ -8,6 +9,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SIGNOFF="$ROOT/config/pilot_signoff.json"
+CAP="$ROOT/config/host_capability.json"
 ENV_FILE="$ROOT/.env"
 cd "$ROOT"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
@@ -16,33 +18,39 @@ require_signoff() {
   if [[ ! -f "$SIGNOFF" ]]; then
     echo "[!] Missing $SIGNOFF"
     echo "    cp config/pilot_signoff.example.json config/pilot_signoff.json"
-    echo "    Sign NDA + ROE (docs/templates/), run ./scripts/check_netadmin.sh,"
-    echo "    complete WhatsApp TLS, set all flags true. See docs/GO_LIVE.md"
+    echo "    Run ./scripts/pilot_vm_preflight.sh  (netadmin must be green)"
+    echo "    Sign NDA + ROE; WhatsApp can wait (whatsapp_deferred=true)"
+    echo "    See docs/PILOT_VM.md · docs/GO_LIVE.md"
     exit 1
   fi
 
-  python3 - "$SIGNOFF" <<'PY'
+  python3 - "$SIGNOFF" "$CAP" <<'PY'
 import json, sys
-path = sys.argv[1]
-with open(path, encoding="utf-8") as f:
-    data = json.load(f)
+from pathlib import Path
+
+path = Path(sys.argv[1])
+cap_path = Path(sys.argv[2])
+data = json.loads(path.read_text(encoding="utf-8"))
 
 required_true = [
     "checklist_complete",
-    "whatsapp_tls_verified",
     "operator_runbook_acknowledged",
     "roe_signed",
     "nda_signed",
     "host_netadmin_verified",
 ]
+wa_deferred = data.get("whatsapp_deferred") is True
+if not wa_deferred:
+    required_true.append("whatsapp_tls_verified")
+
 missing = [k for k in required_true if data.get(k) is not True]
 if missing:
     print("[!] Sign-off incomplete. Set these to true in config/pilot_signoff.json:")
     for k in missing:
         print(f"    - {k}")
-    print("    NDA/ROE:  docs/templates/")
-    print("    Host:     ./scripts/check_netadmin.sh → then host_netadmin_verified=true")
-    print("    WhatsApp: docs/WHATSAPP_TLS.md")
+    print("    Host:     ./scripts/check_netadmin.sh or ./scripts/pilot_vm_preflight.sh")
+    if "whatsapp_tls_verified" in missing:
+        print("    WhatsApp: set whatsapp_deferred=true to arm without Meta creds yet")
     sys.exit(1)
 
 for field in ("client_name", "engagement_id", "signed_by", "signoff_date_utc", "client_approver"):
@@ -71,30 +79,37 @@ if not isinstance(actions, list) or len(actions) < 1:
     sys.exit(1)
 
 admins = data.get("whatsapp_admins") or []
-if not isinstance(admins, list) or not any(str(a).strip() for a in admins):
-    print("[!] whatsapp_admins must list at least one E.164 number from ROE")
-    sys.exit(1)
+if not wa_deferred:
+    if not isinstance(admins, list) or not any(str(a).strip() for a in admins):
+        print("[!] whatsapp_admins must list at least one E.164 number from ROE")
+        sys.exit(1)
+else:
+    print("[i] whatsapp_deferred=true — Tier-2 WhatsApp APPROVE not live until credentials added")
+
+if cap_path.exists():
+    cap = json.loads(cap_path.read_text(encoding="utf-8"))
+    if not cap.get("netadmin_ok"):
+        print("[!] config/host_capability.json says netadmin_ok=false")
+        print("    Re-run ./scripts/check_netadmin.sh on this VM")
+        sys.exit(1)
+    print(f"[+] host_capability.json netadmin_ok=true (checked {cap.get('checked_at_utc')})")
+else:
+    print("[i] No host_capability.json yet — runtime check_netadmin will still run")
 
 print("[+] Pilot sign-off looks complete")
 print(f"    Client      : {data.get('client_name')}")
 print(f"    Engagement  : {data.get('engagement_id')}")
-print(f"    Signed by   : {data.get('signed_by')}")
-print(f"    Client      : {data.get('client_approver')}")
-print(f"    Date (UTC)  : {data.get('signoff_date_utc')}")
-print(f"    ROE doc     : {data.get('roe_document')}")
-print(f"    NDA doc     : {data.get('nda_document')}")
-print(f"    Actions     : {', '.join(actions)}")
-print(f"    WA admins   : {', '.join(str(a) for a in admins)}")
 print(f"    NET_ADMIN   : verified={data.get('host_netadmin_verified')}")
+print(f"    WhatsApp    : tls={data.get('whatsapp_tls_verified')} deferred={wa_deferred}")
 PY
 }
 
 require_netadmin_runtime() {
-  echo "[*] Runtime netfilter probe..."
+  echo "[*] Runtime netfilter probe (must be green before arming)..."
   if ! bash "$ROOT/scripts/check_netadmin.sh"; then
     echo "[!] Host failed check_netadmin.sh — refuse to enable live containment"
-    echo "    Fix host (VM + CAP_NET_ADMIN) or keep MONITORING only."
-    echo "    docs/HOST_REQUIREMENTS.md"
+    echo "    Fix host (real VM + CAP_NET_ADMIN) or keep MONITORING only."
+    echo "    docs/HOST_REQUIREMENTS.md · docs/PILOT_VM.md"
     exit 1
   fi
 }

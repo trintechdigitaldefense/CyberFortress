@@ -1,24 +1,26 @@
 # Changelog
 
+## [v0.3.3] — 2026-10-21
+
+### Real VM pilot gate
+- **`scripts/pilot_vm_preflight.sh`** — end-to-end VM pilot check; netadmin must be green
+- **`check_netadmin.sh`** writes `config/host_capability.json`; stamps `host_netadmin_verified` on success
+- **WhatsApp deferred** — `whatsapp_deferred: true` in pilot_signoff allows arming before Meta credentials
+- **`docs/PILOT_VM.md`** — operator sequence for real VM pilots
+- Live arming still **refuses** if runtime netadmin check fails
+
 ## [v0.3.2] — 2026-10-19
 
 ### Ops & depth
-- **systemd** optional 24/7 units (`deploy/systemd/`)
-- **Weekly evidence agent** (`agents/weekly_evidence_agent.py`)
-- **Rule packs** retail / finance / smb (+ `CF_RULE_PACK_NAME`)
-- **Post-action verify** on live `block_ip` (VERIFY_OK / VERIFY_FAIL)
-- **CAPACITY.md** honest limits
-- **Multi-tenant** scaffold `config/tenants/` + `core/tenant.py`
-- **Adversarial tests** malformed JSON, injection fields, nonce file semantics
+- systemd, weekly evidence, rule packs, post-action verify, CAPACITY.md, multi-tenant scaffold, adversarial tests
 
 ## [v0.3.1] — 2026-10-19
 
-### Go-live hardening
-- HOST_REQUIREMENTS, check_netadmin, pilot_signoff host_netadmin_verified
+- HOST_REQUIREMENTS, check_netadmin, pilot_signoff host gate
 
 ## [v0.3.0-pilot] — 2026-10-19
 
-- Real detection loop, rule pack default, Docker parity, tests
+- Detection loop, default rule pack, Docker parity
 
 ## [v0.2.0] — 2026-10-10
 
