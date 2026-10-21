@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("cf_threat_agent")
 
-INTERVAL = int(os.getenv("CF_THREAT_INTERVAL", "60"))
+INTERVAL = int(os.getenv("CF_THREAT_INTERVAL", "30"))
 
 
 def hunt_cycle(fusion: TelemetryFusion) -> int:

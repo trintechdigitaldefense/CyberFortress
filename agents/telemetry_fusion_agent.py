@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Telemetry Fusion Agent — secondary poll of adapters (API + residual files)."""
+"""Telemetry fusion agent loop."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import os
 import time
 
 from core.telemetry.fusion import TelemetryFusion
+from core.tenant import apply_tenant_env
 from core.watchdog import write_heartbeat
 
 logging.basicConfig(
@@ -17,17 +18,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("cf_fusion_agent")
 
-INTERVAL = int(os.getenv("CF_FUSION_INTERVAL", "45"))
+INTERVAL = int(os.getenv("CF_FUSION_INTERVAL", "30"))
 
 
 def main():
-    logger.info("CyberFortress Telemetry Fusion Agent starting...")
+    apply_tenant_env()
     write_heartbeat("fusion_agent", {"phase": "starting"})
-
     auto = os.getenv("CF_AUTO_RESPOND", "true").lower() == "true"
     fusion = TelemetryFusion(auto_respond=auto)
     fusion.register_defaults()
-    logger.info("Fusion loop ready | auto_respond=%s interval=%ss", auto, INTERVAL)
+    logger.info("Fusion agent running interval=%ss auto_respond=%s", INTERVAL, auto)
 
     while True:
         try:
@@ -38,9 +38,9 @@ def main():
         except KeyboardInterrupt:
             break
         except Exception as e:
-            logger.exception("Fusion error: %s", e)
+            logger.exception("Fusion cycle error: %s", e)
             write_heartbeat("fusion_agent", {"phase": "error", "error": str(e)[:200]})
-            time.sleep(15)
+            time.sleep(10)
 
 
 if __name__ == "__main__":
