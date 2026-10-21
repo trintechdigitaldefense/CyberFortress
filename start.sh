@@ -1,118 +1,75 @@
 #!/usr/bin/env bash
-# CyberFortress — one command to start everything
+# CyberFortress — start everything
+# Usage: bash start.sh [local|docker|status]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
-export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
-
-chmod +x "$ROOT/start.sh" "$ROOT/stop.sh" "$ROOT/install.sh" 2>/dev/null || true
-chmod +x "$ROOT"/scripts/*.sh 2>/dev/null || true
-
-if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
-fi
-
-MODE="${1:-start}"
 PID_DIR="$ROOT/logs/pids"
 mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage logs/whatsapp_pending logs/heartbeats logs/ir_cases evidence/ir_reports
 
-has_docker_cli() {
-  command -v docker >/dev/null 2>&1 || return 1
-  docker compose version >/dev/null 2>&1 || docker-compose version >/dev/null 2>&1
-}
+chmod +x "$ROOT/start.sh" "$ROOT/stop.sh" "$ROOT/install.sh" 2>/dev/null || true
 
-docker_daemon_up() {
-  has_docker_cli || return 1
-  docker info >/dev/null 2>&1
-}
+MODE="${1:-auto}"
 
-compose_cmd() {
-  if docker compose version >/dev/null 2>&1; then
-    echo "docker compose"
-  else
-    echo "docker-compose"
+live_flag() {
+  if [[ -f .env ]]; then
+    # shellcheck disable=SC1091
+    set -a; source .env 2>/dev/null || true; set +a
   fi
+  echo "${CF_CONTAINMENT_LIVE:-false}"
 }
 
-free_port() {
-  local port="$1"
-  if command -v fuser >/dev/null 2>&1; then
-    fuser -k "${port}/tcp" >/dev/null 2>&1 || true
-  elif command -v lsof >/dev/null 2>&1; then
-    local pids
-    pids=$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
-    if [[ -n "${pids:-}" ]]; then
-      # shellcheck disable=SC2086
-      kill $pids 2>/dev/null || true
-      sleep 0.2
-      # shellcheck disable=SC2086
-      kill -9 $pids 2>/dev/null || true
+print_urls() {
+  echo
+  echo "  Dashboard : http://127.0.0.1:8091"
+  echo "  Health    : http://127.0.0.1:8090"
+  echo "  Webhook   : http://127.0.0.1:8089  (put TLS in front for Meta)"
+  echo
+  echo "  Firewall: agent starts with platform (CF_BLOCK chain)"
+  echo "  Containment LIVE=$(live_flag) (DROP rules only when armed)"
+  echo "  Logs:   tail -f logs/*.out"
+  echo "  Stop:   bash stop.sh"
+  echo "  Status: bash start.sh status"
+}
+
+status_local() {
+  echo "CyberFortress local process status:"
+  if [[ -d "$PID_DIR" ]]; then
+    for f in "$PID_DIR"/*.pid; do
+      [[ -e "$f" ]] || continue
+      name=$(basename "$f" .pid)
+      pid=$(cat "$f" 2>/dev/null || true)
+      if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+        echo "  [UP]   $name  pid=$pid"
+      else
+        echo "  [DOWN] $name  (stale pid ${pid:-none})"
+      fi
+    done
+  fi
+  if command -v docker >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then
+      echo "Docker daemon is up."
+    else
+      echo "Docker CLI present but daemon is down."
     fi
   fi
-}
-
-start_docker() {
-  if ! docker_daemon_up; then
-    echo "[!] Docker CLI found but daemon is not running (no /var/run/docker.sock)."
-    echo "    Start Docker, or use: bash start.sh local"
-    exit 1
-  fi
-  echo "[+] Starting CyberFortress via Docker Compose..."
-  # shellcheck disable=SC2046
-  $(compose_cmd) -f docker/docker-compose.yml up -d --build
-  echo
-  echo "[+] All services started (Docker)."
-  print_urls
-  echo "  Logs:  $(compose_cmd) -f docker/docker-compose.yml logs -f"
-  echo "  Stop:  bash stop.sh"
 }
 
 start_local() {
   echo "[+] Starting CyberFortress locally (no Docker)..."
-
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "[!] python3 is required for local mode"
-    exit 1
+  export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+  if [[ -f .env ]]; then
+    set -a; source .env 2>/dev/null || true; set +a
   fi
-
-  if [[ -d "$PID_DIR" ]]; then
-    for f in "$PID_DIR"/*.pid; do
-      [[ -f "$f" ]] || continue
-      pid=$(cat "$f" 2>/dev/null || true)
-      if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
-        kill "$pid" 2>/dev/null || true
-        sleep 0.1
-        kill -9 "$pid" 2>/dev/null || true
-      fi
-      rm -f "$f"
-    done
-  fi
-  free_port 8089
-  free_port 8090
-  free_port 8091
-  sleep 0.3
 
   start_bg() {
-    local name="$1"
-    shift
-    local pidfile="$PID_DIR/${name}.pid"
-    local logfile="logs/${name}.out"
-    : >"$logfile"
-    nohup "$@" >>"$logfile" 2>&1 &
+    local name="$1"; shift
+    local log="$ROOT/logs/${name}.out"
+    nohup "$@" >"$log" 2>&1 &
     local pid=$!
-    echo "$pid" >"$pidfile"
-    sleep 0.4
-    if kill -0 "$pid" 2>/dev/null; then
-      echo "  · $name started (pid $pid)"
-    else
-      echo "  · $name FAILED to stay up — last log lines:"
-      tail -n 12 "$logfile" 2>/dev/null | sed 's/^/      /' || true
-      echo "      Full log: $logfile"
-    fi
+    echo "$pid" >"$PID_DIR/${name}.pid"
+    echo "  · $name started (pid $pid)"
   }
 
   start_bg threat_agent   python3 -m agents.threat_hunting_agent
@@ -129,106 +86,53 @@ start_local() {
   start_bg ir_investigate  python3 -m agents.ir_investigate_agent
   start_bg ir_respond      python3 -m agents.ir_respond_agent
   start_bg ir_report       python3 -m agents.ir_report_agent
+  start_bg tenant_orch     python3 -m agents.tenant_orchestrator_agent
 
-  sleep 0.5
-  echo
   local up=0 down=0
+  sleep 1
   for f in "$PID_DIR"/*.pid; do
-    [[ -f "$f" ]] || continue
-    name=$(basename "$f" .pid)
-    pid=$(cat "$f" 2>/dev/null || echo "")
-    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-      up=$((up + 1))
+    [[ -e "$f" ]] || continue
+    pid=$(cat "$f" 2>/dev/null || true)
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+      up=$((up+1))
     else
-      down=$((down + 1))
-      echo "  [!] $name is DOWN — see logs/${name}.out"
+      down=$((down+1))
     fi
   done
-  echo "[+] Local start complete: ${up} up, ${down} down"
+  echo
+  echo "[+] Local start complete: $up up, $down down"
   print_urls
-  echo "  Logs:   tail -f logs/*.out"
-  echo "  Stop:   bash stop.sh"
-  echo "  Status: bash start.sh status"
-  if [[ "$down" -gt 0 ]]; then
-    echo
-    echo "  Tip: if dashboard/health/whatsapp died, ports may still be busy:"
-    echo "       bash stop.sh && sleep 1 && bash start.sh local"
-  fi
 }
 
-print_urls() {
-  echo
-  echo "  Dashboard : http://127.0.0.1:8091"
-  echo "  Health    : http://127.0.0.1:8090"
-  echo "  Webhook   : http://127.0.0.1:8089  (put TLS in front for Meta)"
-  echo
-  echo "  Firewall: agent starts with platform (CF_BLOCK chain)"
-  echo "  IR team: detect → investigate → respond → report"
-  echo "  Daily WA report: every ${CF_REPORT_INTERVAL_SECONDS:-86400}s → ${CF_WHATSAPP_REPORT_TO:-${CF_WHATSAPP_ADMINS:-(not set)}}"
-  echo "  Weekly evidence: every ${CF_WEEKLY_EVIDENCE_SECONDS:-604800}s"
-  echo "  Containment LIVE=${CF_CONTAINMENT_LIVE:-false} (DROP rules only when armed)"
-}
-
-status_local() {
-  echo "CyberFortress local process status:"
-  local any=0
-  for f in "$PID_DIR"/*.pid; do
-    [[ -f "$f" ]] || continue
-    any=1
-    name=$(basename "$f" .pid)
-    pid=$(cat "$f" 2>/dev/null || echo "?")
-    if [[ "$pid" != "?" ]] && kill -0 "$pid" 2>/dev/null; then
-      echo "  [UP]   $name  pid=$pid"
-    else
-      echo "  [DOWN] $name  (stale pid $pid) — see logs/${name}.out"
-    fi
-  done
-  if [[ "$any" -eq 0 ]]; then
-    echo "  (no local pid files — not started in local mode?)"
+start_docker() {
+  echo "[+] Starting CyberFortress via Docker Compose..."
+  if docker compose version >/dev/null 2>&1; then
+    docker compose -f docker/docker-compose.yml up -d
+  else
+    docker-compose -f docker/docker-compose.yml up -d
   fi
-  for port in 8089 8090 8091; do
-    if command -v ss >/dev/null 2>&1; then
-      if ss -ltn 2>/dev/null | grep -q ":${port} "; then
-        echo "  [port] $port LISTENING"
-      fi
-    fi
-  done
-  if has_docker_cli; then
-    echo
-    if docker_daemon_up; then
-      echo "Docker services:"
-      $(compose_cmd) -f docker/docker-compose.yml ps 2>/dev/null || true
-    else
-      echo "Docker CLI present but daemon is down."
-    fi
-  fi
+  print_urls
 }
 
 case "$MODE" in
-  start|"")
-    if docker_daemon_up; then
-      start_docker
-    else
-      if has_docker_cli; then
-        echo "[i] Docker CLI found but daemon is not running — using local mode"
-        echo "    (start Docker later, or use: bash start.sh docker)"
-      else
-        echo "[i] Docker not found — starting local Python processes"
-      fi
-      start_local
-    fi
-    ;;
-  docker)
-    start_docker
+  status)
+    status_local
     ;;
   local)
     start_local
     ;;
-  status)
-    status_local
+  docker)
+    start_docker
     ;;
-  *)
-    echo "Usage: bash start.sh [start|status|docker|local]"
-    exit 2
+  auto|*)
+    if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+      start_docker
+    else
+      if command -v docker >/dev/null 2>&1; then
+        echo "[i] Docker CLI found but daemon is not running — using local mode"
+        echo "    (start Docker later, or use: bash start.sh docker)"
+      fi
+      start_local
+    fi
     ;;
 esac
