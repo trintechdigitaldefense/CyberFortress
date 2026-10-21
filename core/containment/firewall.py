@@ -122,6 +122,7 @@ def block_ip(target: str, dry_run: bool = True, comment: str = "CyberFortress") 
             f"[MONITORING] Would DROP src/dst {target} in {CHAIN} "
             f"(arm containment with CF_CONTAINMENT_LIVE=true to apply)"
         )
+        result["verify"] = {"skipped": True, "verified": False, "message": "dry-run / monitoring"}
         return result
 
     if not ipt:
@@ -287,3 +288,9 @@ def firewall_status() -> Dict[str, Any]:
         status["warning"] = "Not root — cannot create/manage iptables rules (start with sudo for full firewall)"
 
     return status
+
+
+def verify_block(target: str) -> dict:
+    """Post-action check that target appears in CF_BLOCK (or skipped in dry-run paths)."""
+    from core.containment.verify import verify_block as _verify
+    return _verify(target, chain="CF_BLOCK", list_rules_fn=list_cf_rules)
