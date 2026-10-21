@@ -110,6 +110,18 @@ def _roe():
 
 
 def collect_dashboard_data():
+    try:
+        from core.monitoring_metrics import load_persisted
+        mon = load_persisted()
+    except Exception:
+        mon = {}
+    try:
+        from core.ir.cases import CaseStore
+        _store = CaseStore()
+        ir_summary = _store.summary()
+        ir_open = [c.to_dict() for c in _store.list_open(8)]
+    except Exception:
+        ir_summary, ir_open = {}, []
     actions = _read_recent_actions(50)
     pending = _pending_approvals()
     wd = _watchdog_status()
@@ -136,6 +148,8 @@ def collect_dashboard_data():
     except Exception as e:
         fw = {"message": str(e), "live_mode": live, "rule_count": 0, "rules": []}
     return {
+        "monitoring": mon,
+        "ir": {"summary": ir_summary, "open_cases": ir_open},
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "client_name": CLIENT_NAME,
         "containment_live": live,
@@ -175,6 +189,7 @@ def collect_dashboard_data():
             "by_severity": by_severity,
             "evidence_packs": len(packs),
             "firewall_rules": fw.get("rule_count", 0),
+            "ir_open": ir_summary.get("open_total", len(ir_open)),
         },
         "recent_actions": actions[:30],
         "pending_approvals": pending,
@@ -226,6 +241,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+        elif path == "/api/monitoring":
+            try:
+                from core.monitoring_metrics import load_persisted
+                self._json(200, {"ok": True, **load_persisted()})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+        elif path == "/api/ir/cases":
+            try:
+                from core.ir.cases import CaseStore
+                store = CaseStore()
+                cases = [c.to_dict() for c in store.list_by_status(
+                    ("open", "investigating", "awaiting_approval", "contained", "reported"), 50
+                )]
+                self._json(200, {"ok": True, "cases": cases, "count": len(cases), "summary": store.summary()})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
         elif path == "/api/status":
             self._json(200, collect_dashboard_data())
         elif path == "/api/settings/whatsapp":
