@@ -14,6 +14,7 @@ import logging
 import os
 
 from core.legal_mapper import get_justification
+import core.whatsapp_report_hooks  # noqa: F401 — dashboard number + live alerts
 from core.whatsapp_gateway import request_approval as wa_request_approval, notify_tier1, send_live_alert
 from agents.compliance_logger import write_cma_entry
 from core.containment.drivers import get_driver
