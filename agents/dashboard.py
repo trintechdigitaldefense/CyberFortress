@@ -207,12 +207,25 @@ class DashboardHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path in ("/", "/dashboard", "/index.html"):
-            body = DASHBOARD_HTML.encode("utf-8")
+            html = DASHBOARD_HTML
+            if "notify_settings.js" not in html:
+                html = html.replace("</body>", '<script src="/static/notify_settings.js"></script></body>')
+            body = html.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif path == "/static/notify_settings.js":
+            js_path = Path(__file__).resolve().parent / "static" / "notify_settings.js"
+            if not js_path.is_file():
+                self.send_response(404); self.end_headers(); return
+            data = js_path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         elif path == "/api/status":
             self._json(200, collect_dashboard_data())
         elif path == "/api/settings/whatsapp":
