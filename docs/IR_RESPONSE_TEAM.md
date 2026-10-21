@@ -1,31 +1,33 @@
-# IR Response Team agents
+# IR Response Team (strengthened)
 
-CyberFortress runs a **four-agent response team** on top of monitoring:
+| Agent | Role |
+|-------|------|
+| **Detect** | Opens or correlates cases; scoring + min score gate |
+| **Investigate** | Findings + same-target audit correlation |
+| **Respond** | ROE + autonomy; awaiting_approval when live Tier-2 pending |
+| **Report** | Markdown and HTML under `evidence/ir_reports/` |
 
-| Agent | Role | Module |
-|-------|------|--------|
-| **Detect** | Open cases from HIGH/CRITICAL audit detections | `agents.ir_detect_agent` |
-| **Investigate** | Structured findings (rules-driven) | `agents.ir_investigate_agent` |
-| **Respond** | ROE-safe playbooks via autonomy (dry-run unless armed) | `agents.ir_respond_agent` |
-| **Report** | Markdown incident reports under `evidence/ir_reports/` | `agents.ir_report_agent` |
+## Lifecycle
+
+`open` → `investigating` → `awaiting_approval` (optional) → `contained` → `reported` → `closed`
 
 ## Safety
 
-- Same gates: **LIVE default off**, ROE allow-list, WhatsApp Tier‑2, circuit breaker.
-- Respond agent calls `execute_with_autonomy` — no bypass of approvals.
-- Cases: `logs/ir_cases/`.
+Dry-run default, ROE, WhatsApp Tier-2, circuit breaker. Respond never bypasses autonomy.
 
 ## API
 
-`GET /api/ir/cases` on the dashboard port.
+`GET http://127.0.0.1:8091/api/ir/cases`
 
 ## Env
 
 ```bash
-CF_IR_DETECT_INTERVAL=45
-CF_IR_INVESTIGATE_INTERVAL=40
-CF_IR_RESPOND_INTERVAL=50
-CF_IR_REPORT_INTERVAL=60
+CF_IR_DETECT_INTERVAL=30
+CF_IR_INVESTIGATE_INTERVAL=25
+CF_IR_RESPOND_INTERVAL=35
+CF_IR_REPORT_INTERVAL=45
+CF_IR_MIN_SCORE=55
+CF_IR_RESPOND_MIN_SCORE=60
 CF_IR_AUTO_RESPOND=true
 CF_IR_NOTIFY_REPORTS=true
 ```
