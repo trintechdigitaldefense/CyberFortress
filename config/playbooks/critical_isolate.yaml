@@ -1,0 +1,11 @@
+name: critical_isolate
+enabled: true
+when:
+  severity_in: [CRITICAL]
+  indicator_contains: [ransomware, reverse_shell, c2, beacon, exfil]
+  min_score: 80
+actions:
+  - action: isolate_endpoint
+    scope: single
+  - action: block_ip
+    scope: single

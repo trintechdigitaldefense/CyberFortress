@@ -1,0 +1,9 @@
+name: bruteforce_response
+enabled: true
+when:
+  severity_in: [HIGH, CRITICAL]
+  indicator_contains: [brute, failed_login, password_spray]
+  min_score: 60
+actions:
+  - action: block_ip
+    scope: single
