@@ -7,7 +7,7 @@ import logging
 import os
 
 from core.agent_runtime import run_forever
-from core.containment.firewall import ensure_chain, firewall_status
+from core.containment.firewall import ensure_chain, firewall_status, load_allowlist
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,9 +21,10 @@ INTERVAL = int(os.getenv("CF_FIREWALL_INTERVAL", "20"))
 
 def bootstrap() -> dict:
     logger.info(
-        "Firewall agent starting (auto_start=%s live=%s)",
+        "Firewall agent starting (auto_start=%s live=%s allowlist=%s)",
         os.getenv("CF_FIREWALL_AUTO_START", "true"),
         os.getenv("CF_CONTAINMENT_LIVE", "false"),
+        len(load_allowlist()),
     )
     result = ensure_chain(dry_run=False, force_infra=True)
     if result.get("ok"):
@@ -38,12 +39,16 @@ def _cycle():
     st = firewall_status()
     if st.get("mode_label") == "UNAVAILABLE":
         logger.warning("Firewall UNAVAILABLE: %s", st.get("message"))
+    elif st.get("rule_count", 0) >= st.get("max_rules", 200):
+        logger.warning("Firewall at max rules: %s", st.get("rule_count"))
     return {
         "chain": st.get("chain"),
         "chain_exists": st.get("chain_exists"),
         "rule_count": st.get("rule_count"),
+        "max_rules": st.get("max_rules"),
         "live_mode": st.get("live_mode"),
         "mode_label": st.get("mode_label"),
+        "allowlist_count": st.get("allowlist_count"),
         "message": (st.get("message") or "")[:160],
     }
 

@@ -1,0 +1,6 @@
+# CyberFortress never-block list (one IP or CIDR per line)
+# Add operator public IPs, VPN egress, critical gateways here.
+# 203.0.113.10
+# 10.0.0.0/8
+127.0.0.1
+::1
