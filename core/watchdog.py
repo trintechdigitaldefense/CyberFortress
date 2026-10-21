@@ -2,14 +2,7 @@
 """
 CyberFortress 24/7 Self-Monitoring Watchdog
 
-Continuously verifies that CyberFortress is operating as intended:
-- Component heartbeats (fusion, threat agent, compliance, firewall, dashboard, health, whatsapp)
-- Circuit breaker state
-- Audit log freshness
-- Pending approval backlog
-- Disk / path health
-- Optional auto-recovery / fail-closed hooks
-
+Continuously verifies that CyberFortress is operating as intended.
 Writes structured status to logs/watchdog_status.json and can notify via WhatsApp.
 """
 
@@ -43,7 +36,6 @@ CHECK_INTERVAL = int(os.getenv("CF_WATCHDOG_INTERVAL", "60"))
 
 
 def write_heartbeat(component: str, meta: Optional[Dict[str, Any]] = None) -> None:
-    """Other agents call this to prove they are alive."""
     payload = {
         "component": component,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -103,11 +95,30 @@ def _free_disk_mb(path: Path = Path(".")) -> Optional[float]:
 
 
 def run_checks() -> Dict[str, Any]:
-    """Run one full self-check cycle. Returns structured status."""
     from core.circuit_breaker import breaker
 
     issues: List[Dict[str, str]] = []
-    components = ["threat_agent", "fusion_agent", "compliance_logger", "watchdog", "firewall", "dashboard", "health", "whatsapp"]
+    components = [
+        "threat_agent",
+        "fusion_agent",
+        "compliance_logger",
+        "watchdog",
+        "firewall",
+        "dashboard",
+        "health",
+        "whatsapp",
+        "daily_report",
+        "weekly_evidence",
+        "ir_detect",
+        "ir_investigate",
+        "ir_respond",
+        "ir_report",
+        "tenant_orch",
+        "soc_api",
+        "siem_bridge",
+        "playbook",
+        "threat_intel",
+    ]
 
     write_heartbeat("watchdog", {"role": "self_monitor"})
 
@@ -132,52 +143,66 @@ def run_checks() -> Dict[str, Any]:
                 hb_status[comp] = {"ok": True, "age_s": None, "note": "startup_grace"}
             else:
                 hb_status[comp] = {"ok": False, "age_s": None, "note": "no heartbeat yet"}
-                issues.append({
-                    "severity": "WARNING",
-                    "code": "HEARTBEAT_MISSING",
-                    "message": f"No heartbeat from {comp}",
-                })
+                issues.append(
+                    {
+                        "severity": "WARNING",
+                        "code": "HEARTBEAT_MISSING",
+                        "message": f"No heartbeat from {comp}",
+                    }
+                )
         elif age > HEARTBEAT_STALE_SECONDS:
             hb_status[comp] = {"ok": False, "age_s": round(age, 1)}
-            issues.append({
-                "severity": "CRITICAL" if comp in ("fusion_agent", "threat_agent") else "WARNING",
-                "code": "HEARTBEAT_STALE",
-                "message": f"{comp} heartbeat stale ({int(age)}s > {HEARTBEAT_STALE_SECONDS}s)",
-            })
+            issues.append(
+                {
+                    "severity": "CRITICAL"
+                    if comp in ("fusion_agent", "threat_agent", "siem_bridge")
+                    else "WARNING",
+                    "code": "HEARTBEAT_STALE",
+                    "message": f"{comp} heartbeat stale ({int(age)}s > {HEARTBEAT_STALE_SECONDS}s)",
+                }
+            )
         else:
             hb_status[comp] = {"ok": True, "age_s": round(age, 1)}
 
     cb = breaker.status()
     if cb.get("state") == "OPEN":
-        issues.append({
-            "severity": "CRITICAL",
-            "code": "BREAKER_OPEN",
-            "message": f"Circuit breaker OPEN: {cb.get('reason', 'unknown')}",
-        })
+        issues.append(
+            {
+                "severity": "CRITICAL",
+                "code": "BREAKER_OPEN",
+                "message": f"Circuit breaker OPEN: {cb.get('reason', 'unknown')}",
+            }
+        )
 
     audit_age = _audit_age_hours()
     if audit_age is not None and audit_age > AUDIT_STALE_HOURS:
-        issues.append({
-            "severity": "WARNING",
-            "code": "AUDIT_STALE",
-            "message": f"Audit log not updated in {audit_age:.1f} hours",
-        })
+        issues.append(
+            {
+                "severity": "WARNING",
+                "code": "AUDIT_STALE",
+                "message": f"Audit log not updated in {audit_age:.1f} hours",
+            }
+        )
 
     pending = _count_pending()
     if pending > MAX_PENDING_APPROVALS:
-        issues.append({
-            "severity": "WARNING",
-            "code": "PENDING_BACKLOG",
-            "message": f"{pending} pending WhatsApp approvals (max {MAX_PENDING_APPROVALS})",
-        })
+        issues.append(
+            {
+                "severity": "WARNING",
+                "code": "PENDING_BACKLOG",
+                "message": f"{pending} pending WhatsApp approvals (max {MAX_PENDING_APPROVALS})",
+            }
+        )
 
     free_mb = _free_disk_mb()
     if free_mb is not None and free_mb < MIN_FREE_MB:
-        issues.append({
-            "severity": "CRITICAL",
-            "code": "DISK_LOW",
-            "message": f"Free disk {free_mb:.0f} MB below minimum {MIN_FREE_MB} MB",
-        })
+        issues.append(
+            {
+                "severity": "CRITICAL",
+                "code": "DISK_LOW",
+                "message": f"Free disk {free_mb:.0f} MB below minimum {MIN_FREE_MB} MB",
+            }
+        )
 
     critical = [i for i in issues if i["severity"] == "CRITICAL"]
     warnings = [i for i in issues if i["severity"] == "WARNING"]
@@ -208,7 +233,6 @@ def run_checks() -> Dict[str, Any]:
 
 
 def notify_if_needed(status: Dict[str, Any], last_notified_overall: Optional[str]) -> Optional[str]:
-    """Send WhatsApp alert on state change to UNHEALTHY / DEGRADED."""
     overall = status["overall"]
     if overall == last_notified_overall:
         return last_notified_overall
@@ -216,6 +240,7 @@ def notify_if_needed(status: Dict[str, Any], last_notified_overall: Optional[str
         if last_notified_overall in ("UNHEALTHY", "DEGRADED"):
             try:
                 from core.whatsapp_gateway import send_notification
+
                 send_notification(
                     f"✅ *CyberFortress Watchdog*\nStatus restored to HEALTHY\nTime: {status['timestamp']}"
                 )
@@ -225,6 +250,7 @@ def notify_if_needed(status: Dict[str, Any], last_notified_overall: Optional[str
 
     try:
         from core.whatsapp_gateway import send_notification
+
         lines = [f"🚨 *CyberFortress Watchdog — {overall}*", f"Time: {status['timestamp']}", ""]
         for issue in status.get("issues", []):
             lines.append(f"• [{issue['severity']}] {issue['message']}")
@@ -236,14 +262,13 @@ def notify_if_needed(status: Dict[str, Any], last_notified_overall: Optional[str
 
 
 def maybe_auto_safe_mode(status: Dict[str, Any]) -> None:
-    """If critically unhealthy, fail closed: trip breaker (CF_WATCHDOG_FAIL_CLOSED=true)."""
     if os.getenv("CF_WATCHDOG_FAIL_CLOSED", "false").lower() != "true":
         return
     if status["overall"] != "UNHEALTHY":
         return
-
     try:
         from core.circuit_breaker import breaker
+
         if breaker.status().get("state") != "OPEN":
             breaker.trip("Watchdog fail-closed: platform UNHEALTHY")
             logger.critical("Watchdog tripped circuit breaker (fail-closed)")
