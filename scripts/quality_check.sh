@@ -3,6 +3,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+chmod +x scripts/*.sh 2>/dev/null || true
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 echo "=============================================="
@@ -26,6 +27,7 @@ for m in [
     importlib.import_module(m)
     print("  OK", m)
 print("  LIVE default:", __import__("os").getenv("CF_CONTAINMENT_LIVE","false"))
+print("  FUSION process default:", __import__("os").getenv("CF_FUSION_PROCESS","false"))
 PY
 
 echo

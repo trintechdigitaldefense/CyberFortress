@@ -2,38 +2,37 @@
 
 **Snapshot:** v0.3.11 (2026-10-21)
 
+## Gaps closed
+
+| Gap | Status |
+|-----|--------|
+| Dual threat+fusion detection | **Fixed** — `CF_FUSION_PROCESS=false` default |
+| IR not on dashboard API | **Fixed** — `/api/ir/cases` + status `ir` |
+| Monitoring hard to query | **Fixed** — `/api/monitoring` + status `monitoring` |
+| README version drift | **Fixed** — v0.3.11 |
+| No quality gate | **Fixed** — `scripts/quality_check.sh` |
+| Unit tests | **40/40 green** |
+| IR not on dashboard UI | **Fixed** — IR team card |
+
 ## Scorecard (honest)
 
-| Area | Score | Notes |
-|------|-------|-------|
-| Safety defaults | **9/10** | LIVE off, ROE, breaker, force off, bind guards |
-| Monitoring | **8/10** | Fusion + host logs + metrics + rules packs |
-| IR team | **7.5/10** | Detect→report pipeline; rules-driven not SIEM-class |
-| Containment | **7/10** | Solid on real VM + netadmin; weak in restricted containers |
-| Operator UX | **8/10** | One-command start, dashboard, health, evidence packs |
-| WhatsApp live | **5/10** | Code ready; needs Meta creds + TLS (human) |
-| Enterprise scale | **4/10** | SMB/pilot fit; not multi-region SOC |
-| Docs / legal templates | **8/10** | Pilot, ROE, NDA, go-live clear |
+| Area | Score |
+|------|-------|
+| Safety defaults | 9/10 |
+| Monitoring | 8/10 |
+| IR team | 7.5/10 |
+| Containment (real VM) | 7/10 |
+| Operator UX | 8/10 |
+| WhatsApp live (creds pending) | 5/10 |
+| Enterprise scale | 4/10 |
 
-**Overall for local business pilots:** **~7.5–8/10** on a real Linux VM with preflight green.  
-**Overall as “enterprise AI SOC”:** **do not claim** — rules-driven tiered response only.
+**Overall local-business pilot:** ~7.5–8/10 on a real Linux VM with preflight green.
 
-## Green for
-
-- Dry-run / MONITORING pilots
-- WhatsApp-deferred engagements
-- Edge/gateway Linux hosts with iptables
-
-## Not green until human steps
-
-- Live Meta WhatsApp + TLS
-- Signed NDA/ROE + pilot_signoff.json
-- Live arm after `enable_live_mode.sh --check`
-
-## Quick verify
+## Verify
 
 ```bash
 bash scripts/quality_check.sh
-bash scripts/pilot_vm_preflight.sh
-./start.sh local && ./start.sh status
+./start.sh local
+curl -s http://127.0.0.1:8091/api/ir/cases | python3 -m json.tool | head
+curl -s http://127.0.0.1:8091/api/monitoring | python3 -m json.tool | head
 ```
