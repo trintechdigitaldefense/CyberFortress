@@ -3,7 +3,7 @@
 CyberFortress 24/7 Self-Monitoring Watchdog
 
 Continuously verifies that CyberFortress is operating as intended:
-- Component heartbeats (fusion, threat agent, compliance)
+- Component heartbeats (fusion, threat agent, compliance, firewall, dashboard, health, whatsapp)
 - Circuit breaker state
 - Audit log freshness
 - Pending approval backlog
@@ -107,7 +107,7 @@ def run_checks() -> Dict[str, Any]:
     from core.circuit_breaker import breaker
 
     issues: List[Dict[str, str]] = []
-    components = ["threat_agent", "fusion_agent", "compliance_logger", "watchdog"]
+    components = ["threat_agent", "fusion_agent", "compliance_logger", "watchdog", "firewall", "dashboard", "health", "whatsapp"]
 
     write_heartbeat("watchdog", {"role": "self_monitor"})
 
