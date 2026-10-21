@@ -1,30 +1,55 @@
 pack_id: default_v1
-version: "1.0"
-description: Baseline detection rules for pilot deployments
+version: "1.1"
+description: Baseline detection rules — strengthened monitoring indicators
 
 rules:
   - id: CF-R001
     name: decoy_trip
-    match_indicators: [decoy, honeypot, mirage_trip]
+    match_indicators: [decoy, honeypot, mirage_trip, decoy_trigger, decoy_trip]
     severity: HIGH
     playbook: isolate_endpoint
   - id: CF-R002
     name: brute_force
-    match_indicators: [bruteforce, brute_force, failed_login_flood]
+    match_indicators: [bruteforce, brute_force, failed_login_flood, bruteforce_ssh, auth_failure]
     severity: HIGH
     playbook: block_ip
   - id: CF-R003
     name: reverse_shell
-    match_indicators: [reverse_shell, shell, c2, beacon]
-    severity: HIGH
+    match_indicators: [reverse_shell, reverse_shell_detected, shell, c2, beacon]
+    severity: CRITICAL
     playbook: block_ip
   - id: CF-R004
     name: credential_theft
-    match_indicators: [credential, mass_credential, password_dump]
+    match_indicators: [credential, mass_credential, password_dump, credential_theft]
     severity: HIGH
     playbook: credential_rotation
   - id: CF-R005
     name: ransomware_exfil
-    match_indicators: [ransomware, encryption, exfil, lateral]
+    match_indicators: [ransomware, encryption, exfil, lateral, data_exfiltration]
     severity: CRITICAL
     playbook: halt_operations
+  - id: CF-R006
+    name: sudo_abuse
+    match_indicators: [sudo_auth_failure, privilege_escalation]
+    severity: HIGH
+    playbook: terminate_session
+  - id: CF-R007
+    name: disk_pressure
+    match_indicators: [disk_pressure, disk_full]
+    severity: CRITICAL
+    playbook: halt_operations
+  - id: CF-R008
+    name: high_load
+    match_indicators: [high_load, resource_exhaustion]
+    severity: MEDIUM
+    playbook: deploy_decoy
+  - id: CF-R009
+    name: suspicious_login
+    match_indicators: [ssh_login_success, root_session, unusual_login]
+    severity: MEDIUM
+    playbook: deploy_decoy
+  - id: CF-R010
+    name: port_scan
+    match_indicators: [port_scan, recon, network_scan]
+    severity: HIGH
+    playbook: block_ip
