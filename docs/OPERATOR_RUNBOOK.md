@@ -10,11 +10,20 @@
 |------|----------------|
 | **Lead operator** | Go-live decisions, breaker trips, client contact |
 | **On-call operator** | WhatsApp `APPROVE <nonce>` / `DENY <nonce>`, dashboard watch |
-| **Client admin** | Named on ROE; may receive alerts only if listed in `CF_WHATSAPP_ADMINS` |
+| **Client contact** | Named on ROE; may receive **reports/alerts** via dashboard report number — **not** an approver unless also listed in admins |
 
 At least **one** TrinTech operator must be reachable while `CF_CONTAINMENT_LIVE=true`.
 
 ---
+
+## Separate WhatsApp channels
+
+| Channel | Config | Who |
+|---------|--------|-----|
+| **Reports** | Dashboard settings or `CF_WHATSAPP_REPORT_TO` | Client business line — daily + live alerts |
+| **Approvals** | `CF_WHATSAPP_ADMINS` + `pilot_signoff.json` → `whatsapp_admins` | TrinTech operators only |
+
+**Drill:** `bash scripts/operator_drill.sh` — proves non-admin numbers cannot approve.
 
 ## Shift start
 
@@ -23,7 +32,7 @@ At least **one** TrinTech operator must be reachable while `CF_CONTAINMENT_LIVE=
    ssh -L 8091:127.0.0.1:8091 -L 8090:127.0.0.1:8090 user@cf-host
    ```
 2. `./start.sh status` or health/dashboard checks
-3. Confirm breaker CLOSED, mode DRY-RUN vs LIVE, phone is a listed admin number
+3. Confirm breaker CLOSED, mode DRY-RUN vs LIVE, phone is a listed **admin** number
 
 ---
 
@@ -31,7 +40,7 @@ At least **one** TrinTech operator must be reachable while `CF_CONTAINMENT_LIVE=
 
 Messages include **Action**, **Target**, **Severity**, **Legal justification**, and a **nonce**.
 
-Reply **exactly** (from your registered number only):
+Reply **exactly** (from your registered **admin** number only):
 
 ```text
 APPROVE A1B2C3
@@ -67,7 +76,6 @@ Rules:
 
 ```bash
 ./scripts/disable_live_mode.sh
-python3 playbooks/breaker.py trip --reason "Operator emergency stop"
 ```
 
 ---
@@ -75,19 +83,15 @@ python3 playbooks/breaker.py trip --reason "Operator emergency stop"
 ## Evidence
 
 ```bash
-python3 playbooks/evidence.py --client "CLIENT_NAME" --engagement ENG-YYYY-NNN
+# Dashboard: Evidence pack button, or API POST /api/evidence
 export CF_BACKUP_DEST=/path/offbox
 ./scripts/backup_offbox.sh
 ```
 
 ---
 
-## Shift end checklist
+## First pilot path
 
-- [ ] Pending approvals cleared or handed over
-- [ ] Breaker + LIVE/DRY-RUN state noted
-- [ ] Next on-call named and reachable
+See [FIRST_PILOT.md](FIRST_PILOT.md).
 
----
-
-*See also: docs/WHATSAPP_TLS.md · docs/PILOT_DEPLOYMENT.md · docs/GO_LIVE.md*
+*Defend. Detect. Dominate.*
