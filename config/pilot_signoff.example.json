@@ -3,6 +3,7 @@
   "engagement_id": "ENG-YYYY-NNN",
   "checklist_complete": false,
   "whatsapp_tls_verified": false,
+  "whatsapp_deferred": true,
   "operator_runbook_acknowledged": false,
   "roe_signed": false,
   "nda_signed": false,
@@ -24,5 +25,5 @@
   "signed_by_role": "TrinTech Lead Operator",
   "client_approver": "Client Contact Name",
   "signoff_date_utc": "YYYY-MM-DD",
-  "notes": "All flags must be true before enable_live_mode.sh --enable. host_netadmin_verified = ./scripts/check_netadmin.sh passed on the pilot host. authorized_actions is the ROE allow-list. Templates: docs/templates/NDA_TEMPLATE.md and ROE_TEMPLATE.md."
+  "notes": "host_netadmin_verified must be true (run ./scripts/pilot_vm_preflight.sh). whatsapp_deferred=true allows arming before Meta credentials."
 }
