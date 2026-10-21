@@ -43,6 +43,12 @@ WATCHDOG_STATUS = Path(os.getenv("CF_WATCHDOG_STATUS", "./logs/watchdog_status.j
 
 
 def _enabled() -> bool:
+    try:
+        from core.notify_settings import daily_enabled
+        if not daily_enabled():
+            return False
+    except Exception:
+        pass
     flag = os.getenv("CF_REPORT_ENABLED", "").lower()
     if flag in ("true", "1", "yes"):
         return True
@@ -68,7 +74,6 @@ def _audit_counts(hours: int = 24) -> dict:
             ts = e.get("timestamp") or ""
             try:
                 from datetime import datetime as dt
-
                 t = dt.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
                 if t < cutoff:
                     continue
@@ -100,7 +105,6 @@ def build_report() -> str:
     fw_msg = "—"
     try:
         from core.containment.firewall import firewall_status
-
         fw = firewall_status()
         fw_msg = f"{fw.get('mode_label', '—')} · rules={fw.get('rule_count', 0)}"
     except Exception as e:
@@ -109,7 +113,6 @@ def build_report() -> str:
     breaker_state = "—"
     try:
         from core.circuit_breaker import breaker
-
         breaker_state = breaker.status().get("state", "—")
     except Exception:
         pass
@@ -137,18 +140,14 @@ def build_report() -> str:
 
 def send_once() -> bool:
     if not _enabled():
-        logger.info("Daily report skipped (CF_REPORT_ENABLED / WhatsApp not enabled)")
+        logger.info("Daily report skipped (settings/env disabled)")
         return False
     try:
         from core.whatsapp_gateway import send_report
-
         msg = build_report()
         ok = send_report(msg, level="DAILY")
         logger.info("Daily report sent ok=%s", ok)
-        write_heartbeat(
-            "daily_report",
-            {"phase": "sent" if ok else "failed", "ok": ok},
-        )
+        write_heartbeat("daily_report", {"phase": "sent" if ok else "failed", "ok": ok})
         return ok
     except Exception as e:
         logger.exception("Daily report failed: %s", e)
