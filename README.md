@@ -4,7 +4,7 @@
 
 **Autonomous Incident Response Platform**  
 *TrinTech Digital Defense · Trinidad & Tobago* 🇹🇹  
-**v0.3.3 — production monitoring platform**
+**v0.3.11 — monitoring + IR response team (pilot-ready)**
 
 > Automated threat detection and tiered response — WhatsApp approval for high-impact moves, active firewall containment when armed, full TT Computer Misuse Act audit trail.
 
@@ -33,6 +33,17 @@ After start: **Dashboard** http://127.0.0.1:8091 · **Health** http://127.0.0.1:
 
 ---
 
+## IR response team
+
+Detect → Investigate → Respond → Report agents run with `./start.sh`.
+
+- Cases: `logs/ir_cases/`
+- Reports: `evidence/ir_reports/`
+- API: `GET /api/ir/cases`
+- Docs: [docs/IR_RESPONSE_TEAM.md](docs/IR_RESPONSE_TEAM.md)
+
+---
+
 ## Live firewall host check (real VM pilot)
 
 ```bash
@@ -51,6 +62,7 @@ See [docs/PILOT_VM.md](docs/PILOT_VM.md) · [docs/HOST_REQUIREMENTS.md](docs/HOS
 ./scripts/run_tests.sh
 python3 scripts/verify_audit_chain.py
 bash scripts/pilot_dry_run.sh
+bash scripts/quality_check.sh
 ```
 
 ---
@@ -73,22 +85,10 @@ See [docs/GO_LIVE.md](docs/GO_LIVE.md).
 | Doc | Purpose |
 |-----|---------|
 | [docs/OVERVIEW.md](docs/OVERVIEW.md) | What it is |
+| [docs/QUALITY_STATUS.md](docs/QUALITY_STATUS.md) | Honest scorecard |
+| [docs/IR_RESPONSE_TEAM.md](docs/IR_RESPONSE_TEAM.md) | Detect→report agents |
 | [docs/PILOT_VM.md](docs/PILOT_VM.md) | Real VM pilot + netadmin gate |
 | [docs/HOST_REQUIREMENTS.md](docs/HOST_REQUIREMENTS.md) | CAP_NET_ADMIN for live CF_BLOCK |
 | [docs/GO_LIVE.md](docs/GO_LIVE.md) | NDA / ROE / operator arming |
 | [docs/WHATSAPP_TLS.md](docs/WHATSAPP_TLS.md) | Live Meta WhatsApp (add later) |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
-
----
-
-## Contact
-
-**TrinTech Digital Defense**  
-Email: trintechdigitaldefense@gmail.com  
-WhatsApp: +1 (868) 362-0679  
-Web: https://trintechdigitaldefense.github.io
-
----
-
-*Defend. Detect. Dominate.*  
-Authorized defensive use only. All rights reserved.
