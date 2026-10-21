@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Shared agent runtime — heartbeats, backoff, structured cycles."""
+"""Shared agent runtime — heartbeats, backoff, metrics, adaptive intervals."""
 
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any, Callable, Dict, Optional
 
+from core.capacity import adaptive_interval
 from core.watchdog import write_heartbeat
 
 logger = logging.getLogger("cf_agent_runtime")
@@ -20,19 +22,35 @@ def run_forever(
     error_sleep: float = 10.0,
     max_error_sleep: float = 120.0,
 ) -> None:
-    """Run cycle() forever with heartbeats and exponential backoff on errors."""
-    write_heartbeat(name, {"phase": "started"})
+    tenant = os.getenv("CF_TENANT_ID", "")
+    write_heartbeat(name, {"phase": "started", "tenant": tenant})
     err_streak = 0
+    cycles = 0
     while True:
+        t0 = time.time()
         try:
-            write_heartbeat(name, {"phase": "cycle_start"})
+            write_heartbeat(name, {"phase": "cycle_start", "tenant": tenant, "cycles": cycles})
             meta = cycle() or {}
             err_streak = 0
-            write_heartbeat(name, {"phase": "cycle_done", **meta})
-            time.sleep(max(1.0, float(interval)))
+            cycles += 1
+            elapsed = time.time() - t0
+            load = float(meta.get("load_ratio") or 1.0)
+            sleep_for = adaptive_interval(float(interval), load)
+            write_heartbeat(
+                name,
+                {
+                    "phase": "cycle_done",
+                    "tenant": tenant,
+                    "cycles": cycles,
+                    "elapsed_ms": int(elapsed * 1000),
+                    "next_sleep_s": sleep_for,
+                    **meta,
+                },
+            )
+            time.sleep(max(1.0, sleep_for))
         except KeyboardInterrupt:
-            write_heartbeat(name, {"phase": "stopped"})
-            logger.info("%s stopped", name)
+            write_heartbeat(name, {"phase": "stopped", "cycles": cycles})
+            logger.info("%s stopped after %s cycles", name, cycles)
             break
         except Exception as e:
             err_streak += 1
@@ -42,6 +60,7 @@ def run_forever(
                 name,
                 {
                     "phase": "error",
+                    "tenant": tenant,
                     "error": str(e)[:200],
                     "err_streak": err_streak,
                     "backoff_s": sleep_for,
