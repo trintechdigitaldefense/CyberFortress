@@ -4,6 +4,7 @@ CyberFortress WhatsApp Webhook Receiver (hardened)
 
 - Only CF_WHATSAPP_ADMINS numbers can approve
 - Requires APPROVE <nonce> or DENY <nonce> matching pending request
+- Rate limit, body cap, optional Meta X-Hub-Signature-256
 - Unknown sender → DENY-UNKNOWN-SENDER + log
 """
 
@@ -15,6 +16,12 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from core.defense import (
+    rate_limit_allow,
+    read_body_limited,
+    verify_meta_signature,
+    assert_safe_bind,
+)
 from core.whatsapp_gateway import (
     is_allowed_approver,
     hash_sender,
@@ -38,10 +45,9 @@ def record_decision(
     sender: str,
     provided_nonce: str,
 ) -> None:
-    """Shared by webhook and mock demo helper."""
     pending_path = PENDING_DIR / f"{request_id}.json"
     if not pending_path.exists():
-        logger.warning(f"No pending request {request_id}")
+        logger.warning("No pending request %s", request_id)
         return
 
     meta = json.loads(pending_path.read_text(encoding="utf-8"))
@@ -55,7 +61,7 @@ def record_decision(
             "nonce_ok": False,
         }
         (PENDING_DIR / f"{request_id}.decision").write_text(json.dumps(payload), encoding="utf-8")
-        logger.warning(f"Unknown sender denied for {request_id} hash={payload['sender_hash']}")
+        logger.warning("Unknown sender denied for %s hash=%s", request_id, payload["sender_hash"])
         return
 
     nonce_ok = secrets_compare(expected, provided)
@@ -73,7 +79,7 @@ def record_decision(
         }
 
     (PENDING_DIR / f"{request_id}.decision").write_text(json.dumps(payload), encoding="utf-8")
-    logger.info(f"Recorded {payload['decision']} for {request_id} nonce_ok={nonce_ok}")
+    logger.info("Recorded %s for %s nonce_ok=%s", payload["decision"], request_id, nonce_ok)
 
 
 def secrets_compare(a: str, b: str) -> bool:
@@ -106,6 +112,11 @@ class WebhookHandler(BaseHTTPRequestHandler):
         logger.info("%s - %s", self.address_string(), format % args)
 
     def do_GET(self):
+        client = self.client_address[0] if self.client_address else "unknown"
+        if not rate_limit_allow(f"wa-get:{client}", limit=30):
+            self.send_response(429)
+            self.end_headers()
+            return
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
         mode = qs.get("hub.mode", [None])[0]
@@ -123,10 +134,31 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length)
+        client = self.client_address[0] if self.client_address else "unknown"
+        if not rate_limit_allow(f"wa:{client}", limit=60):
+            logger.warning("Webhook rate limited client=%s", client)
+            self.send_response(429)
+            self.end_headers()
+            self.wfile.write(b"rate limited")
+            return
+
+        body, err = read_body_limited(self)
+        if err:
+            logger.warning("Webhook body rejected: %s", err)
+            self.send_response(413)
+            self.end_headers()
+            return
+
+        app_secret = os.getenv("CF_WHATSAPP_APP_SECRET", "")
+        sig = self.headers.get("X-Hub-Signature-256", "")
+        if not verify_meta_signature(app_secret, body, sig):
+            logger.warning("Webhook signature verification failed")
+            self.send_response(403)
+            self.end_headers()
+            return
+
         try:
-            data = json.loads(body.decode())
+            data = json.loads(body.decode() or "{}")
         except Exception:
             self.send_response(400)
             self.end_headers()
@@ -145,7 +177,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     for msg in value.get("messages", []):
                         self._handle_message(msg)
         except Exception as e:
-            logger.exception(f"Error processing webhook payload: {e}")
+            logger.exception("Error processing webhook payload: %s", e)
 
     def _handle_message(self, msg: dict):
         sender = str(msg.get("from", ""))
@@ -163,14 +195,14 @@ class WebhookHandler(BaseHTTPRequestHandler):
         m_ok = APPROVE_RE.match(text)
         m_no = DENY_RE.match(text)
         if not m_ok and not m_no:
-            logger.info(f"Ignoring non-decision text from hash={hash_sender(sender)}")
+            logger.info("Ignoring non-decision text from hash=%s", hash_sender(sender))
             return
 
         decision = "APPROVE" if m_ok else "DENY"
         nonce = (m_ok or m_no).group(1)
         request_id = _find_request_by_nonce(nonce)
         if not request_id:
-            logger.warning(f"No pending request for nonce from hash={hash_sender(sender)}")
+            logger.warning("No pending request for nonce from hash=%s", hash_sender(sender))
             return
 
         record_decision(request_id, decision, sender, nonce)
@@ -181,9 +213,13 @@ class ReusableHTTPServer(HTTPServer):
 
 
 def main():
-    logger.info(f"Starting WhatsApp webhook on port {PORT}")
+    logger.info("Starting WhatsApp webhook on port %s", PORT)
     logger.info("Approvals require: APPROVE <nonce> from registered admin only")
-    server = ReusableHTTPServer(("0.0.0.0", PORT), WebhookHandler)
+    bind = assert_safe_bind(os.getenv("CF_WHATSAPP_WEBHOOK_BIND", "127.0.0.1"), "whatsapp_webhook")
+    if os.getenv("CF_ALLOW_PUBLIC_BIND", "false").lower() in ("1", "true", "yes"):
+        bind = os.getenv("CF_WHATSAPP_WEBHOOK_BIND", "0.0.0.0")
+    logger.info("Webhook bind=%s port=%s", bind, PORT)
+    server = ReusableHTTPServer((bind, PORT), WebhookHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
