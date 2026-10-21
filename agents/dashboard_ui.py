@@ -67,6 +67,7 @@ a.link{color:var(--accent);text-decoration:none}a.link:hover{text-decoration:und
 <div class="card"><h3>Waiting on you</h3><div class="value" id="pending-val">0</div><div class="sub">Approvals</div></div>
 <div class="card"><h3>Actions</h3><div class="value" id="actions-val">0</div><div class="sub" id="sev-breakdown">—</div></div>
 <div class="card"><h3>WhatsApp</h3><div class="value" style="font-size:1rem" id="wa-val">—</div><div class="sub">HITL channel</div></div>
+<div class="card"><h3>IR team</h3><div class="value" style="font-size:1rem" id="ir-val">—</div><div class="sub" id="ir-sub">open cases</div></div>
 <div class="card"><h3>Firewall</h3><div class="value" style="font-size:1rem" id="fw-val">—</div><div class="sub" id="fw-sub">CF_BLOCK chain</div></div>
 </div>
 <div class="tabs" id="sev-tabs">
@@ -101,7 +102,7 @@ let LAST=null,FILTER='ALL',OPEN_ROW=null;
 function fmtTime(iso){if(!iso)return'—';try{return new Date(iso).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})}catch(e){return iso}}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),4500)}
 function setBadge(el,text,cls){el.textContent=text;el.className='badge '+cls}
-function esc(s){return String(s||'').replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>')}
+function esc(s){return String(s||'').replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'"')}
 function renderActions(actions){const ab=document.getElementById('actions-body');const filtered=(actions||[]).filter(a=>FILTER==='ALL'||(a.severity||'')===FILTER);
 if(!filtered.length){ab.innerHTML='<tr><td colspan="4" class="empty">No actions in this view yet</td></tr>';return}
 ab.innerHTML=filtered.map((a,i)=>{const id='a'+i;const just=esc(a.legislative_justification||'—');const open=OPEN_ROW===id;
@@ -131,6 +132,10 @@ setBadge(document.getElementById('breaker-badge'),'BREAKER '+(cb.state||'—'),c
 document.getElementById('pending-val').textContent=d.stats.pending_approvals;document.getElementById('actions-val').textContent=d.stats.total_actions_shown;
 const sev=d.stats.by_severity||{};document.getElementById('sev-breakdown').textContent=`C:${sev.CRITICAL||0} H:${sev.HIGH||0} I:${sev.INFO||0}`;
 document.getElementById('wa-val').textContent=d.whatsapp_enabled?'Connected':'Not connected';
+const ir=d.ir||{}; const irs=ir.summary||{};
+const openN=irs.open_total!=null?irs.open_total:(ir.open_cases||[]).length;
+const irEl=document.getElementById('ir-val'); if(irEl) irEl.textContent=openN+' open';
+const irSub=document.getElementById('ir-sub'); if(irSub){const by=irs.by_status||{}; irSub.textContent=Object.keys(by).map(k=>k+':'+by[k]).slice(0,4).join(' · ')||'detect → investigate → respond → report'}
 const fw=d.firewall||{};document.getElementById('fw-val').textContent=fw.live_mode?'ARMED':(fw.iptables_present===false?'N/A':'Standby');
 document.getElementById('fw-sub').textContent=(fw.chain||'CF_BLOCK')+' · '+(fw.rule_count||0)+' rules';
 const fwb=document.getElementById('fw-rules-body');const rules=fw.rules||[];
@@ -146,7 +151,7 @@ if(issues.length){ib.style.display='block';ib.innerHTML=issues.map(i=>`• [${es
 }catch(e){console.error(e);toast('Could not refresh')}}
 document.getElementById('sev-tabs').addEventListener('click',ev=>{const t=ev.target.closest('.tab');if(!t)return;FILTER=t.dataset.sev;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));if(LAST)renderActions(LAST.recent_actions||[])});
 document.getElementById('btn-refresh').onclick=()=>{refresh();toast('Refreshed')};
-document.getElementById('btn-copy').onclick=()=>{if(!LAST)return;const s=[`CyberFortress — ${LAST.client_name||'Client'}`,`Mode: ${LAST.mode_label}`,`Platform: ${(LAST.watchdog&&LAST.watchdog.overall)||'—'}`,`Audit: ${((LAST.audit_integrity&&LAST.audit_integrity.ok)?'OK':'CHECK')}`,`Policy actions: ${((LAST.policy&&LAST.policy.action_count)!=null?LAST.policy.action_count:((LAST.roe&&LAST.roe.authorized_actions)||[]).length)}`,`Breaker: ${(LAST.circuit_breaker&&LAST.circuit_breaker.state)||'—'}`,`Firewall: ${((LAST.firewall&&LAST.firewall.mode_label)||'—')} rules=${(LAST.firewall&&LAST.firewall.rule_count)||0}`,`Actions: ${LAST.stats.total_actions_shown}`,`Pending: ${LAST.stats.pending_approvals}`,`Time: ${LAST.timestamp}`].join('\n');navigator.clipboard.writeText(s).then(()=>toast('Summary copied')).catch(()=>toast(s))};
+document.getElementById('btn-copy').onclick=()=>{if(!LAST)return;const s=[`CyberFortress — ${LAST.client_name||'Client'}`,`Mode: ${LAST.mode_label}`,`Platform: ${(LAST.watchdog&&LAST.watchdog.overall)||'—'}`,`Audit: ${((LAST.audit_integrity&&LAST.audit_integrity.ok)?'OK':'CHECK')}`,`Policy actions: ${((LAST.policy&&LAST.policy.action_count)!=null?LAST.policy.action_count:((LAST.roe&&LAST.roe.authorized_actions)||[]).length)}`,`Breaker: ${(LAST.circuit_breaker&&LAST.circuit_breaker.state)||'—'}`,`Firewall: ${((LAST.firewall&&LAST.firewall.mode_label)||'—')} rules=${(LAST.firewall&&LAST.firewall.rule_count)||0}`,`IR open: ${((LAST.ir&&LAST.ir.summary&&LAST.ir.summary.open_total)!=null?LAST.ir.summary.open_total:((LAST.ir&&LAST.ir.open_cases)||[]).length)}`,`Actions: ${LAST.stats.total_actions_shown}`,`Pending: ${LAST.stats.pending_approvals}`,`Time: ${LAST.timestamp}`].join('\n');navigator.clipboard.writeText(s).then(()=>toast('Summary copied')).catch(()=>toast(s))};
 document.getElementById('btn-evidence').onclick=async()=>{const btn=document.getElementById('btn-evidence');btn.disabled=true;try{const j=await(await fetch('/api/evidence',{method:'POST'})).json();
 if(j.ok){const n=j.actions_loaded!=null?j.actions_loaded:'?';const name=(j.path||'').split('/').pop();toast(`Pack ready (${n} actions) → ${name||'evidence/'}`);refresh()}else toast(j.error||'Failed')}catch(e){toast('Evidence request failed')}btn.disabled=false};
 refresh();setInterval(refresh,5000);
