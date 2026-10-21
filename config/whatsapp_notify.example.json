@@ -1,0 +1,8 @@
+{
+  "report_to": "+18683620679",
+  "daily_enabled": true,
+  "live_alerts_enabled": true,
+  "min_live_severity": "HIGH",
+  "updated_at": null,
+  "source": "example"
+}

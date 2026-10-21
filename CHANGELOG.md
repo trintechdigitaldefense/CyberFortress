@@ -1,17 +1,22 @@
 # Changelog
 
+## [v0.3.4] — 2026-10-21
+
+### Dashboard WhatsApp report settings
+- Settings panel: register report number, toggle **daily** + **live alerts**
+- `core/notify_settings.py` + `POST /api/settings/whatsapp` (number stored in `config/whatsapp_notify.json`)
+- Daily agent respects `daily_enabled`; live path uses `send_live_alert` (HIGH+)
+- Meta token remains in `.env` only
+
 ## [v0.3.3] — 2026-10-21
 
 ### Real VM pilot gate
-- **`scripts/pilot_vm_preflight.sh`** — end-to-end VM pilot check; netadmin must be green
-- **`check_netadmin.sh`** writes `config/host_capability.json`; stamps `host_netadmin_verified` on success
-- **WhatsApp deferred** — `whatsapp_deferred: true` in pilot_signoff allows arming before Meta credentials
-- **`docs/PILOT_VM.md`** — operator sequence for real VM pilots
-- Live arming still **refuses** if runtime netadmin check fails
+- `scripts/pilot_vm_preflight.sh` — netadmin must be green
+- WhatsApp deferred — `whatsapp_deferred: true` allows arming before Meta credentials
+- `docs/PILOT_VM.md`
 
 ## [v0.3.2] — 2026-10-19
 
-### Ops & depth
 - systemd, weekly evidence, rule packs, post-action verify, CAPACITY.md, multi-tenant scaffold, adversarial tests
 
 ## [v0.3.1] — 2026-10-19
