@@ -1,0 +1,9 @@
+name: port_scan_block
+enabled: true
+when:
+  severity_in: [HIGH, CRITICAL]
+  indicator_contains: [port_scan, recon, nmap, masscan, scan]
+  min_score: 60
+actions:
+  - action: block_ip
+    scope: single
