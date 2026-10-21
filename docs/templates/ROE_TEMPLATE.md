@@ -43,10 +43,25 @@ Any action **not** listed is **denied** by the platform.
 - Approver reply format: `APPROVE <nonce>` or `DENY <nonce>`  
 - Timeout without reply = **DENY**
 
-**WhatsApp admin numbers (must match CF_WHATSAPP_ADMINS):**
+**WhatsApp admin numbers (must match CF_WHATSAPP_ADMINS) — TrinTech operators only:**
 
 1. [+1868…] — [Name / role]  
 2. [+1868…] — [Name / role]
+
+---
+
+## WhatsApp channels (required)
+
+| Channel | Numbers | Purpose |
+|---------|---------|---------|
+| **Approvals** | TrinTech operators only | `APPROVE <nonce>` / `DENY <nonce>` for Tier-2 |
+| **Reports** | Client or ops business line | Daily summary + live HIGH+ alerts only |
+
+Client report numbers **must not** be listed as approval admins unless the engagement explicitly uses a single ops line.
+
+Approval admins (E.164): ________________________________
+
+Report-to number (E.164): ________________________________
 
 ## 4. Safety defaults
 
@@ -64,10 +79,23 @@ TrinTech may produce Evidence Packs (audit logs, action summaries). Client recei
 
 ---
 
+## Capacity & expectations (honest limits)
+
+Reference: `docs/CAPACITY.md`.
+
+- CyberFortress is **not** a high-EPS SIEM replacement.
+- Live DROP depends on host netfilter (`CAP_NET_ADMIN`); restricted containers may remain MONITORING-only.
+- Default mode is **dry-run / MONITORING** until written pilot sign-off and go-live procedure complete.
+- Soak recommendation: ≥7 days monitoring-only on pilot hardware before arming.
+
+Client acknowledges these limits: _______________ Date: ________
+
+---
+
 **Client approver**  
 Signature: ________________  Name: ________________  Date: ________
 
 **TrinTech lead operator**  
 Signature: ________________  Name: ________________  Date: ________
 
-*After signing: set `roe_signed: true` in `config/pilot_signoff.json` and list the same `authorized_actions` and `whatsapp_admins`.*
+*After signing: set `roe_signed: true` in `config/pilot_signoff.json` and list the same `authorized_actions` and `whatsapp_admins` (operators only).*
