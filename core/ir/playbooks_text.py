@@ -2,33 +2,54 @@
 
 from __future__ import annotations
 
-from typing import List
+from typing import Any, Dict, List, Optional
 
 
-def investigate(indicator: str, target: str, severity: str, source: str) -> List[str]:
+def investigate(
+    indicator: str,
+    target: str,
+    severity: str,
+    source: str,
+    related_count: int = 0,
+    recent_audit: Optional[List[Dict[str, Any]]] = None,
+) -> List[str]:
     findings = [
         f"Source telemetry: {source}",
         f"Indicator: {indicator}",
         f"Target asset/IP: {target}",
         f"Severity class: {severity}",
+        f"Related event count on this case: {related_count}",
     ]
     ind = (indicator or "").lower()
     if "brute" in ind or "failed_login" in ind:
         findings.append("Pattern consistent with authentication brute-force / password spray")
-        findings.append("Recommend: confirm geo/ASN, lockout policy, block source if out of policy")
+        findings.append("Recommend: confirm lockout policy; block source if out of policy")
+        findings.append("Check: repeated failures across users from same source IP")
     elif "reverse_shell" in ind or "c2" in ind or "beacon" in ind:
-        findings.append("Pattern consistent with remote access / C2 style activity")
-        findings.append("Recommend: isolate host, capture process list, preserve logs")
+        findings.append("Pattern consistent with remote access / C2-style activity")
+        findings.append("Recommend: isolate host, preserve volatile evidence, review outbound connections")
     elif "decoy" in ind or "honeypot" in ind:
         findings.append("Decoy/honeypot interaction — high confidence hostile interest")
-        findings.append("Recommend: isolate interacting host and review lateral movement")
+        findings.append("Recommend: isolate interacting host; review for lateral movement")
     elif "disk" in ind:
-        findings.append("Host resource pressure — may indicate ransomware staging or log flood")
-        findings.append("Recommend: free disk, check large writers, do not arm containment for this alone")
+        findings.append("Host resource pressure — ransomware staging or log flood possible")
+        findings.append("Recommend: free disk and identify large writers before containment arm")
     elif "sudo" in ind:
         findings.append("Privileged authentication failure — possible privilege escalation attempt")
+    elif "port_scan" in ind or "recon" in ind:
+        findings.append("Reconnaissance / network scan pattern")
+        findings.append("Recommend: block_ip if external; rate-limit if internal asset misconfig")
     else:
         findings.append("Generic high-signal event — correlate with recent audit entries")
+
+    if recent_audit:
+        findings.append(f"Correlated {len(recent_audit)} recent audit line(s) for same target")
+        for a in recent_audit[:5]:
+            findings.append(
+                f"  · {str(a.get('timestamp', '?'))[:19]} {a.get('severity')} "
+                f"{a.get('action')} {a.get('indicator', '')}"
+            )
+
     findings.append("All remediation subject to ROE allow-list and containment arm state")
     return findings
 
@@ -43,6 +64,8 @@ def recommend_action(indicator: str, severity: str) -> str:
         return "isolate_endpoint"
     if "sudo" in ind:
         return "terminate_session"
+    if "credential" in ind:
+        return "credential_rotation"
     return "block_ip"
 
 
@@ -52,29 +75,69 @@ def build_incident_report(case: dict) -> str:
         "",
         f"**Title:** {case.get('title')}",
         f"**Status:** {case.get('status')}",
-        f"**Severity:** {case.get('severity')}",
+        f"**Severity:** {case.get('severity')} · **Score:** {case.get('score', '—')} · **Confidence:** {case.get('confidence', '—')}",
         f"**Detected:** {case.get('detected_at')}",
+        f"**Updated:** {case.get('updated_at')}",
         f"**Target:** {case.get('target')}",
         f"**Indicator:** {case.get('indicator')}",
         f"**Source:** {case.get('source')}",
+        f"**Tags:** {', '.join(case.get('tags') or []) or '—'}",
         "",
         "## Findings",
     ]
     for f in case.get("findings") or []:
         lines.append(f"- {f}")
     lines.append("")
+    lines.append("## Related events")
+    rel = case.get("related_events") or []
+    if not rel:
+        lines.append("- (none)")
+    for r in rel[-15:]:
+        lines.append(
+            f"- {r.get('timestamp', r.get('at', '?'))}: {r.get('action', r.get('indicator', ''))} "
+            f"sev={r.get('severity', '')}"
+        )
+    lines.append("")
     lines.append("## Actions")
-    for a in case.get("actions") or []:
+    acts = case.get("actions") or []
+    if not acts:
+        lines.append("- (none yet)")
+    for a in acts:
         lines.append(
             f"- {a.get('at', '')}: {a.get('action')} → success={a.get('success')} "
-            f"dry_run={a.get('dry_run')} detail={a.get('detail', '')[:120]}"
+            f"dry_run={a.get('dry_run')} detail={str(a.get('detail', ''))[:160]}"
         )
     lines += [
         "",
         "## Notes",
         "- Generated by CyberFortress IR response team (rules-driven).",
         "- Live containment only when CF_CONTAINMENT_LIVE=true and ROE allows.",
+        "- Tier-2 actions may require WhatsApp APPROVE <nonce>.",
         "",
-        "*TrinTech Digital Defense*",
+        "*TrinTech Digital Defense — CyberFortress*",
     ]
     return "\n".join(lines)
+
+
+def build_incident_html(case: dict) -> str:
+    body = build_incident_report(case)
+    parts = [
+        "<!DOCTYPE html><html><head><meta charset='utf-8'/>",
+        f"<title>{case.get('case_id')}</title>",
+        "<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.45}",
+        "h1{color:#0b3d2e}h2{color:#145c45}li{margin:.25rem 0}</style></head><body>",
+    ]
+    for line in body.splitlines():
+        esc = line.replace("&", "&").replace("<", "<").replace(">", ">")
+        if line.startswith("# "):
+            parts.append(f"<h1>{esc[2:]}</h1>")
+        elif line.startswith("## "):
+            parts.append(f"<h2>{esc[3:]}</h2>")
+        elif line.startswith("- "):
+            parts.append(f"<li>{esc[2:]}</li>")
+        elif line.strip() == "":
+            parts.append("<br/>")
+        else:
+            parts.append(f"<p>{esc}</p>")
+    parts.append("<footer><em>TrinTech Digital Defense</em></footer></body></html>")
+    return "\n".join(parts)
