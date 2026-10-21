@@ -27,6 +27,7 @@ print_urls() {
   echo "  SOC API   : http://127.0.0.1:8092  (/metrics, /api/soc/ingest)"
   echo
   echo "  Firewall: agent starts with platform (CF_BLOCK chain)"
+  echo "  Auto-defense: policy-gated Tier-1 (LIVE=$(live_flag))"
   echo "  Containment LIVE=$(live_flag) (DROP rules only when armed)"
   echo "  Logs:   tail -f logs/*.out"
   echo "  Stop:   bash stop.sh"
@@ -84,6 +85,7 @@ start_local() {
   start_bg siem_bridge     python3 -m agents.siem_bridge_agent
   start_bg playbook        python3 -m agents.playbook_agent
   start_bg threat_intel    python3 -m agents.threat_intel_agent
+  start_bg auto_defense    python3 -m agents.auto_defense_agent
 
   local up=0 down=0
   sleep 1
