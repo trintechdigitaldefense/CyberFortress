@@ -144,6 +144,17 @@ def send_report(message: str, level: str = "REPORT") -> bool:
     return ok
 
 
+def send_live_alert(
+    title: str,
+    detail: str = "",
+    severity: str = "HIGH",
+    action: str = "",
+    target: str = "",
+) -> bool:
+    """Placeholder; core.whatsapp_report_hooks replaces this with dashboard-aware logic."""
+    return False
+
+
 def notify_tier1(action: str, target: str, justification: str) -> None:
     send_notification(
         f"Tier-1 action executed: {action} on {target}. {justification}",
