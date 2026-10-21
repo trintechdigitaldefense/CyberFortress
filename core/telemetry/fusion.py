@@ -11,9 +11,11 @@ from typing import List, Dict, Any, Optional
 
 from core.telemetry.adapters import SentinelAdapter, MirageAdapter, LocalLogAdapter, BaseAdapter
 from core.telemetry.api_connectors import SentinelAPIConnector, MirageAPIConnector
+from core.telemetry.host_signals import HostLogAdapter, HostResourceAdapter
 from core.escalation import ingest_event, recommend_playbook, AlertLevel
 from core.autonomy import execute_with_autonomy
 from core.rules import resolve_playbook, pack_summary
+from core.monitoring_metrics import record_events, record_adapter_error
 
 logger = logging.getLogger("cf_telemetry.fusion")
 
@@ -36,6 +38,8 @@ class TelemetryFusion:
         self.register(LocalLogAdapter())
         self.register(SentinelAPIConnector())
         self.register(MirageAPIConnector())
+        self.register(HostLogAdapter())
+        self.register(HostResourceAdapter())
 
     def collect(self) -> List[Dict[str, Any]]:
         all_events = []
@@ -47,6 +51,10 @@ class TelemetryFusion:
                     logger.info("%s: %s events", adapter.source_name, len(events))
             except Exception as e:
                 logger.error("Adapter %s failed: %s", adapter.source_name, e)
+                try:
+                    record_adapter_error(adapter.source_name, str(e))
+                except Exception:
+                    pass
         return all_events
 
     def _audit_detection(self, event, level, playbook, rule_id, pack_id, executed):
@@ -83,6 +91,12 @@ class TelemetryFusion:
     def process(self, events: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         if events is None:
             events = self.collect()
+
+        try:
+            if events:
+                record_events(events)
+        except Exception:
+            pass
 
         results = []
         for event in events:
