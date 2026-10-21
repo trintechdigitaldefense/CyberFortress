@@ -8,6 +8,7 @@ from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from core.circuit_breaker import breaker
+import core.whatsapp_report_hooks  # noqa: F401
 from agents.dashboard_ui import DASHBOARD_HTML
 
 logger = logging.getLogger("cf_dashboard")
@@ -125,6 +126,11 @@ def collect_dashboard_data():
     except Exception:
         packs = []
     try:
+        from core.notify_settings import load_settings
+        notify = load_settings()
+    except Exception as e:
+        notify = {"error": str(e), "report_to": "", "daily_enabled": False, "live_alerts_enabled": False}
+    try:
         from core.containment.firewall import firewall_status
         fw = firewall_status()
     except Exception as e:
@@ -140,6 +146,7 @@ def collect_dashboard_data():
             else "Firewall service is running. Detecting, correlating, and logging. New DROP rules are applied only when containment is armed."
         ),
         "whatsapp_enabled": os.getenv("CF_WHATSAPP_ENABLED", "false").lower() == "true",
+        "notify": notify,
         "identity_provider": os.getenv("CF_IDENTITY_PROVIDER", "local_linux"),
         "circuit_breaker": breaker.status(),
         "watchdog": {
@@ -208,6 +215,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         elif path == "/api/status":
             self._json(200, collect_dashboard_data())
+        elif path == "/api/settings/whatsapp":
+            try:
+                from core.notify_settings import load_settings
+                self._json(200, {"ok": True, "settings": load_settings()})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
         elif path == "/api/firewall":
             try:
                 from core.containment.firewall import firewall_status
@@ -246,7 +259,25 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if not _auth_ok(self):
             return self._unauthorized()
         path = urlparse(self.path).path
-        if path == "/api/evidence":
+        if path == "/api/settings/whatsapp":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length > 0 else b"{}"
+                body = json.loads(raw.decode("utf-8") or "{}")
+                from core.notify_settings import save_settings
+                settings = save_settings(
+                    report_to=str(body.get("report_to", "")),
+                    daily_enabled=bool(body.get("daily_enabled", True)),
+                    live_alerts_enabled=bool(body.get("live_alerts_enabled", True)),
+                    min_live_severity=str(body.get("min_live_severity", "HIGH")),
+                )
+                self._json(200, {"ok": True, "settings": settings})
+            except ValueError as e:
+                self._json(400, {"ok": False, "error": str(e)})
+            except Exception as e:
+                logger.exception("settings save failed")
+                self._json(500, {"ok": False, "error": str(e)})
+        elif path == "/api/evidence":
             try:
                 from core.evidence.pack import generate_evidence_pack_with_meta
                 name = CLIENT_NAME if CLIENT_NAME else "Client"
