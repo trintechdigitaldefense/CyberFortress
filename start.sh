@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 PID_DIR="$ROOT/logs/pids"
-mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage logs/whatsapp_pending logs/heartbeats logs/ir_cases evidence/ir_reports
+mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage logs/whatsapp_pending logs/heartbeats logs/ir_cases evidence/ir_reports config/playbooks config/threat_intel
 
 chmod +x "$ROOT/start.sh" "$ROOT/stop.sh" "$ROOT/install.sh" 2>/dev/null || true
 
@@ -14,7 +14,6 @@ MODE="${1:-auto}"
 
 live_flag() {
   if [[ -f .env ]]; then
-    # shellcheck disable=SC1091
     set -a; source .env 2>/dev/null || true; set +a
   fi
   echo "${CF_CONTAINMENT_LIVE:-false}"
@@ -25,6 +24,7 @@ print_urls() {
   echo "  Dashboard : http://127.0.0.1:8091"
   echo "  Health    : http://127.0.0.1:8090"
   echo "  Webhook   : http://127.0.0.1:8089  (put TLS in front for Meta)"
+  echo "  SOC API   : http://127.0.0.1:8092  (/metrics, /api/soc/ingest)"
   echo
   echo "  Firewall: agent starts with platform (CF_BLOCK chain)"
   echo "  Containment LIVE=$(live_flag) (DROP rules only when armed)"
@@ -46,13 +46,6 @@ status_local() {
         echo "  [DOWN] $name  (stale pid ${pid:-none})"
       fi
     done
-  fi
-  if command -v docker >/dev/null 2>&1; then
-    if docker info >/dev/null 2>&1; then
-      echo "Docker daemon is up."
-    else
-      echo "Docker CLI present but daemon is down."
-    fi
   fi
 }
 
@@ -87,6 +80,10 @@ start_local() {
   start_bg ir_respond      python3 -m agents.ir_respond_agent
   start_bg ir_report       python3 -m agents.ir_report_agent
   start_bg tenant_orch     python3 -m agents.tenant_orchestrator_agent
+  start_bg soc_api         python3 -m agents.soc_api_agent
+  start_bg siem_bridge     python3 -m agents.siem_bridge_agent
+  start_bg playbook        python3 -m agents.playbook_agent
+  start_bg threat_intel    python3 -m agents.threat_intel_agent
 
   local up=0 down=0
   sleep 1
@@ -115,22 +112,15 @@ start_docker() {
 }
 
 case "$MODE" in
-  status)
-    status_local
-    ;;
-  local)
-    start_local
-    ;;
-  docker)
-    start_docker
-    ;;
+  status) status_local ;;
+  local) start_local ;;
+  docker) start_docker ;;
   auto|*)
     if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
       start_docker
     else
       if command -v docker >/dev/null 2>&1; then
         echo "[i] Docker CLI found but daemon is not running — using local mode"
-        echo "    (start Docker later, or use: bash start.sh docker)"
       fi
       start_local
     fi
