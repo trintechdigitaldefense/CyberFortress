@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""IR Team — FIX/RESPOND: execute ROE-safe playbooks (dry-run unless armed)."""
+"""IR Team — RESPOND: ROE-safe playbooks via autonomy (dry-run unless armed)."""
 
 from __future__ import annotations
 
@@ -20,28 +20,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger("cf_ir_respond")
 
-INTERVAL = int(os.getenv("CF_IR_RESPOND_INTERVAL", "50"))
+INTERVAL = int(os.getenv("CF_IR_RESPOND_INTERVAL", "35"))
 STORE = CaseStore()
 AUTO = os.getenv("CF_IR_AUTO_RESPOND", "true").lower() in ("1", "true", "yes")
+MIN_SCORE = int(os.getenv("CF_IR_RESPOND_MIN_SCORE", "60"))
 
 
 def _cycle():
-    acted = 0
+    acted = held = denied = 0
     live = os.getenv("CF_CONTAINMENT_LIVE", "false").lower() == "true"
-    for case in STORE.list_open(15):
-        if case.status not in ("investigating", "open"):
+    for case in STORE.list_open(20):
+        if case.status in ("contained", "reported", "closed", "suppressed"):
+            continue
+        if case.status not in ("investigating", "open", "awaiting_approval"):
             continue
         if not case.findings:
+            continue
+        if case.score < MIN_SCORE:
             continue
         if any(a.get("success") for a in case.actions):
             case.status = "contained"
             STORE.update(case)
             continue
+
         action = recommend_action(case.indicator, case.severity)
+        now = datetime.now(timezone.utc).isoformat()
+
         if not is_action_authorized(action):
             case.actions.append(
                 {
-                    "at": datetime.now(timezone.utc).isoformat(),
+                    "at": now,
                     "action": action,
                     "success": False,
                     "dry_run": not live,
@@ -49,12 +57,14 @@ def _cycle():
                 }
             )
             STORE.update(case)
-            logger.warning("%s action %s denied by ROE", case.case_id, action)
+            denied += 1
+            logger.warning("%s ROE denied %s", case.case_id, action)
             continue
+
         if not AUTO:
             case.actions.append(
                 {
-                    "at": datetime.now(timezone.utc).isoformat(),
+                    "at": now,
                     "action": action,
                     "success": False,
                     "dry_run": True,
@@ -62,7 +72,9 @@ def _cycle():
                 }
             )
             STORE.update(case)
+            held += 1
             continue
+
         ok = execute_with_autonomy(
             action=action,
             target=case.target,
@@ -70,31 +82,41 @@ def _cycle():
             force=False,
             severity=case.severity,
         )
+        if ok:
+            status_after = "contained"
+            detail = "autonomy pipeline"
+        elif live:
+            status_after = "awaiting_approval"
+            detail = "live mode — may be waiting WhatsApp APPROVE or breaker"
+        else:
+            status_after = "contained"
+            detail = "MONITORING dry-run — action planned/logged via autonomy"
+
         case.actions.append(
             {
-                "at": datetime.now(timezone.utc).isoformat(),
+                "at": now,
                 "action": action,
-                "success": bool(ok),
+                "success": bool(ok) or (not live),
                 "dry_run": not live,
-                "detail": "autonomy pipeline",
+                "detail": detail,
             }
         )
-        if ok or not live:
-            case.status = "contained" if ok or not live else case.status
+        case.status = status_after
         STORE.update(case)
         acted += 1
         logger.info(
-            "%s respond action=%s success=%s live=%s",
+            "%s action=%s ok=%s live=%s status=%s",
             case.case_id,
             action,
             ok,
             live,
+            status_after,
         )
-    return {"responded": acted, "live": live}
+    return {"responded": acted, "held": held, "denied": denied, "live": live}
 
 
 def main():
-    logger.info("IR Respond agent starting (respects LIVE + ROE + WhatsApp Tier-2)")
+    logger.info("IR Respond agent (LIVE+ROE+Tier-2) min_score=%s", MIN_SCORE)
     run_forever("ir_respond", _cycle, INTERVAL, error_sleep=20.0)
 
 
