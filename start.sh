@@ -18,7 +18,7 @@ fi
 
 MODE="${1:-start}"
 PID_DIR="$ROOT/logs/pids"
-mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage logs/whatsapp_pending logs/heartbeats
+mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage logs/whatsapp_pending logs/heartbeats logs/ir_cases evidence/ir_reports
 
 has_docker_cli() {
   command -v docker >/dev/null 2>&1 || return 1
@@ -125,6 +125,10 @@ start_local() {
   start_bg dashboard      python3 -m agents.dashboard
   start_bg daily_report   python3 -m agents.daily_report_agent
   start_bg weekly_evidence python3 -m agents.weekly_evidence_agent
+  start_bg ir_detect       python3 -m agents.ir_detect_agent
+  start_bg ir_investigate  python3 -m agents.ir_investigate_agent
+  start_bg ir_respond      python3 -m agents.ir_respond_agent
+  start_bg ir_report       python3 -m agents.ir_report_agent
 
   sleep 0.5
   echo
@@ -159,6 +163,7 @@ print_urls() {
   echo "  Webhook   : http://127.0.0.1:8089  (put TLS in front for Meta)"
   echo
   echo "  Firewall: agent starts with platform (CF_BLOCK chain)"
+  echo "  IR team: detect → investigate → respond → report"
   echo "  Daily WA report: every ${CF_REPORT_INTERVAL_SECONDS:-86400}s → ${CF_WHATSAPP_REPORT_TO:-${CF_WHATSAPP_ADMINS:-(not set)}}"
   echo "  Weekly evidence: every ${CF_WEEKLY_EVIDENCE_SECONDS:-604800}s"
   echo "  Containment LIVE=${CF_CONTAINMENT_LIVE:-false} (DROP rules only when armed)"
