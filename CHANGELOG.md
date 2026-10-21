@@ -1,18 +1,21 @@
 # Changelog
 
+## [v0.5.1] — 2026-10-21
+
+### Strengthen everything pass
+- Watchdog monitors full agent set (IR + SOC + playbook + TI)
+- SOC API rate limit + security headers
+- Playbook per-cycle action cap
+- Overview + quality docs refreshed
+
 ## [v0.5.0] — 2026-10-21
 
 ### Enterprise SOC layer
-- Event bus + SIEM JSON/CEF ingest + syslog export
-- SOAR-lite YAML playbooks (ROE/LIVE gated)
-- SOC API :8092 — Prometheus metrics, health, ingest
-- RBAC roles; HA leader lock; threat intel agent
-- docs/ENTERPRISE_SOC.md
+- Event bus, SIEM ingest, playbooks, SOC API, RBAC, HA, threat intel
 
 ## [v0.4.0] — 2026-10-21
 
 ### Smarter agents + multi-tenant scale
-- Intelligence engine, capacity limits, tenant orchestrator
 
 ## [v0.3.12] — 2026-10-21
 

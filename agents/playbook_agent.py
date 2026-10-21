@@ -18,6 +18,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("cf_playbook")
 INTERVAL = int(os.getenv("CF_PLAYBOOK_INTERVAL", "20"))
+MAX_ACTIONS = int(os.getenv("CF_PLAYBOOK_MAX_ACTIONS_PER_CYCLE", "20"))
 AUDIT = Path(os.getenv("CF_AUDIT_PATH", "./logs/cma_audit.jsonl"))
 STATE = Path(os.getenv("CF_LOG_DIR", "./logs")) / "playbook_offset"
 
@@ -41,6 +42,8 @@ def _cycle():
         start = 0
     ran = 0
     for line in lines[start:]:
+        if ran >= MAX_ACTIONS:
+            break
         if not line.strip():
             continue
         try:
@@ -66,7 +69,7 @@ def _cycle():
 
 
 def main():
-    logger.info("Playbook agent interval=%ss", INTERVAL)
+    logger.info("Playbook agent interval=%ss max_actions=%s", INTERVAL, MAX_ACTIONS)
     run_forever("playbook", _cycle, INTERVAL, error_sleep=15.0)
 
 

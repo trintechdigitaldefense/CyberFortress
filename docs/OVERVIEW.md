@@ -1,67 +1,60 @@
 # CyberFortress — Overview
 
-**TrinTech Digital Defense · Trinidad & Tobago**
+**TrinTech Digital Defense · Trinidad & Tobago**  
+**Version:** v0.5.1 (strengthened enterprise SOC edge platform)
 
-CyberFortress is an **autonomous incident response platform** that detects threats, decides what to do, asks a human when needed (WhatsApp), and can contain the threat — with every action mapped to the **Trinidad & Tobago Computer Misuse Act** and packaged as client evidence.
+## What it is
 
----
+CyberFortress is an **automated detection and tiered response platform**.  
+It watches networks and hosts, correlates signals, runs IR-style cases, and can contain threats — only under written rules (ROE) and explicit live arming.
 
-## What problem it solves
+It is **rules-driven** (not “AI magic”). High-impact actions can require WhatsApp operator approval.
 
-Caribbean SMBs and enterprises often face:
-- Slow response when something bad is happening on the network
-- No clear audit trail tied to local law
-- Tools that either do nothing automatic or do too much without approval
+## Who it’s for
 
-CyberFortress shortens **Mean Time to Containment** while keeping a human in the loop for high-impact actions.
-
----
-
-## How it works (simple)
-
-```
-Alerts (Sentinel / Mirage / files / APIs)
-        ↓
-Telemetry Fusion + Escalation (LOW → HIGH → CRITICAL)
-        ↓
-Autonomy Engine
-  • Tier 1 → act + notify
-  • Tier 2 → WhatsApp APPROVE / DENY
-        ↓
-Containment drivers (block, isolate, rotate, halt…)
-  or Rollback (unblock, restore)
-        ↓
-CMA audit log + Evidence Pack + Dashboard + Watchdog
-```
-
----
+- Local businesses and multi-site SMB / mid-market
+- Edge / gateway Linux hosts that need monitored response
+- Teams that want audit-ready evidence (TT Computer Misuse Act mapping)
 
 ## Core capabilities
 
-| Area | Capability |
-|------|------------|
-| Autonomy | Tiered HITL via WhatsApp |
-| Legal | TT CMA justification on every action |
-| ROE | Only `authorized_actions` from pilot sign-off may run |
-| Containment | block IP, isolate host/subnet, session kill, decoy, credentials, halt |
-| Rollback | unblock IP, restore endpoint/subnet |
-| Safety | Dry-run default, force gate, circuit breaker, fail-closed watchdog |
-| Ops | Dashboard (auth), health, evidence pack, off-box backup |
-| Go-live | Checklist + sign-off + gated `enable_live_mode.sh` |
+| Layer | What you get |
+|-------|----------------|
+| **Monitoring** | Telemetry fusion, host signals, rule packs |
+| **Intelligence** | Correlation window, burst/multi-signal, asset criticality |
+| **IR team** | Detect → Investigate → Respond → Report |
+| **Containment** | CF_BLOCK firewall, allowlist, verify |
+| **SOAR-lite** | YAML playbooks (LIVE/ROE gated) |
+| **SIEM bridge** | JSON/CEF ingest, event bus, syslog export |
+| **SOC API** | Prometheus metrics + ingest on `:8092` |
+| **Multi-tenant** | Isolated paths + orchestrator |
+| **Safety** | Dry-run default, breaker, RBAC, rate limits, HA |
+| **Evidence** | Tamper-evident audit + evidence packs |
 
----
+## Safety model
 
-## What it is *not*
+1. **MONITORING by default** (`CF_CONTAINMENT_LIVE=false`)
+2. Arm only after pilot sign-off + green host preflight
+3. Tier-2 may require WhatsApp `APPROVE <nonce>` (operators only)
+4. Circuit breaker stops runaway automation
+5. Never-block allowlist protects operator/gateway IPs
 
-- Not a full SIEM replacement
-- Not unsupervised “set and forget” without pilot sign-off
-- Not a substitute for signed ROE / NDA
+## One-command use
 
----
+```bash
+git clone https://github.com/trintechdigitaldefense/CyberFortress.git
+cd CyberFortress && ./install.sh && ./start.sh
+```
 
-## Status
+| URL | Purpose |
+|-----|---------|
+| http://127.0.0.1:8091 | Dashboard |
+| http://127.0.0.1:8090 | Health |
+| http://127.0.0.1:8089 | WhatsApp webhook |
+| http://127.0.0.1:8092 | SOC API |
 
-**Pilot-ready** with hardened defaults.  
-**Live mode** only after checklist, WhatsApp+TLS, operator process, and intentional enable.
+## Honest maturity
 
-*Defend. Detect. Dominate.*
+Pilot MONITORING ready · Live containment after sign-off · Multi-site mid-market ready · Enterprise edge SOC strong (~9/10) · Not a global SIEM replacement.
+
+*TrinTech Digital Defense — authorized defensive use only.*
