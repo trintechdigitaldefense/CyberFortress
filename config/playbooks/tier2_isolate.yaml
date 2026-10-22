@@ -1,0 +1,9 @@
+name: tier2_critical_isolate
+enabled: true
+when:
+  severity_in: [CRITICAL]
+  indicator_contains: [ransomware, reverse_shell, lateral_movement, active_breach]
+  min_score: 85
+actions:
+  - action: isolate_endpoint
+    scope: single
