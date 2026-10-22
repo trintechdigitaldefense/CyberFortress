@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.5.6] — 2026-10-22
+
+### Dashboard agent wiring + client live view
+- WhatsApp webhook + SOC API continuous heartbeats (were always DOWN)
+- agent_status in /api/status with up/stale/down roster
+- Live detections + Agents online KPIs on client dashboard
+- Client-ordered protection team labels (detection → defense → IR → platform)
+
 ## [v0.5.5] — 2026-10-22
 
 ### Client dashboard live monitoring

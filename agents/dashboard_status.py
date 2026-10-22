@@ -12,26 +12,27 @@ from typing import Any, Dict, List, Tuple
 HEARTBEAT_DIR = Path(os.getenv("CF_LOG_DIR", "./logs")) / "heartbeats"
 STALE_S = int(os.getenv("CF_DASHBOARD_AGENT_STALE_S", "180"))
 
+# Client-friendly order: detection → defense → IR → platform services
 EXPECTED_AGENTS: List[Tuple[str, str]] = [
     ("threat_agent", "Threat detection"),
     ("fusion_agent", "Telemetry fusion"),
-    ("compliance_logger", "Compliance audit"),
-    ("watchdog", "Self-monitor"),
+    ("threat_intel", "Threat intel"),
+    ("auto_defense", "Auto-defense"),
     ("firewall", "Firewall"),
-    ("whatsapp", "WhatsApp gateway"),
-    ("health", "Health API"),
-    ("daily_report", "Daily reports"),
-    ("weekly_evidence", "Weekly evidence"),
+    ("playbook", "Playbooks"),
     ("ir_detect", "IR detect"),
     ("ir_investigate", "IR investigate"),
     ("ir_respond", "IR respond"),
     ("ir_report", "IR report"),
-    ("tenant_orch", "Multi-tenant"),
+    ("compliance_logger", "Compliance audit"),
+    ("watchdog", "Self-monitor"),
+    ("health", "Health API"),
+    ("whatsapp", "WhatsApp gateway"),
     ("soc_api", "SOC API"),
     ("siem_bridge", "SIEM bridge"),
-    ("playbook", "Playbooks"),
-    ("threat_intel", "Threat intel"),
-    ("auto_defense", "Auto-defense"),
+    ("daily_report", "Daily reports"),
+    ("weekly_evidence", "Weekly evidence"),
+    ("tenant_orch", "Multi-tenant"),
 ]
 
 
