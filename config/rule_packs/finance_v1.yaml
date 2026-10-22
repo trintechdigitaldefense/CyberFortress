@@ -1,29 +1,40 @@
 pack_id: finance_v1
-version: "1.0"
-description: Finance / banking oriented rules
+version: "1.1"
+description: "Finance / credit union — privileged access, data exfil, BEC signals"
+sector: finance
 rules:
   - id: CF-FIN-001
-    name: account_takeover
-    match_indicators: [account_takeover, ato, credential_stuffing]
+    name: privileged_abuse
+    match_indicators: [privileged, domain_admin, golden_ticket, dcsync]
     severity: CRITICAL
-    playbook: credential_rotation
+    playbook: isolate_endpoint
   - id: CF-FIN-002
-    name: wire_fraud
-    match_indicators: [wire_fraud, bsc, business_email_compromise, bec]
+    name: data_exfil
+    match_indicators: [exfil, large_transfer, cloud_sync_burst, dns_tunnel]
+    severity: CRITICAL
+    playbook: block_ip
+  - id: CF-FIN-003
+    name: phishing_finance
+    match_indicators: [phishing, bce, business_email_compromise, wire_fraud]
+    severity: HIGH
+    playbook: block_ip
+  - id: CF-FIN-004
+    name: ransomware
+    match_indicators: [ransomware, encryption, shadow_copy_delete]
     severity: CRITICAL
     playbook: halt_operations
-  - id: CF-FIN-003
-    name: swift_anomaly
-    match_indicators: [swift, core_banking, lateral]
-    severity: CRITICAL
-    playbook: subnet_isolation
-  - id: CF-FIN-004
-    name: brute_force
-    match_indicators: [bruteforce, brute_force, failed_login_flood]
-    severity: HIGH
-    playbook: block_ip
   - id: CF-FIN-005
-    name: reverse_shell
-    match_indicators: [reverse_shell, shell, c2, beacon]
+    name: vpn_bruteforce
+    match_indicators: [vpn, bruteforce, password_spray, failed_login]
     severity: HIGH
     playbook: block_ip
+  - id: CF-FIN-006
+    name: c2_beacon
+    match_indicators: [c2, beacon, reverse_shell, cobalt]
+    severity: CRITICAL
+    playbook: isolate_endpoint
+  - id: CF-FIN-007
+    name: credential_dump
+    match_indicators: [mimikatz, credential_dump, lsass, secretsdump]
+    severity: CRITICAL
+    playbook: isolate_endpoint

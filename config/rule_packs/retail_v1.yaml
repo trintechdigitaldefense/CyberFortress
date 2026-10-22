@@ -1,29 +1,40 @@
 pack_id: retail_v1
-version: "1.0"
-description: Retail POS / e-commerce oriented rules
+version: "1.1"
+description: "Retail / POS — card skimming signals, store Wi-Fi abuse, inventory systems"
+sector: retail
 rules:
   - id: CF-RET-001
     name: pos_malware
-    match_indicators: [pos_malware, card_skimmer, ram_scraper]
+    match_indicators: [pos_malware, card_skim, memory_scraper, track2]
     severity: CRITICAL
     playbook: isolate_endpoint
   - id: CF-RET-002
-    name: payment_fraud
-    match_indicators: [payment_fraud, cnp_abuse, checkout_flood]
+    name: store_wifi_bruteforce
+    match_indicators: [wifi, captive, rogue_ap, wireless_bruteforce]
     severity: HIGH
     playbook: block_ip
   - id: CF-RET-003
-    name: inventory_scan
-    match_indicators: [inventory_scan, price_scrape]
-    severity: HIGH
-    playbook: block_ip
-  - id: CF-RET-004
-    name: decoy_trip
-    match_indicators: [decoy, honeypot, mirage_trip]
-    severity: HIGH
-    playbook: isolate_endpoint
-  - id: CF-RET-005
-    name: ransomware
+    name: ransomware_store
     match_indicators: [ransomware, encryption, exfil]
     severity: CRITICAL
     playbook: halt_operations
+  - id: CF-RET-004
+    name: vendor_remote
+    match_indicators: [vendor_rdp, remote_support, anydesk, teamviewer]
+    severity: MEDIUM
+    playbook: deploy_decoy
+  - id: CF-RET-005
+    name: lateral_store
+    match_indicators: [lateral, smb_enum, psexec]
+    severity: HIGH
+    playbook: isolate_endpoint
+  - id: CF-RET-006
+    name: phishing_staff
+    match_indicators: [phishing, credential_harvest, o365]
+    severity: HIGH
+    playbook: block_ip
+  - id: CF-RET-007
+    name: port_scan
+    match_indicators: [port_scan, recon]
+    severity: HIGH
+    playbook: block_ip
