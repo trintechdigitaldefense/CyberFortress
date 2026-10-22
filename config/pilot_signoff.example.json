@@ -8,6 +8,11 @@
   "roe_signed": false,
   "nda_signed": false,
   "host_netadmin_verified": false,
+  "attorney_review_completed": false,
+  "attorney_review_date_utc": "YYYY-MM-DD",
+  "attorney_firm_or_counsel": "Counsel name / firm",
+  "eo_insurance_confirmed": false,
+  "eo_policy_notes": "Internal only — do not commit policy numbers; COI offline",
   "roe_document": "path/or/filename of signed ROE PDF",
   "nda_document": "path/or/filename of signed NDA PDF",
   "authorized_actions": [
@@ -21,9 +26,10 @@
   "whatsapp_admins": [
     "+18683620679"
   ],
+  "rule_pack": "smb",
   "signed_by": "Lead Operator Name",
   "signed_by_role": "TrinTech Lead Operator",
   "client_approver": "Client Contact Name",
   "signoff_date_utc": "YYYY-MM-DD",
-  "notes": "whatsapp_admins = TrinTech operators only (APPROVE). Client report number is set in dashboard / whatsapp_notify.json — separate channel. host_netadmin_verified after ./scripts/pilot_vm_preflight.sh green. whatsapp_deferred=true until Meta live."
+  "notes": "See docs/LEGAL_GATE.md. whatsapp_admins = TrinTech operators only (APPROVE). Client report number is separate. host_netadmin_verified after pilot_vm_preflight GREEN. attorney_review + eo_insurance before paying-client LIVE."
 }

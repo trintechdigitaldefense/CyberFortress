@@ -5,6 +5,8 @@
 Live mode executes real containment (e.g. iptables `CF_BLOCK` DROP).  
 It is **blocked** until legal sign-off **and** the host can manage netfilter.
 
+Full legal / E&O checklist: **[LEGAL_GATE.md](LEGAL_GATE.md)** (attorney review + insurance before paying-client LIVE).
+
 ## VM pilot first
 
 ```bash
@@ -20,10 +22,12 @@ See [PILOT_VM.md](PILOT_VM.md).
 |---|------|-----|
 | 1 | **NDA signed** | templates → `nda_signed: true` + `nda_document` |
 | 2 | **ROE signed** | templates → `roe_signed: true` + `roe_document` + `authorized_actions` |
-| 3 | **Host can run firewall** | `./scripts/pilot_vm_preflight.sh` → `host_netadmin_verified: true` |
-| 4 | **WhatsApp + TLS** | Required unless `whatsapp_deferred: true` |
-| 5 | **Operator runbook** | `operator_runbook_acknowledged: true` |
-| 6 | **Checklist** | `checklist_complete: true` |
+| 3 | **Attorney review** | `docs/LEGAL_GATE.md` → `attorney_review_completed: true` |
+| 4 | **E&O insurance** | Paying clients: `eo_insurance_confirmed: true` (COI offline) |
+| 5 | **Host can run firewall** | `./scripts/pilot_vm_preflight.sh` → `host_netadmin_verified: true` |
+| 6 | **WhatsApp + TLS** | Required unless `whatsapp_deferred: true` |
+| 7 | **Operator runbook** | `operator_runbook_acknowledged: true` |
+| 8 | **Checklist** | `checklist_complete: true` |
 
 Restricted containers that print iptables Permission denied **must not** be armed.
 

@@ -1,21 +1,24 @@
 # Changelog
 
+## [v0.5.7] — 2026-10-22
+
+### systemd 24/7 + client pack + legal gate
+- Full agent roster in `cyberfortress.target` (IR, SOC, intel, auto-defense, …)
+- Hardened agent unit defaults; safer install script (`--enable` / `--status` / `--uninstall`)
+- `scripts/select_rule_pack.sh` + expanded `docs/RULE_PACKS.md`
+- `docs/LEGAL_GATE.md` — attorney review + E&O checklist before live containment
+- `pilot_signoff.example.json` — legal gate fields + rule_pack
+
 ## [v0.5.6] — 2026-10-22
 
-### Dashboard agent wiring + client live view
-- WhatsApp webhook + SOC API continuous heartbeats (were always DOWN)
+### Dashboard wiring + client clarity
+- WhatsApp webhook + SOC API continuous heartbeats
 - agent_status in /api/status with up/stale/down roster
-- Live detections + Agents online KPIs on client dashboard
-- Client-ordered protection team labels (detection → defense → IR → platform)
+- Live detections + Agents online KPIs
 
 ## [v0.5.5] — 2026-10-22
 
 ### Client dashboard live monitoring
-- Expected agent roster with up/stale/down status
-- Live monitoring panel from real metrics
-- Structured client-friendly layout (status, monitoring, Tier-2, team, actions, IR, evidence)
-- WhatsApp + SOC API heartbeats
-- HTML reloaded from disk each request
 
 ## [v0.5.4] — 2026-10-22
 
