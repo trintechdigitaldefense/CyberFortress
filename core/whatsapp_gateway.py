@@ -6,6 +6,7 @@ Security controls:
   - Approver allow-list (CF_WHATSAPP_ADMINS only)
   - Per-request nonce: approver must send APPROVE <code>
   - Timeout → automatic DENY (default 15 minutes)
+  - Mid-window reminder to admins
   - Every decision logged with hashed sender for evidence packs
 
 Env:
@@ -131,7 +132,6 @@ def send_notification(message: str, level: str = "INFO") -> bool:
 
 
 def send_report(message: str, level: str = "REPORT") -> bool:
-    """Send a status/report message to CF_WHATSAPP_REPORT_TO (or admins)."""
     targets = REPORT_NUMBERS or ADMIN_NUMBERS
     if not targets:
         logger.info(f"[report/{level}] no recipients configured: {message[:120]}")
@@ -151,7 +151,6 @@ def send_live_alert(
     action: str = "",
     target: str = "",
 ) -> bool:
-    """Placeholder; core.whatsapp_report_hooks replaces this with dashboard-aware logic."""
     return False
 
 
@@ -213,6 +212,31 @@ def log_approval_event(
     logger.info(f"Approval audit: {result} for {request_id}")
 
 
+def list_pending() -> list:
+    """Open Tier-2 requests awaiting decision (no .decision file yet)."""
+    out = []
+    if not PENDING_DIR.exists():
+        return out
+    now = time.time()
+    for path in sorted(PENDING_DIR.glob("*.json")):
+        dec = PENDING_DIR / f"{path.stem}.decision"
+        if dec.exists():
+            continue
+        try:
+            meta = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        exp = float(meta.get("expires_at") or 0)
+        meta["seconds_left"] = max(0, int(exp - now)) if exp else None
+        meta["status"] = "PENDING"
+        out.append(meta)
+    return out
+
+
+def pending_count() -> int:
+    return len(list_pending())
+
+
 def request_approval(
     action: str,
     target: str,
@@ -256,6 +280,8 @@ def request_approval(
         _send_text(admin, body)
 
     deadline = time.time() + APPROVAL_TIMEOUT
+    reminded = False
+    reminder_at = time.time() + max(30, APPROVAL_TIMEOUT // 2)
     while time.time() < deadline:
         data = _read_decision(request_id)
         if data:
@@ -270,6 +296,15 @@ def request_approval(
                     sender_hash=data.get("sender_hash"),
                     nonce=nonce,
                 )
+                try:
+                    for admin in ADMIN_NUMBERS:
+                        _send_text(
+                            admin,
+                            f"CyberFortress: Tier-2 APPROVED\n"
+                            f"{action} on {target}\nID: {request_id}\nExecuting now.",
+                        )
+                except Exception:
+                    pass
                 return True
             log_approval_event(
                 decision or "DENY",
@@ -279,11 +314,44 @@ def request_approval(
                 sender_hash=data.get("sender_hash"),
                 nonce=nonce,
             )
+            try:
+                for admin in ADMIN_NUMBERS:
+                    _send_text(
+                        admin,
+                        f"CyberFortress: Tier-2 {decision or 'DENY'}\n"
+                        f"{action} on {target}\nID: {request_id}\nNo action taken.",
+                    )
+            except Exception:
+                pass
             return False
+        if not reminded and time.time() >= reminder_at:
+            reminded = True
+            left = max(1, int((deadline - time.time()) / 60))
+            try:
+                for admin in ADMIN_NUMBERS:
+                    _send_text(
+                        admin,
+                        f"CyberFortress REMINDER — Tier-2 still pending\n"
+                        f"{action} on {target}\n"
+                        f"Reply: APPROVE {nonce} or DENY {nonce}\n"
+                        f"~{left} min left then auto-DENY.",
+                    )
+            except Exception as e:
+                logger.warning("Tier-2 reminder failed: %s", e)
         time.sleep(2)
 
     logger.warning(f"Approval timeout for {request_id}")
     log_approval_event("DENY-TIMEOUT", request_id, action, target, nonce=nonce)
+    try:
+        for admin in ADMIN_NUMBERS:
+            _send_text(
+                admin,
+                f"CyberFortress: Tier-2 TIMEOUT (auto-DENY)\n"
+                f"{action} on {target}\nID: {request_id}\n"
+                f"No containment executed. Re-run if still needed.",
+            )
+    except Exception:
+        pass
     (PENDING_DIR / f"{request_id}.decision").write_text(
         json.dumps({"decision": "DENY-TIMEOUT", "nonce_ok": False}),
         encoding="utf-8",
