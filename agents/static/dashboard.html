@@ -7,9 +7,9 @@
 header{background:linear-gradient(135deg,#0f172a,#1e293b);border-bottom:1px solid var(--border);padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem}
 h1{font-size:1.15rem}h1 span{color:var(--accent)}.client{font-size:.8rem;color:var(--muted)}
 .badge{padding:.28rem .65rem;border-radius:999px;font-size:.7rem;font-weight:700;text-transform:uppercase}
-.badge.live,.badge.closed,.badge.healthy{background:rgba(34,197,94,.18);color:var(--green)}
-.badge.dry,.badge.degraded{background:rgba(245,158,11,.18);color:var(--amber)}
-.badge.open,.badge.unhealthy{background:rgba(239,68,68,.18);color:var(--red)}
+.badge.live,.badge.closed,.badge.healthy,.badge.up{background:rgba(34,197,94,.18);color:var(--green)}
+.badge.dry,.badge.degraded,.badge.stale{background:rgba(245,158,11,.18);color:var(--amber)}
+.badge.open,.badge.unhealthy,.badge.down{background:rgba(239,68,68,.18);color:var(--red)}
 .badge.unknown{background:rgba(139,155,180,.15);color:var(--muted)}
 .btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:.4rem .85rem;font-size:.78rem;font-weight:600;cursor:pointer}
 .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}.btn:disabled{opacity:.5}
@@ -35,13 +35,17 @@ tr.row{cursor:pointer}tr.row:hover{background:rgba(59,130,246,.06)}
 .sev.CRITICAL{color:var(--red);font-weight:700}.sev.HIGH{color:var(--amber);font-weight:700}
 .empty{padding:1.5rem;text-align:center;color:var(--muted)}
 .agents{display:flex;flex-wrap:wrap;gap:.35rem;padding:.75rem}
-.agent-chip{border:1px solid var(--border);border-radius:8px;padding:.35rem .55rem;font-size:.7rem}
-.agent-chip .ok{color:var(--green)}.issues{padding:.7rem 1rem;font-size:.78rem;color:var(--amber)}
+.agent-chip{border:1px solid var(--border);border-radius:8px;padding:.35rem .55rem;font-size:.7rem;min-width:120px}
+.agent-chip .up{color:var(--green)}.agent-chip .stale{color:var(--amber)}.agent-chip .down{color:var(--red)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.3rem}
+.dot.up{background:var(--green)}.dot.stale{background:var(--amber)}.dot.down{background:var(--red)}
+.issues{padding:.7rem 1rem;font-size:.78rem;color:var(--amber)}
 .toast{position:fixed;bottom:1rem;right:1rem;background:#0f172a;border:1px solid var(--border);padding:.7rem 1rem;border-radius:10px;font-size:.82rem;display:none;z-index:50;max-width:24rem}
 .toast.show{display:block}footer{text-align:center;padding:1.2rem;color:var(--muted);font-size:.7rem}
 .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:.35rem;animation:p 1.6s infinite}@keyframes p{50%{opacity:.35}}
 a.link{color:var(--accent);text-decoration:none}
 .nonce-box{background:rgba(0,0,0,.3);border:1px dashed var(--border);border-radius:8px;padding:.5rem;font-family:ui-monospace,monospace;font-size:.72rem;word-break:break-all;margin:.4rem 0}
+.mon-row{display:flex;justify-content:space-between;gap:.5rem;padding:.35rem .8rem;border-bottom:1px solid rgba(42,54,74,.5);font-size:.78rem}
 </style></head><body>
 <header>
 <div><h1>CYBER<span>FORTRESS</span></h1><div class="client" id="client-label">Protection status</div></div>
@@ -57,9 +61,11 @@ a.link{color:var(--accent);text-decoration:none}
 <div class="container">
 <div class="banner"><div class="mode-title"><span class="pulse"></span><span id="mode-val">—</span></div>
 <div class="mode-help" id="mode-help">Loading…</div>
-<div style="font-size:.78rem;color:var(--muted);margin-top:.4rem">Updated <span id="updated">—</span> · Auto-refresh 5s</div></div>
+<div style="font-size:.78rem;color:var(--muted);margin-top:.4rem">Updated <span id="updated">—</span> · Auto-refresh 5s · Rule pack: <code id="rp-inline">—</code></div></div>
 <div class="grid">
 <div class="card"><h3>Platform</h3><div class="value" id="wd-val">—</div><div class="sub" id="wd-sub">Watchdog</div></div>
+<div class="card"><h3>Agents online</h3><div class="value" id="agents-up">—</div><div class="sub" id="agents-sub">of expected</div></div>
+<div class="card"><h3>Live detections</h3><div class="value" id="mon-total">—</div><div class="sub" id="mon-last">monitoring</div></div>
 <div class="card"><h3>Audit chain</h3><div class="value" id="audit-val">—</div><div class="sub" id="audit-sub">Integrity</div></div>
 <div class="card"><h3>Containment policy</h3><div class="value" style="font-size:1rem" id="policy-val">—</div><div class="sub" id="policy-sub">Allow-listed actions</div></div>
 <div class="card"><h3>Circuit breaker</h3><div class="value" id="breaker-val">—</div><div class="sub" id="breaker-reason">—</div></div>
@@ -78,6 +84,8 @@ a.link{color:var(--accent);text-decoration:none}
 <button class="tab" data-sev="INFO" type="button">Info</button>
 </div>
 <div class="panels">
+<div class="panel"><div class="panel-header"><span>Live monitoring</span><span class="badge unknown" id="mon-badge">—</span></div>
+<div class="panel-body"><div class="empty" style="padding:.5rem .8rem;text-align:left">Recent signals (rules-driven).</div><div id="mon-list"><div class="empty">Waiting for telemetry…</div></div></div>
 <div class="panel"><div class="panel-header"><span>Recent protective actions</span></div>
 <div class="panel-body"><table><thead><tr><th>When</th><th>Action</th><th>Target</th><th>Level</th></tr></thead>
 <tbody id="actions-body"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody></table></div></div>
@@ -99,7 +107,7 @@ a.link{color:var(--accent);text-decoration:none}
 <div class="panel-body"><table><thead><tr><th>#</th><th>Source</th><th>Dest</th><th>Action</th></tr></thead>
 <tbody id="fw-rules-body"><tr><td colspan="4" class="empty">No CF rules yet</td></tr></tbody></table>
 <div class="issues" id="fw-msg" style="display:block;color:var(--muted)"></div></div>
-<div class="panel-header" style="border-top:1px solid var(--border);border-bottom:0">Agent heartbeats</div>
+<div class="panel-header" style="border-top:1px solid var(--border);border-bottom:0">Protection team (agents) <span id="agent-summary" style="font-weight:400;color:var(--muted);font-size:.72rem"></span></div>
 <div class="agents" id="agents-box"></div>
 <div class="issues" id="issues-box" style="display:none"></div></div>
 </div></div>
@@ -141,19 +149,31 @@ document.getElementById('ir-val').textContent=openN+' open';
 const fw=d.firewall||{};document.getElementById('fw-val').textContent=fw.live_mode?'ARMED':(fw.iptables_present===false?'N/A':'Standby');
 document.getElementById('fw-sub').textContent=(fw.chain||'CF_BLOCK')+' · '+(fw.rule_count||0)+' rules';
 const rp=d.rule_pack||{};document.getElementById('rp-val').textContent=rp.pack_id||'—';document.getElementById('rp-sub').textContent=(rp.rule_count!=null)?(rp.rule_count+' rules'):'active pack';
+const rpInline=document.getElementById('rp-inline');if(rpInline)rpInline.textContent=rp.pack_id||'—';
 const t2list=(d.tier2&&d.tier2.pending)||d.pending_approvals||[];document.getElementById('t2-count').textContent=String(t2list.length);
 const pb=document.getElementById('pending-body');
 pb.innerHTML=(!t2list.length)?'<tr><td colspan="6" class="empty">No Tier-2 approvals waiting</td></tr>':t2list.map((p,i)=>'<tr><td style="font-family:monospace;font-size:.68rem">'+esc((p.request_id||'').slice(0,16))+'</td><td>'+esc(p.action||'—')+'</td><td>'+esc(p.target||'—')+'</td><td>'+esc(p.risk||'HIGH')+'</td><td>'+fmtLeft(secsLeft(p))+'</td><td><button class="btn sm ghost" type="button" onclick="selectT2('+i+')">Select</button></td></tr>').join('');
 document.getElementById('updated').textContent=fmtTime(d.timestamp);
 renderActions(d.recent_actions||[]);renderPacks(d.evidence_packs||[]);
-const agents=d.agents||{},box=document.getElementById('agents-box'),names=Object.keys(agents);
-box.innerHTML=names.length?names.map(n=>{let age='—';try{age=Math.round((Date.now()-new Date(agents[n].timestamp).getTime())/1000)+'s ago'}catch(e){}return `<div class="agent-chip"><strong>${esc(n)}</strong><br><span class="ok">● ${age}</span></div>`}).join(''):'<span class="empty">No heartbeats</span>';
+const mon=d.monitoring||{};document.getElementById('mon-total').textContent=mon.total_events!=null?mon.total_events:'0';
+document.getElementById('mon-last').textContent=mon.last_detection?('last '+fmtTime(mon.last_detection)):'no detections yet';
+setBadge(document.getElementById('mon-badge'),mon.last_detection?'LIVE':'IDLE',mon.last_detection?'up':'unknown');
+const monList=document.getElementById('mon-list');const recent=mon.recent||[];
+if(!recent.length){monList.innerHTML='<div class="empty">Monitoring active — waiting for signals</div>';}
+else{monList.innerHTML=recent.slice(0,12).map(e=>'<div class="mon-row"><span><strong class="sev '+esc(e.severity||'')+'">'+esc(e.severity||'INFO')+'</strong> '+esc(e.indicator||e.source||'event')+' → '+esc(e.target||'—')+'</span><span style="color:var(--muted)">'+esc(fmtTime(e.ts))+'</span></div>').join('');}
+const ast=d.agent_status||{};const rows=(ast.agents)||[];const sum=ast.summary||{};
+document.getElementById('agents-up').textContent=sum.up!=null?sum.up:'—';
+document.getElementById('agents-sub').textContent=sum.total!=null?('of '+sum.total+' expected'):'expected services';
+document.getElementById('agent-summary').textContent=sum.up!=null?(' · '+sum.up+' up · '+(sum.stale||0)+' stale · '+(sum.down||0)+' down'):'';
+const box=document.getElementById('agents-box');
+if(rows.length){box.innerHTML=rows.map(a=>{const st=a.state||'down';const age=a.age_s==null?'—':(a.age_s+'s');return '<div class="agent-chip"><div><span class="dot '+st+'"></span><strong>'+esc(a.label||a.id)+'</strong></div><div class="'+st+'">'+esc(st.toUpperCase())+' · '+age+'</div></div>'}).join('');}
+else{const agents=d.agents||{},names=Object.keys(agents);box.innerHTML=names.length?names.map(n=>{let age='—';try{age=Math.round((Date.now()-new Date(agents[n].timestamp).getTime())/1000)+'s ago'}catch(e){}return '<div class="agent-chip"><strong>'+esc(n)+'</strong><br><span class="up">● '+age+'</span></div>'}).join(''):'<span class="empty">No heartbeats yet</span>';}
 }catch(e){console.error(e);toast('Could not refresh')}}
 document.getElementById('sev-tabs').addEventListener('click',ev=>{const t=ev.target.closest('.tab');if(!t)return;FILTER=t.dataset.sev;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));if(LAST)renderActions(LAST.recent_actions||[])});
 document.getElementById('btn-refresh').onclick=()=>{refresh();toast('Refreshed')};
 document.getElementById('btn-copy-approve').onclick=()=>{if(!SELECTED_T2||!SELECTED_T2.nonce)return;navigator.clipboard.writeText('APPROVE '+SELECTED_T2.nonce).then(()=>toast('APPROVE copied')).catch(()=>toast('APPROVE '+SELECTED_T2.nonce))};
 document.getElementById('btn-copy-deny').onclick=()=>{if(!SELECTED_T2||!SELECTED_T2.nonce)return;navigator.clipboard.writeText('DENY '+SELECTED_T2.nonce).then(()=>toast('DENY copied')).catch(()=>toast('DENY '+SELECTED_T2.nonce))};
-document.getElementById('btn-copy').onclick=()=>{if(!LAST)return;const s=['CyberFortress — '+(LAST.client_name||'Client'),'Mode: '+LAST.mode_label,'Rule pack: '+((LAST.rule_pack&&LAST.rule_pack.pack_id)||'—'),'Tier-2 pending: '+((LAST.tier2&&LAST.tier2.pending_count)!=null?LAST.tier2.pending_count:0),'Time: '+LAST.timestamp].join('\n');navigator.clipboard.writeText(s).then(()=>toast('Summary copied')).catch(()=>toast(s))};
+document.getElementById('btn-copy').onclick=()=>{if(!LAST)return;const s=['CyberFortress — '+(LAST.client_name||'Client'),'Mode: '+LAST.mode_label,'Rule pack: '+((LAST.rule_pack&&LAST.rule_pack.pack_id)||'—'),'Agents up: '+((LAST.agent_status&&LAST.agent_status.summary&&LAST.agent_status.summary.up)||'—'),'Tier-2 pending: '+((LAST.tier2&&LAST.tier2.pending_count)!=null?LAST.tier2.pending_count:0),'Time: '+LAST.timestamp].join('\n');navigator.clipboard.writeText(s).then(()=>toast('Summary copied')).catch(()=>toast(s))};
 document.getElementById('btn-evidence').onclick=async()=>{const btn=document.getElementById('btn-evidence');btn.disabled=true;try{const j=await(await fetch('/api/evidence',{method:'POST'})).json();if(j.ok){toast('Pack ready');refresh()}else toast(j.error||'Failed')}catch(e){toast('Evidence failed')}btn.disabled=false};
 refresh();setInterval(refresh,5000);
 </script></body></html>
