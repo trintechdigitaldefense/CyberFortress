@@ -10,6 +10,7 @@ from urllib.parse import urlparse, parse_qs
 from core.circuit_breaker import breaker
 import core.whatsapp_report_hooks  # noqa: F401
 from agents.dashboard_ui import DASHBOARD_HTML
+from agents.dashboard_status import agent_status as _agent_status_full
 
 logger = logging.getLogger("cf_dashboard")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [DASHBOARD] %(levelname)s %(message)s")
@@ -205,6 +206,7 @@ def collect_dashboard_data():
             "source": roe.get("source", "policy"),
         },
         "agents": _agent_heartbeats(),
+        "agent_status": _agent_status_full(),
         "auth_enabled": bool(DASH_PASS),
         "evidence_packs": packs,
         "firewall": fw,
