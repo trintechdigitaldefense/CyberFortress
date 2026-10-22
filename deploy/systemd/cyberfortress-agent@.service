@@ -3,6 +3,8 @@ Description=CyberFortress agent (%i)
 After=network-online.target
 Wants=network-online.target
 PartOf=cyberfortress.target
+StartLimitIntervalSec=120
+StartLimitBurst=8
 
 [Service]
 Type=simple
@@ -12,11 +14,19 @@ EnvironmentFile=-/opt/CyberFortress/.env
 EnvironmentFile=-/etc/cyberfortress.env
 Environment=PYTHONPATH=/opt/CyberFortress
 Environment=CF_ROOT=/opt/CyberFortress
+Environment=CF_CONTAINMENT_LIVE=false
+Environment=CF_ALLOW_FORCE=false
 ExecStart=/usr/bin/python3 -m agents.%i
 Restart=always
-RestartSec=5
+RestartSec=8
+TimeoutStopSec=30
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/CyberFortress/logs /opt/CyberFortress/evidence /opt/CyberFortress/telemetry /opt/CyberFortress/secrets /opt/CyberFortress/config
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=true
 
 [Install]
 WantedBy=cyberfortress.target

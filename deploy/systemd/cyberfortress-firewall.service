@@ -1,8 +1,10 @@
 [Unit]
-Description=CyberFortress firewall agent
+Description=CyberFortress firewall agent (CF_BLOCK / CAP_NET_ADMIN)
 After=network-online.target
 Wants=network-online.target
 PartOf=cyberfortress.target
+StartLimitIntervalSec=120
+StartLimitBurst=6
 
 [Service]
 Type=simple
@@ -12,13 +14,18 @@ EnvironmentFile=-/opt/CyberFortress/.env
 EnvironmentFile=-/etc/cyberfortress.env
 Environment=PYTHONPATH=/opt/CyberFortress
 Environment=CF_ROOT=/opt/CyberFortress
+Environment=CF_CONTAINMENT_LIVE=false
+Environment=CF_ALLOW_FORCE=false
 ExecStart=/usr/bin/python3 -m agents.firewall_agent
 Restart=always
-RestartSec=5
+RestartSec=10
+TimeoutStopSec=30
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_DAC_OVERRIDE
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
 NoNewPrivileges=false
 PrivateTmp=true
+ProtectHome=true
+ReadWritePaths=/opt/CyberFortress/logs /opt/CyberFortress/evidence /opt/CyberFortress/telemetry /opt/CyberFortress/config
 
 [Install]
 WantedBy=cyberfortress.target

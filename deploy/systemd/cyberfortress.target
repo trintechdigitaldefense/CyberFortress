@@ -1,16 +1,40 @@
 [Unit]
-Description=CyberFortress platform
+Description=CyberFortress platform (24/7)
+Documentation=file:///opt/CyberFortress/docs/OPERATOR_RUNBOOK.md
+After=network-online.target
+Wants=network-online.target
+
+# Detection / fusion
 Wants=cyberfortress-agent@threat_hunting_agent.service
 Wants=cyberfortress-agent@telemetry_fusion_agent.service
+Wants=cyberfortress-agent@threat_intel_agent.service
+Wants=cyberfortress-agent@auto_defense_agent.service
+
+# Containment (separate unit for CAP_NET_ADMIN)
+Wants=cyberfortress-firewall.service
+Wants=cyberfortress-agent@playbook_agent.service
+
+# IR response team
+Wants=cyberfortress-agent@ir_detect_agent.service
+Wants=cyberfortress-agent@ir_investigate_agent.service
+Wants=cyberfortress-agent@ir_respond_agent.service
+Wants=cyberfortress-agent@ir_report_agent.service
+
+# Platform / audit
 Wants=cyberfortress-agent@compliance_logger.service
 Wants=cyberfortress-agent@watchdog_agent.service
-Wants=cyberfortress-agent@whatsapp_webhook.service
 Wants=cyberfortress-agent@healthcheck.service
 Wants=cyberfortress-agent@dashboard.service
 Wants=cyberfortress-agent@daily_report_agent.service
 Wants=cyberfortress-agent@weekly_evidence_agent.service
-Wants=cyberfortress-firewall.service
-After=network-online.target
+
+# SOC / multi-tenant
+Wants=cyberfortress-agent@soc_api_agent.service
+Wants=cyberfortress-agent@siem_bridge_agent.service
+Wants=cyberfortress-agent@tenant_orchestrator_agent.service
+
+# HITL (WhatsApp)
+Wants=cyberfortress-agent@whatsapp_webhook.service
 
 [Install]
 WantedBy=multi-user.target
