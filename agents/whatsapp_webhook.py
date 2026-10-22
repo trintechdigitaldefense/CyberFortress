@@ -12,6 +12,8 @@ import json
 import logging
 import os
 import re
+import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -22,6 +24,7 @@ from core.defense import (
     verify_meta_signature,
     assert_safe_bind,
 )
+from core.watchdog import write_heartbeat
 from core.whatsapp_gateway import (
     is_allowed_approver,
     hash_sender,
@@ -149,32 +152,29 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        app_secret = os.getenv("CF_WHATSAPP_APP_SECRET", "")
-        sig = self.headers.get("X-Hub-Signature-256", "")
-        if not verify_meta_signature(app_secret, body, sig):
-            logger.warning("Webhook signature verification failed")
+        sig = self.headers.get("X-Hub-Signature-256")
+        if not verify_meta_signature(body, sig):
+            logger.warning("Invalid Meta signature from %s", client)
             self.send_response(403)
             self.end_headers()
             return
 
         try:
-            data = json.loads(body.decode() or "{}")
-        except Exception:
+            data = json.loads(body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
             self.send_response(400)
             self.end_headers()
             return
 
-        self._process_payload(data)
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"OK")
+        self.wfile.write(b"EVENT_RECEIVED")
 
-    def _process_payload(self, data: dict):
         try:
-            for entry in data.get("entry", []):
-                for change in entry.get("changes", []):
-                    value = change.get("value", {})
-                    for msg in value.get("messages", []):
+            for entry in data.get("entry") or []:
+                for change in entry.get("changes") or []:
+                    value = change.get("value") or {}
+                    for msg in value.get("messages") or []:
                         self._handle_message(msg)
         except Exception as e:
             logger.exception("Error processing webhook payload: %s", e)
@@ -212,6 +212,24 @@ class ReusableHTTPServer(HTTPServer):
     allow_reuse_address = True
 
 
+def _heartbeat_loop():
+    """Keep WhatsApp agent visible on the client dashboard."""
+    interval = int(os.getenv("CF_WHATSAPP_HEARTBEAT_S", "30"))
+    while True:
+        try:
+            write_heartbeat(
+                "whatsapp",
+                {
+                    "phase": "listen",
+                    "port": PORT,
+                    "enabled": os.getenv("CF_WHATSAPP_ENABLED", "false").lower() == "true",
+                },
+            )
+        except Exception as e:
+            logger.debug("heartbeat failed: %s", e)
+        time.sleep(max(15, interval))
+
+
 def main():
     logger.info("Starting WhatsApp webhook on port %s", PORT)
     logger.info("Approvals require: APPROVE <nonce> from registered admin only")
@@ -219,6 +237,8 @@ def main():
     if os.getenv("CF_ALLOW_PUBLIC_BIND", "false").lower() in ("1", "true", "yes"):
         bind = os.getenv("CF_WHATSAPP_WEBHOOK_BIND", "0.0.0.0")
     logger.info("Webhook bind=%s port=%s", bind, PORT)
+    write_heartbeat("whatsapp", {"phase": "starting", "port": PORT})
+    threading.Thread(target=_heartbeat_loop, name="wa-hb", daemon=True).start()
     server = ReusableHTTPServer((bind, PORT), WebhookHandler)
     try:
         server.serve_forever()
