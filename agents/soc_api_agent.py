@@ -13,6 +13,14 @@ from urllib.parse import urlparse
 from core.soc import ha, metrics, playbooks, rbac, siem, threat_intel
 from core.soc.event_bus import get_bus
 
+try:
+    from core.defense import rate_limiter, secure_headers
+except Exception:
+    rate_limiter = None
+
+    def secure_headers():
+        return {}
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [SOC-API] %(levelname)s %(message)s",
@@ -60,6 +68,11 @@ class Handler(BaseHTTPRequestHandler):
         body = json.dumps(obj, default=str).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
+        try:
+            for k, v in (secure_headers() or {}).items():
+                self.send_header(k, v)
+        except Exception:
+            pass
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -69,6 +82,9 @@ class Handler(BaseHTTPRequestHandler):
         if role is None:
             self.send_response(401)
             self.end_headers()
+            return
+        if rate_limiter is not None and not rate_limiter.allow(self.client_address[0]):
+            self._json(429, {"ok": False, "error": "rate limited"})
             return
         path = urlparse(self.path).path
         if path in ("/metrics", "/api/metrics"):
@@ -99,6 +115,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/soc/bus":
             self._json(200, {"ok": True, **get_bus().stats()})
             return
+        if path in ("/api/soc/tier2", "/api/tier2"):
+            try:
+                from core.tier2 import status_summary
+
+                self._json(200, {"ok": True, **status_summary()})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)[:120]})
+            return
         self._json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self):
@@ -106,6 +130,9 @@ class Handler(BaseHTTPRequestHandler):
         if role is None:
             self.send_response(401)
             self.end_headers()
+            return
+        if rate_limiter is not None and not rate_limiter.allow(self.client_address[0]):
+            self._json(429, {"ok": False, "error": "rate limited"})
             return
         path = urlparse(self.path).path
         length = int(self.headers.get("Content-Length", "0") or 0)
