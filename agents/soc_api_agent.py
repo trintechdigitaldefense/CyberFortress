@@ -7,11 +7,14 @@ import base64
 import json
 import logging
 import os
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 
 from core.soc import ha, metrics, playbooks, rbac, siem, threat_intel
 from core.soc.event_bus import get_bus
+from core.watchdog import write_heartbeat
 
 try:
     from core.defense import rate_limiter, secure_headers
@@ -171,11 +174,36 @@ class Reusable(HTTPServer):
     allow_reuse_address = True
 
 
+def _heartbeat_loop():
+    """Keep SOC API visible on the client dashboard agent roster."""
+    interval = int(os.getenv("CF_SOC_API_HEARTBEAT_S", "30"))
+    while True:
+        try:
+            bus_stats = {}
+            try:
+                bus_stats = get_bus().stats()
+            except Exception:
+                pass
+            write_heartbeat(
+                "soc_api",
+                {
+                    "phase": "listen",
+                    "port": PORT,
+                    "bus_events": bus_stats.get("published") if isinstance(bus_stats, dict) else None,
+                },
+            )
+        except Exception as e:
+            logger.warning("soc_api heartbeat failed: %s", e)
+        time.sleep(max(10, interval))
+
+
 def main():
     if os.getenv("CF_HA_ENABLED", "true").lower() in ("1", "true", "yes"):
         st = ha.try_become_leader()
         logger.info("HA status: %s", st)
     logger.info("SOC API on http://%s:%s", BIND, PORT)
+    write_heartbeat("soc_api", {"phase": "starting", "port": PORT})
+    threading.Thread(target=_heartbeat_loop, name="soc-hb", daemon=True).start()
     Reusable((BIND, PORT), Handler).serve_forever()
 
 
