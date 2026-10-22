@@ -1,19 +1,21 @@
 # Changelog
 
+## [v0.5.5] — 2026-10-22
+
+### Client dashboard live monitoring
+- Expected agent roster with up/stale/down status
+- Live monitoring panel from real metrics
+- Structured client-friendly layout (status, monitoring, Tier-2, team, actions, IR, evidence)
+- WhatsApp + SOC API heartbeats
+- HTML reloaded from disk each request
+
 ## [v0.5.4] — 2026-10-22
 
 ### Dashboard Tier-2 UI + rule-pack templates
-- Tier-2 pending panel with Select / copy APPROVE|DENY
-- Rule pack status on dashboard + `/api/rule-packs`
-- Enhanced smb/retail/finance templates + docs/RULE_PACKS.md
 
 ## [v0.5.3] — 2026-10-21
 
 ### Tier-2 strengthen
-
-## [v0.5.2] — 2026-10-21
-
-### Policy-gated automatic defense
 
 ## [v0.1.0] — 2026-10-09
 
