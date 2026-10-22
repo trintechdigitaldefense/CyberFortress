@@ -59,12 +59,21 @@ def _pending_approvals():
     pending = []
     if not PENDING_DIR.exists():
         return pending
+    import time
+    now = time.time()
     for f in PENDING_DIR.glob("*.json"):
         if (PENDING_DIR / f"{f.stem}.decision").exists():
             continue
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
-            data["request_id"] = f.stem
+            data["request_id"] = data.get("request_id") or f.stem
+            exp = float(data.get("expires_at") or 0)
+            data["seconds_left"] = max(0, int(exp - now)) if exp else None
+            try:
+                from core.tier2 import risk_card
+                data["risk"] = risk_card(str(data.get("action") or "")).get("risk", "HIGH")
+            except Exception:
+                data.setdefault("risk", "HIGH")
             pending.append(data)
         except Exception:
             continue
@@ -147,6 +156,22 @@ def collect_dashboard_data():
         fw = firewall_status()
     except Exception as e:
         fw = {"message": str(e), "live_mode": live, "rule_count": 0, "rules": []}
+    try:
+        from core.tier2 import status_summary as tier2_summary
+        tier2 = tier2_summary()
+        if pending:
+            tier2["pending"] = pending
+            tier2["pending_count"] = len(pending)
+    except Exception as e:
+        tier2 = {"pending_count": len(pending), "pending": pending, "error": str(e)[:80]}
+    try:
+        from core.rules import pack_summary, list_available_packs, load_pack
+        rp = pack_summary()
+        pack = load_pack()
+        rp["available"] = list_available_packs()
+        rp["description"] = pack.get("description") or pack.get("pack_id") or ""
+    except Exception as e:
+        rp = {"pack_id": "unknown", "rule_count": 0, "available": [], "error": str(e)[:80]}
     return {
         "monitoring": mon,
         "ir": {"summary": ir_summary, "open_cases": ir_open},
@@ -183,6 +208,8 @@ def collect_dashboard_data():
         "auth_enabled": bool(DASH_PASS),
         "evidence_packs": packs,
         "firewall": fw,
+        "tier2": tier2,
+        "rule_pack": rp,
         "stats": {
             "total_actions_shown": len(actions),
             "pending_approvals": len(pending),
@@ -263,6 +290,31 @@ class DashboardHandler(BaseHTTPRequestHandler):
             try:
                 from core.notify_settings import load_settings
                 self._json(200, {"ok": True, "settings": load_settings()})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+        elif path == "/api/tier2":
+            try:
+                from core.tier2 import status_summary
+                data = status_summary()
+                data["pending"] = _pending_approvals()
+                data["pending_count"] = len(data["pending"])
+                self._json(200, {"ok": True, **data})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+        elif path == "/api/rule-packs":
+            try:
+                from core.rules import pack_summary, list_available_packs, load_pack
+                pack = load_pack()
+                self._json(200, {
+                    "ok": True,
+                    **pack_summary(),
+                    "available": list_available_packs(),
+                    "description": pack.get("description") or "",
+                    "rules": [
+                        {"id": r.get("id"), "name": r.get("name"), "severity": r.get("severity"), "playbook": r.get("playbook")}
+                        for r in (pack.get("rules") or [])
+                    ],
+                })
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
         elif path == "/api/firewall":
