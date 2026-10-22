@@ -129,6 +129,16 @@ def execute_with_autonomy(
 
     logger.info(f"Tier 2 — requesting WhatsApp APPROVE for {action} on {target}")
     try:
+        from core.tier2 import risk_card
+
+        card = risk_card(action)
+        justification = (
+            f"{justification} | risk={card.get('risk')} | "
+            f"impact={card.get('impact')} | rollback={card.get('rollback')}"
+        )
+    except Exception:
+        pass
+    try:
         send_live_alert(
             title="Tier-2 approval requested",
             detail=str(justification or "")[:300],
