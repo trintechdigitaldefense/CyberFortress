@@ -77,16 +77,14 @@ class TelemetryFusion:
             "auto_executed": executed,
         }
         try:
-            from core.audit_chain import append_chained
+            from core.audit_chain import append_chained, AuditChainError
 
             append_chained(AUDIT_PATH, entry)
         except Exception as e:
-            logger.warning("Audit write failed: %s", e)
-            AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
-            import json
-
-            with open(AUDIT_PATH, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
+            # Fail closed: never write an unchained record to the same audit log.
+            # High-impact callers must treat this as an authorization / evidence failure.
+            logger.error("Audit chain write failed (no unchained fallback): %s", e)
+            raise
 
     def process(self, events: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         if events is None:
