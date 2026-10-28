@@ -62,3 +62,37 @@ def test_timeout_deny(pending, monkeypatch):
     importlib.reload(gw)
     ok = gw.request_approval("isolate_endpoint", "10.0.0.9", "HIGH", "test")
     assert ok is False
+
+
+def test_signature_required_when_enabled(monkeypatch):
+    monkeypatch.setenv("CF_WHATSAPP_ENABLED", "true")
+    monkeypatch.delenv("CF_WHATSAPP_REQUIRE_SIGNATURE", raising=False)
+    import importlib
+    import core.defense as defense
+    importlib.reload(defense)
+    assert defense.whatsapp_signature_required() is True
+    assert defense.verify_meta_signature("", b"{}", "") is False
+    assert defense.verify_meta_signature("", b"{}", "sha256=abc") is False
+
+
+def test_signature_valid(monkeypatch):
+    monkeypatch.setenv("CF_WHATSAPP_ENABLED", "true")
+    import importlib, hmac, hashlib
+    import core.defense as defense
+    importlib.reload(defense)
+    secret = "app-secret"
+    body = b'{"entry":[]}'
+    dig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    assert defense.verify_meta_signature(secret, body, f"sha256={dig}") is True
+    assert defense.verify_meta_signature(secret, body, "sha256=00") is False
+    assert defense.verify_meta_signature(secret, body, "") is False
+
+
+def test_default_verify_token_rejected_at_start(monkeypatch):
+    monkeypatch.setenv("CF_WHATSAPP_ENABLED", "true")
+    monkeypatch.setenv("CF_WHATSAPP_VERIFY_TOKEN", "cf_verify_token_change_me")
+    monkeypatch.setenv("CF_WHATSAPP_APP_SECRET", "x")
+    import importlib
+    import agents.whatsapp_webhook as wh
+    importlib.reload(wh)
+    assert wh.VERIFY_TOKEN == "cf_verify_token_change_me"
