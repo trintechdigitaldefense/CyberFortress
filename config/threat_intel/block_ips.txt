@@ -1,0 +1,6 @@
+# CyberFortress local TI sample — replace with engagement IOCs
+# value|confidence|tags
+203.0.113.50|80|lab,scanner
+198.51.100.10|70|lab
+evil.example.com|75|c2,lab
+{"value":"deadbeefdeadbeefdeadbeefdeadbeef","type":"hash","confidence":90,"tags":["lab","malware"],"source":"sample"}
