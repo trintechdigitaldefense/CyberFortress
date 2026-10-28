@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "hardening/**"]
   pull_request:
     branches: [main]
 
@@ -11,24 +11,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Ruff
-        run: ruff check core agents playbooks tests || true
-      - name: Pytest
+          pip install ruff bandit pip-audit pytest
+
+      - name: Ruff (blocking)
+        run: ruff check core agents playbooks tests
+
+      - name: Pytest (blocking)
         env:
           CF_CONTAINMENT_LIVE: "false"
           CF_ALLOW_FORCE: "false"
           PYTHONPATH: ${{ github.workspace }}
         run: pytest tests/ -v --tb=short
-      - name: Bandit
-        run: bandit -q -r core agents -x tests || true
-      - name: pip-audit
-        run: pip-audit -r requirements.txt || true
+
+      - name: Bandit (blocking on HIGH/MEDIUM)
+        run: bandit -q -r core agents -x tests -ll
+
+      - name: pip-audit (blocking)
+        run: pip-audit -r requirements.txt
+
       - name: Audit chain script present
         run: test -f scripts/verify_audit_chain.py
+
+      - name: Defense posture script
+        run: bash scripts/defense_check.sh

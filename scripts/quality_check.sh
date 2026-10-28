@@ -10,7 +10,7 @@ echo "=============================================="
 echo " CyberFortress quality check"
 echo "=============================================="
 
-bash scripts/defense_check.sh || true
+bash scripts/defense_check.sh
 
 echo
 echo "[+] Unit tests"
