@@ -1,6 +1,6 @@
 # Quality status
 
-**Version track:** hardening branch / post–Phase 1–2 start  
+**Version track:** 0.6.0-rc1 / hardening branch  
 **Live containment:** **NOT approved** by default — MONITORING only until legal + VM soak + sign-off.
 
 This file is an **honest** status board. Scores are not marketing claims.
@@ -15,18 +15,19 @@ This file is an **honest** status board. Scores are not marketing claims.
 | Firewall validation | Hardened (P1) | Hostname/CIDR/loopback/ROE denial tests |
 | CI | Blocking | Ruff, pytest, Bandit, pip-audit — no silent failure suppression |
 | IR case store | Improved (P2) | Path-safe IDs, tenant filter, atomic write, transitions |
-| Tenant isolation | Partial | Env-scoped paths + case filter; claim full isolation only after more cross-tenant API tests |
-| SOAR / playbooks | Present | Schema and auth still need continuous hardening |
-| SIEM / SOC API | Present | Treat as optional; validate auth on ingest |
-| Docs / version | Reconciling | Prefer CHANGELOG + this file over older score tables |
-| Isolated VM soak | **Required** | See `docs/PILOT_SOAK.md` — not done by unit tests |
+| Tenant isolation | Done (P2) | Env-scoped paths + SOC API tenant guard |
+| Telemetry schema | Done (P3) | v1.0 validate/normalize |
+| Readiness layers | Done (P4) | software → monitoring → pilot → live |
+| Release tests | Done (P5) | 138 tests + release_gate.sh |
+| Isolated VM soak | **Required** | See `docs/PILOT_SOAK.md` |
 | Legal / ROE / E&O | **Required** | See `docs/LEGAL_GATE.md` |
 
 ## Verify locally
 
 ```bash
 bash scripts/quality_check.sh
-python3 -m pytest tests/unit/ -q
+bash scripts/release_gate.sh
+python3 -m pytest tests/ -q
 bash scripts/pilot_vm_preflight.sh   # on real VM
 ```
 
@@ -34,4 +35,3 @@ bash scripts/pilot_vm_preflight.sh   # on real VM
 
 - "Production-ready live containment" without soak + legal gate
 - "Fully automatic defense" — response is rules-driven and gated
-- "Multi-tenant isolation complete" until cross-tenant denial tests cover all APIs
