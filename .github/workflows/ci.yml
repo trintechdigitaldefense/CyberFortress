@@ -1,5 +1,9 @@
 name: CI
 
+# Blocking pipeline — no || true on required security/quality steps.
+# Supported runtime: Python 3.12 on Linux (Ubuntu for CI; pilot VMs: Debian/Ubuntu).
+# Live containment is forced off in CI.
+
 on:
   push:
     branches: [main, "hardening/**"]
@@ -10,6 +14,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # Prefer immutable SHAs in locked-down orgs; tags documented for readability.
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -21,6 +26,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install ruff bandit pip-audit pytest
+
+      - name: No failure-suppression in quality gate
+        run: |
+          if grep -nE '\|\|\s*true' scripts/quality_check.sh scripts/defense_check.sh 2>/dev/null | grep -v 'chmod'; then
+            echo "Blocking: quality/defense scripts must not suppress failures with || true"
+            exit 1
+          fi
+          echo "OK: no failure suppression in quality/defense gates"
 
       - name: Ruff (blocking)
         run: ruff check core agents playbooks tests
@@ -43,3 +56,9 @@ jobs:
 
       - name: Defense posture script
         run: bash scripts/defense_check.sh
+
+      - name: Document supported platform
+        run: |
+          echo "Supported CI OS: ubuntu-latest"
+          echo "Supported Python: 3.12"
+          echo "Pilot targets: Linux with CAP_NET_ADMIN for live firewall only"
