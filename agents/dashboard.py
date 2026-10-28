@@ -8,6 +8,7 @@ from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from core.circuit_breaker import breaker
+from core.defense import security_headers, rate_limit_allow, assert_safe_bind
 import core.whatsapp_report_hooks  # noqa: F401
 from agents.dashboard_ui import DASHBOARD_HTML
 from agents.dashboard_status import agent_status as _agent_status_full
@@ -27,9 +28,28 @@ DASH_PASS = os.getenv("CF_DASHBOARD_PASS", "")
 CLIENT_NAME = os.getenv("CF_CLIENT_NAME", "Client")
 
 
-def _auth_ok(handler):
-    if not DASH_PASS:
+def _auth_required() -> bool:
+    """Auth is required unless explicitly allowed anonymous on localhost only."""
+    if DASH_PASS:
         return True
+    allow_anon = os.getenv("CF_DASHBOARD_ALLOW_ANON", "false").lower() in ("1", "true", "yes")
+    require = os.getenv("CF_DASHBOARD_REQUIRE_AUTH", "").strip().lower()
+    if require in ("1", "true", "yes"):
+        return True
+    if require in ("0", "false", "no") and allow_anon:
+        return False
+    bind = (BIND or "127.0.0.1").strip()
+    local = bind in ("127.0.0.1", "localhost", "::1")
+    if not local:
+        return True
+    return not allow_anon
+
+
+def _auth_ok(handler):
+    if not _auth_required():
+        return True
+    if not DASH_PASS:
+        return False
     header = handler.headers.get("Authorization", "")
     if not header.startswith("Basic "):
         return False
@@ -39,6 +59,20 @@ def _auth_ok(handler):
         return hmac.compare_digest(user, DASH_USER) and hmac.compare_digest(password, DASH_PASS)
     except Exception:
         return False
+
+
+# operator | admin | investigator | auditor (read-only)
+DASH_ROLE = os.getenv("CF_DASHBOARD_ROLE", "operator").strip().lower() or "operator"
+_WRITE_ROLES = frozenset({"operator", "admin", "investigator"})
+
+
+def _can_write() -> bool:
+    return DASH_ROLE in _WRITE_ROLES
+
+
+def _csrf_ok(handler) -> bool:
+    """Mitigate simple cross-site POST: require custom header on state-changing routes."""
+    return handler.headers.get("X-CF-Requested-With", "") == "CyberFortress"
 
 
 def _read_recent_actions(limit=50):
@@ -207,7 +241,7 @@ def collect_dashboard_data():
         },
         "agents": _agent_heartbeats(),
         "agent_status": _agent_status_full(),
-        "auth_enabled": bool(DASH_PASS),
+        "auth_enabled": bool(DASH_PASS) or _auth_required(),
         "evidence_packs": packs,
         "firewall": fw,
         "tier2": tier2,
@@ -240,12 +274,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
         body = json.dumps(obj, default=str).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
+        try:
+            security_headers(self)
+        except Exception:
+            pass
         self.end_headers()
         self.wfile.write(body)
 
     def do_GET(self):
+        client = self.client_address[0] if self.client_address else "unknown"
+        if not rate_limit_allow(f"dash:{client}", limit=180):
+            self.send_response(429); self.end_headers(); return
         if not _auth_ok(self):
             return self._unauthorized()
         parsed = urlparse(self.path)
@@ -258,6 +299,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
+            try:
+                security_headers(self)
+            except Exception:
+                pass
             self.end_headers()
             self.wfile.write(body)
         elif path == "/static/notify_settings.js":
@@ -356,11 +401,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not _auth_ok(self):
             return self._unauthorized()
+        if not _can_write():
+            return self._json(403, {"ok": False, "error": "role cannot mutate state", "role": DASH_ROLE})
+        if not _csrf_ok(self):
+            return self._json(403, {"ok": False, "error": "missing X-CF-Requested-With: CyberFortress"})
         path = urlparse(self.path).path
         if path == "/api/settings/whatsapp":
             try:
-                length = int(self.headers.get("Content-Length", "0") or 0)
-                raw = self.rfile.read(length) if length > 0 else b"{}"
+                from core.defense import read_body_limited
+                raw, err = read_body_limited(self)
+                if err:
+                    return self._json(413, {"ok": False, "error": err})
                 body = json.loads(raw.decode("utf-8") or "{}")
                 from core.notify_settings import save_settings
                 settings = save_settings(
@@ -394,8 +445,18 @@ class ReusableHTTPServer(HTTPServer):
 
 
 def main():
-    auth = "ENABLED" if DASH_PASS else "DISABLED (set CF_DASHBOARD_PASS)"
-    logger.info("Dashboard on http://%s:%s | auth=%s", BIND, PORT, auth)
+    global BIND
+    try:
+        BIND = assert_safe_bind(BIND, "dashboard")
+    except NameError:
+        pass
+    if _auth_required() and not DASH_PASS:
+        raise SystemExit(
+            "Dashboard auth required but CF_DASHBOARD_PASS is empty. "
+            "Set a password, or for localhost-only demo set CF_DASHBOARD_ALLOW_ANON=true."
+        )
+    auth = "REQUIRED" if _auth_required() else "ANON-LOCAL (CF_DASHBOARD_ALLOW_ANON)"
+    logger.info("Dashboard on http://%s:%s | auth=%s role=%s", BIND, PORT, auth, DASH_ROLE)
     ReusableHTTPServer((BIND, PORT), DashboardHandler).serve_forever()
 
 
