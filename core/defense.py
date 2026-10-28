@@ -77,8 +77,18 @@ def read_body_limited(handler, max_bytes: Optional[int] = None) -> Tuple[bytes, 
     return handler.rfile.read(length), None
 
 
+def whatsapp_signature_required() -> bool:
+    """Require Meta X-Hub-Signature-256 when WhatsApp is enabled or explicitly forced."""
+    explicit = os.getenv("CF_WHATSAPP_REQUIRE_SIGNATURE", "").strip().lower()
+    if explicit in ("1", "true", "yes"):
+        return True
+    if explicit in ("0", "false", "no"):
+        return False
+    return os.getenv("CF_WHATSAPP_ENABLED", "false").lower() in ("1", "true", "yes")
+
+
 def verify_meta_signature(app_secret: str, body: bytes, signature_header: str) -> bool:
-    require = os.getenv("CF_WHATSAPP_REQUIRE_SIGNATURE", "false").lower() in ("1", "true", "yes")
+    require = whatsapp_signature_required()
     if not app_secret:
         if require:
             logger.warning("Signature required but CF_WHATSAPP_APP_SECRET not set")
@@ -92,11 +102,11 @@ def verify_meta_signature(app_secret: str, body: bytes, signature_header: str) -
 
 
 def safe_under_dir(base: Path, user_path: str) -> Optional[Path]:
+    """Canonical path containment — rejects traversal and symlink escapes outside base."""
     try:
         base_r = base.resolve()
         candidate = (base / user_path).resolve()
-        if not str(candidate).startswith(str(base_r)):
-            return None
+        candidate.relative_to(base_r)
         return candidate
     except Exception:
         return None
@@ -121,8 +131,7 @@ def defense_status() -> dict:
         "rate_limit_window_s": RL_WINDOW,
         "rate_limit_max": RL_MAX,
         "allow_public_bind": PUBLIC_BIND_OK,
-        "whatsapp_require_signature": os.getenv("CF_WHATSAPP_REQUIRE_SIGNATURE", "false").lower()
-        in ("1", "true", "yes"),
+        "whatsapp_require_signature": whatsapp_signature_required(),
         "containment_live_default_false": os.getenv("CF_CONTAINMENT_LIVE", "false").lower() == "false",
         "allow_force": os.getenv("CF_ALLOW_FORCE", "false").lower() in ("1", "true", "yes"),
     }
