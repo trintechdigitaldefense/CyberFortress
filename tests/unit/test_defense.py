@@ -5,8 +5,8 @@ from core.defense import (
     safe_under_dir,
     is_plausible_e164,
 )
-from pathlib import Path
-import hmac, hashlib
+import hmac
+import hashlib
 
 
 def test_rate_limit_trips():
