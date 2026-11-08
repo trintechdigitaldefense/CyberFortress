@@ -38,6 +38,7 @@ def test_live_block_rolls_back_partial_insert(tmp_path, monkeypatch):
     monkeypatch.setattr(fw, "_iptables_bin", lambda: "iptables")
     monkeypatch.setattr(fw, "ensure_chain", lambda **kwargs: {"ok": True})
     monkeypatch.setattr(fw, "_already_blocked", lambda target: False)
+    monkeypatch.setattr(fw, "verify_block", lambda target: {"verified": False, "bidirectional": False})
     calls = []
 
     def run(cmd, dry_run):
