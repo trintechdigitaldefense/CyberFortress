@@ -78,7 +78,8 @@ def test_evidence_pack_builds(demo_env):
 
     write_cma_entry("block_ip", "203.0.113.50", "CMA test", severity="HIGH")
     result = generate_evidence_pack(client_name="Demo", engagement_id="ENG-TEST")
-    assert result.get("ok") is True or result.get("path") or Path(result.get("zip", "")).exists()
+    assert isinstance(result, Path)
+    assert result.is_file()
 
 
 def test_mock_tier2_approve_and_timeout(demo_env):
