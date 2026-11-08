@@ -509,7 +509,14 @@ def firewall_status() -> Dict[str, Any]:
     err = (r.stderr or b"").decode(errors="replace").strip()
     if r.returncode == 0:
         status["chain_exists"] = True
-        rules = list_cf_rules()
+        try:
+            rules = list_cf_rules(strict=True)
+        except Exception as exc:
+            status["mode_label"] = "UNAVAILABLE"
+            status["message"] = f"Firewall state unreadable; rule count is unknown: {exc}"
+            status["readback_failed"] = True
+            persist_status(status)
+            return status
         status["rules"] = rules
         status["rule_count"] = len(rules)
         if live:
