@@ -55,31 +55,31 @@ def _acquire_lock(path: Path):
 
 
 def last_hash(path: Path, *, strict: bool = True) -> str:
-    """Return the last entry_hash in the chain.
-
-    If *strict* is True (default), malformed JSON or missing entry_hash raises
-    AuditChainError instead of skipping the line.
-    """
+    """Return the last hash only after verifying the entire existing chain."""
     if not path.exists():
         return GENESIS
+    if strict:
+        ok, broken, message = verify_chain(path)
+        if not ok:
+            raise AuditChainError(f"existing audit chain invalid at {broken}: {message}")
     prev = GENESIS
-    with open(path, "r", encoding="utf-8") as f:
-        for idx, line in enumerate(f):
+    with open(path, "r", encoding="utf-8") as stream:
+        for idx, line in enumerate(stream):
             line = line.strip()
             if not line:
                 continue
             try:
                 obj = json.loads(line)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError as exc:
                 if strict:
-                    raise AuditChainError(f"invalid JSON at index {idx}: {e}") from e
+                    raise AuditChainError(f"invalid JSON at index {idx}: {exc}") from exc
                 continue
-            h = obj.get("entry_hash")
-            if not h or not isinstance(h, str) or len(h) != 64:
+            digest = obj.get("entry_hash")
+            if not isinstance(digest, str) or len(digest) != 64:
                 if strict:
                     raise AuditChainError(f"missing/invalid entry_hash at index {idx}")
-                h = hash_entry(obj)
-            prev = h
+                digest = hash_entry(obj)
+            prev = digest
     return prev
 
 
