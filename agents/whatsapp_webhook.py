@@ -15,7 +15,6 @@ import re
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from core.defense import (
