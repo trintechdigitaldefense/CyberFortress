@@ -34,7 +34,7 @@ CLIENT_NAME = os.getenv("CF_CLIENT_NAME", "Client")
 
 def _auth_required() -> bool:
     """Auth is required unless explicitly allowed anonymous on localhost only."""
-    if DASH_PASS:
+    if DASH_PASS or os.getenv("CF_SOC_USERS", "").strip():
         return True
     allow_anon = os.getenv("CF_DASHBOARD_ALLOW_ANON", "false").lower() in ("1", "true", "yes")
     require = os.getenv("CF_DASHBOARD_REQUIRE_AUTH", "").strip().lower()
@@ -52,15 +52,24 @@ def _auth_required() -> bool:
 def _auth_ok(handler):
     if not _auth_required():
         return True
-    if not DASH_PASS:
-        return False
     header = handler.headers.get("Authorization", "")
     if not header.startswith("Basic "):
         return False
     try:
         decoded = base64.b64decode(header.split(" ", 1)[1]).decode("utf-8")
         user, _, password = decoded.partition(":")
-        return hmac.compare_digest(user, DASH_USER) and hmac.compare_digest(password, DASH_PASS)
+        configured_users = os.getenv("CF_SOC_USERS", "").strip()
+        if configured_users:
+            from core.soc.rbac import authenticate
+            role = authenticate(user, password)
+            if role not in _VALID_ROLES:
+                return False
+            handler.dashboard_role = role
+            return True
+        ok = hmac.compare_digest(user, DASH_USER) and hmac.compare_digest(password, DASH_PASS)
+        if ok:
+            handler.dashboard_role = DASH_ROLE
+        return ok
     except Exception:
         return False
 
@@ -71,8 +80,9 @@ _VALID_ROLES = frozenset({"operator", "admin", "investigator", "auditor"})
 _WRITE_ROLES = frozenset({"operator", "admin"})
 
 
-def _can_write() -> bool:
-    return DASH_ROLE in _WRITE_ROLES
+def _can_write(handler=None) -> bool:
+    role = getattr(handler, "dashboard_role", DASH_ROLE)
+    return role in _WRITE_ROLES
 
 
 def _csrf_ok(handler) -> bool:
@@ -410,7 +420,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not _auth_ok(self):
             return self._unauthorized()
-        if not _can_write():
+        if not _can_write(self):
             return self._json(403, {"ok": False, "error": "role cannot mutate state", "role": DASH_ROLE})
         if not _csrf_ok(self):
             return self._json(403, {"ok": False, "error": "missing X-CF-Requested-With: CyberFortress"})
