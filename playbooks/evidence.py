@@ -10,7 +10,6 @@ Usage:
 
 import argparse
 import sys
-from pathlib import Path
 
 from core.evidence.pack import generate_evidence_pack
 
