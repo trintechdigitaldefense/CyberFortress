@@ -291,7 +291,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         client = self.client_address[0] if self.client_address else "unknown"
         if not rate_limit_allow(f"dash:{client}", limit=180):
-            self.send_response(429); self.end_headers(); return
+            self.send_response(429)
+                self.end_headers()
+                return
         if not _auth_ok(self):
             return self._unauthorized()
         parsed = urlparse(self.path)
@@ -313,7 +315,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif path == "/static/notify_settings.js":
             js_path = Path(__file__).resolve().parent / "static" / "notify_settings.js"
             if not js_path.is_file():
-                self.send_response(404); self.end_headers(); return
+                self.send_response(404)
+                self.end_headers()
+                return
             data = js_path.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "application/javascript; charset=utf-8")
