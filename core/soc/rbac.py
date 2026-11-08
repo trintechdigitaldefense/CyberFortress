@@ -9,7 +9,14 @@ from typing import Dict, Optional, Set
 
 ROLES: Dict[str, Set[str]] = {
     "viewer": {"read:status", "read:cases", "read:metrics"},
-    "analyst": {"read:status", "read:cases", "read:metrics", "write:cases", "write:evidence"},
+    "analyst": {
+        "read:status",
+        "read:cases",
+        "read:metrics",
+        "write:cases",
+        "write:evidence",
+        "write:ingest",
+    },
     "operator": {
         "read:status",
         "read:cases",
@@ -18,6 +25,7 @@ ROLES: Dict[str, Set[str]] = {
         "write:evidence",
         "write:containment",
         "approve:tier2",
+        "write:ingest",
     },
     "admin": {"*"},
 }
@@ -43,8 +51,6 @@ def authenticate(user: str, token: str) -> Optional[str]:
     users = _users()
     rec = users.get(user)
     if not rec:
-        if not users and os.getenv("CF_SOC_REQUIRE_AUTH", "false").lower() not in ("1", "true", "yes"):
-            return "viewer"
         return None
     if hmac.compare_digest(rec["token"], token):
         return rec["role"]
