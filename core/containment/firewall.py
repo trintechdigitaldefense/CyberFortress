@@ -299,8 +299,19 @@ def block_ip(
             for prior in reversed(inserted):
                 rollback = [ipt, "-D", *prior[2:]]
                 _run_block(rollback, dry_run=False)
-            result["details"] = f"DROP insertion failed; partial changes rolled back where possible: {error}"
             result["rollback_attempted"] = bool(inserted)
+            try:
+                rollback_check = verify_block(target)
+                result["rollback_verification"] = rollback_check
+                result["rollback_verified"] = rollback_check.get("verified") is False
+            except Exception as verify_error:
+                result["rollback_verification"] = {"verified": False, "message": str(verify_error)}
+                result["rollback_verified"] = False
+            result["details"] = (
+                f"DROP insertion failed; partial rule removal verified: {error}"
+                if result["rollback_verified"]
+                else f"DROP insertion failed; partial firewall state may remain — manual review required: {error}"
+            )
             return result
         inserted.append(cmd)
 
