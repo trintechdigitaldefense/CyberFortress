@@ -292,8 +292,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         client = self.client_address[0] if self.client_address else "unknown"
         if not rate_limit_allow(f"dash:{client}", limit=180):
             self.send_response(429)
-                self.end_headers()
-                return
+            self.end_headers()
+            return
         if not _auth_ok(self):
             return self._unauthorized()
         parsed = urlparse(self.path)
