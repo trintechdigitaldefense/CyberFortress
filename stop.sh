@@ -57,7 +57,7 @@ stop_recorded_process() {
     return 0
   fi
 
-  kill -TERM "$pid"
+  kill -TERM "$pid" 2>/dev/null || true
   for attempt in {1..30}; do
     if ! kill -0 "$pid" 2>/dev/null; then
       echo "  [+] stopped $name (pid $pid)"
@@ -75,7 +75,7 @@ stop_recorded_process() {
 
   if process_matches_module "$pid" "$module"; then
     echo "  [!] $name did not stop after SIGTERM; sending SIGKILL to verified PID"
-    kill -KILL "$pid"
+    kill -KILL "$pid" 2>/dev/null || true
   else
     echo "  [!] $name PID identity changed; refusing SIGKILL"
   fi
