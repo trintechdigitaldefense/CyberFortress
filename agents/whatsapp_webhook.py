@@ -35,9 +35,18 @@ from core.whatsapp_gateway import (
 logger = logging.getLogger("cf_whatsapp_webhook")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [WHATSAPP_WEBHOOK] %(levelname)s %(message)s")
 
-VERIFY_TOKEN = os.getenv("CF_WHATSAPP_VERIFY_TOKEN", "cf_verify_token_change_me")
+DEFAULT_VERIFY_TOKEN = "cf_verify_token_change_me"
+VERIFY_TOKEN = os.getenv("CF_WHATSAPP_VERIFY_TOKEN", "").strip()
 PORT = int(os.getenv("CF_WHATSAPP_WEBHOOK_PORT", "8089"))
 PENDING_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def validate_startup_config() -> None:
+    if not VERIFY_TOKEN or VERIFY_TOKEN == DEFAULT_VERIFY_TOKEN:
+        raise RuntimeError("CF_WHATSAPP_VERIFY_TOKEN must be explicitly configured and must not use the placeholder")
+    if not os.getenv("CF_WHATSAPP_APP_SECRET", ""):
+        raise RuntimeError("CF_WHATSAPP_APP_SECRET must be configured before starting the webhook")
+
 
 APPROVE_RE = re.compile(r"^APPROVE\s+([A-Fa-f0-9]{4,64})$", re.I)
 DENY_RE = re.compile(r"^DENY\s+([A-Fa-f0-9]{4,64})$", re.I)
@@ -270,6 +279,7 @@ def _heartbeat_loop():
 
 
 def main():
+    validate_startup_config()
     logger.info("Starting WhatsApp webhook on port %s", PORT)
     logger.info("Approvals require: APPROVE <nonce> from registered admin only")
     bind = assert_safe_bind(os.getenv("CF_WHATSAPP_WEBHOOK_BIND", "127.0.0.1"), "whatsapp_webhook")
