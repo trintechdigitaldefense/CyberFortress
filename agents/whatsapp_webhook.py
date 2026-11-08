@@ -63,6 +63,27 @@ def record_decision(
         return False
     if not expiry or time.time() >= expiry:
         logger.warning("Expired approval request %s", request_id)
+        if expiry:
+            expired_payload = {
+                "decision": "DENY-EXPIRED",
+                "sender_hash": hash_sender(sender),
+                "nonce_ok": False,
+                "received_at": time.time(),
+            }
+            fd, expired_temp_name = tempfile.mkstemp(prefix=f".{request_id}.expired.", dir=str(PENDING_DIR))
+            expired_temp = Path(expired_temp_name)
+            try:
+                with os.fdopen(fd, "wb") as stream:
+                    os.fchmod(stream.fileno(), 0o600)
+                    stream.write((json.dumps(expired_payload, sort_keys=True) + "\\n").encode("utf-8"))
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                try:
+                    os.link(expired_temp, decision_path)
+                except FileExistsError:
+                    pass
+            finally:
+                expired_temp.unlink(missing_ok=True)
         return False
     if not is_allowed_approver(sender):
         logger.warning("Unknown sender ignored for %s hash=%s", request_id, hash_sender(sender))
