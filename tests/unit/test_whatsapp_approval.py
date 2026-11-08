@@ -58,7 +58,6 @@ def test_bad_nonce_denied(pending):
 def test_timeout_deny(pending, monkeypatch):
     d, gw, wh = pending
     monkeypatch.setenv("CF_APPROVAL_TIMEOUT", "1")
-    import core.whatsapp_gateway as gw
     importlib.reload(gw)
     ok = gw.request_approval("isolate_endpoint", "10.0.0.9", "HIGH", "test")
     assert ok is False
@@ -77,7 +76,9 @@ def test_signature_required_when_enabled(monkeypatch):
 
 def test_signature_valid(monkeypatch):
     monkeypatch.setenv("CF_WHATSAPP_ENABLED", "true")
-    import importlib, hmac, hashlib
+    import importlib
+    import hmac
+    import hashlib
     import core.defense as defense
     importlib.reload(defense)
     secret = "app-secret"
