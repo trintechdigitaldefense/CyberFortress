@@ -11,7 +11,7 @@
 |---|---|---|---|
 | P0 | Repository inventory, architecture and evidence register | COMPLETE | 197 tracked files inventoried; architecture, feature, tracker, security and release control docs committed |
 | P1 | Critical reliability/security | COMPLETE IN CI | Autonomy result verification, webhook expiry/replay/atomicity, dashboard per-user roles, audit fail-closed, ROE and secrets/SIEM controls; full QA green |
-| P2 | Firewall/containment safety | IN PROGRESS | Mocked ROE, apply, partial rollback and read-back tests pass; run `scripts/firewall_namespace_acceptance.sh` as root in a disposable Linux VM and attach output before sign-off |
+| P2 | Firewall/containment safety | IN PROGRESS | Mocked acceptance and isolated GitHub Ubuntu VM network-namespace apply/verify/rollback now pass; client deployment profile, protected-target review and recovery drills remain |
 | P3 | SOC monitoring and telemetry | NOT STARTED | Synthetic events complete collection-to-audit path without loss |
 | P4 | Incident response/case management | NOT STARTED | Full lifecycle and tenant-safe transitions pass |
 | P5 | Evidence/audit/reporting | NOT STARTED | Evidence hashes, chain verification, export and restore pass |
