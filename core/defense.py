@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import hmac
 import logging
 import os
@@ -41,7 +42,10 @@ def rate_limit_allow(key: str, limit: Optional[int] = None, window: Optional[flo
 
 def assert_safe_bind(bind: str, service: str) -> str:
     b = (bind or "127.0.0.1").strip()
-    public = b in ("0.0.0.0", "::", "[::]")
+    try:
+        public = ipaddress.ip_address(b.strip("[]")).is_unspecified
+    except ValueError:
+        public = False
     if public and not PUBLIC_BIND_OK:
         logger.warning(
             "%s refused public bind %s — using 127.0.0.1 "
