@@ -76,3 +76,20 @@ def test_investigator_is_read_only_for_dashboard_mutations(monkeypatch):
     import agents.dashboard as d
     importlib.reload(d)
     assert d._can_write() is False
+
+
+def test_soc_user_roles_are_applied_per_authenticated_user(monkeypatch):
+    monkeypatch.setenv("CF_DASHBOARD_PASS", "")
+    monkeypatch.setenv("CF_SOC_USERS", "audit:auditor:token123,ops:operator:token456")
+    monkeypatch.setenv("CF_DASHBOARD_ROLE", "operator")
+    monkeypatch.setenv("CF_DASHBOARD_BIND", "127.0.0.1")
+    monkeypatch.delenv("CF_DASHBOARD_ALLOW_ANON", raising=False)
+    import agents.dashboard as d
+    importlib.reload(d)
+    auditor = _H(auth=_basic("audit", "token123"))
+    operator = _H(auth=_basic("ops", "token456"))
+    assert d._auth_ok(auditor) is True
+    assert d._can_write(auditor) is False
+    assert d._auth_ok(operator) is True
+    assert d._can_write(operator) is True
+    assert d._auth_ok(_H(auth=_basic("audit", "wrong"))) is False
