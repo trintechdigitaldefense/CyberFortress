@@ -38,7 +38,7 @@ VERIFY_TOKEN = os.getenv("CF_WHATSAPP_VERIFY_TOKEN", "cf_verify_token_change_me"
 PORT = int(os.getenv("CF_WHATSAPP_WEBHOOK_PORT", "8089"))
 PENDING_DIR.mkdir(parents=True, exist_ok=True)
 
-APPROVE_RE = re.compile(r"^APPROVE\s+([A-Fa-f0-9]{4,12})$", re.I)
+APPROVE_RE = re.compile(r"^APPROVE\s+([A-Fa-f0-9]{4,64})$", re.I)
 DENY_RE = re.compile(r"^DENY\s+([A-Fa-f0-9]{4,12})$", re.I)
 
 
@@ -47,42 +47,55 @@ def record_decision(
     decision: str,
     sender: str,
     provided_nonce: str,
-) -> None:
+) -> bool:
+    """Consume one unexpired approval nonce exactly once using exclusive creation."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", request_id):
+        return False
     pending_path = PENDING_DIR / f"{request_id}.json"
-    if not pending_path.exists():
-        logger.warning("No pending request %s", request_id)
-        return
-
-    meta = json.loads(pending_path.read_text(encoding="utf-8"))
-    expected = str(meta.get("nonce", "")).upper()
-    provided = provided_nonce.upper().strip()
-
+    decision_path = PENDING_DIR / f"{request_id}.decision"
+    try:
+        meta = json.loads(pending_path.read_text(encoding="utf-8"))
+        expiry = float(meta.get("expires_at", 0))
+        expected = str(meta.get("nonce", "")).upper()
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        logger.warning("Invalid or missing pending approval %s", request_id)
+        return False
+    if not expiry or time.time() >= expiry:
+        logger.warning("Expired approval request %s", request_id)
+        return False
     if not is_allowed_approver(sender):
-        payload = {
-            "decision": "DENY-UNKNOWN-SENDER",
-            "sender_hash": hash_sender(sender),
-            "nonce_ok": False,
-        }
-        (PENDING_DIR / f"{request_id}.decision").write_text(json.dumps(payload), encoding="utf-8")
-        logger.warning("Unknown sender denied for %s hash=%s", request_id, payload["sender_hash"])
-        return
-
-    nonce_ok = secrets_compare(expected, provided)
-    if decision.upper() == "APPROVE" and not nonce_ok:
-        payload = {
-            "decision": "DENY-BAD-NONCE",
-            "sender_hash": hash_sender(sender),
-            "nonce_ok": False,
-        }
-    else:
-        payload = {
-            "decision": decision.upper(),
-            "sender_hash": hash_sender(sender),
-            "nonce_ok": nonce_ok,
-        }
-
-    (PENDING_DIR / f"{request_id}.decision").write_text(json.dumps(payload), encoding="utf-8")
-    logger.info("Recorded %s for %s nonce_ok=%s", payload["decision"], request_id, nonce_ok)
+        logger.warning("Unknown sender ignored for %s hash=%s", request_id, hash_sender(sender))
+        return False
+    requested = decision.upper()
+    if requested not in ("APPROVE", "DENY"):
+        return False
+    nonce_ok = secrets_compare(expected, provided_nonce.upper().strip())
+    final_decision = requested if nonce_ok else "DENY-BAD-NONCE"
+    payload = {
+        "decision": final_decision,
+        "sender_hash": hash_sender(sender),
+        "nonce_ok": nonce_ok,
+        "received_at": time.time(),
+    }
+    encoded = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")
+    try:
+        fd = os.open(str(decision_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        logger.warning("Approval already consumed for %s", request_id)
+        return False
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except Exception:
+        try:
+            decision_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    logger.info("Atomically recorded %s for %s nonce_ok=%s", final_decision, request_id, nonce_ok)
+    return True
 
 
 def secrets_compare(a: str, b: str) -> bool:
@@ -96,12 +109,16 @@ def secrets_compare(a: str, b: str) -> bool:
 
 def _find_request_by_nonce(nonce: str):
     nonce = nonce.upper()
+    now = time.time()
     for path in PENDING_DIR.glob("*.json"):
         if path.name.endswith(".decision"):
             continue
         try:
             meta = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
+            expires_at = float(meta.get("expires_at", 0))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            continue
+        if expires_at <= now:
             continue
         if str(meta.get("nonce", "")).upper() == nonce:
             if (PENDING_DIR / f"{path.stem}.decision").exists():
