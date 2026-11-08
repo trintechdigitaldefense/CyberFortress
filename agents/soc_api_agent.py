@@ -43,7 +43,7 @@ class Handler(BaseHTTPRequestHandler):
         if header.startswith("Bearer "):
             token = header.split(" ", 1)[1].strip()
             users = os.getenv("CF_SOC_USERS", "")
-            if not users and not os.getenv("CF_SOC_REQUIRE_AUTH", "false").lower() in (
+            if not users and os.getenv("CF_SOC_REQUIRE_AUTH", "false").lower() not in (
                 "1",
                 "true",
                 "yes",
@@ -63,7 +63,7 @@ class Handler(BaseHTTPRequestHandler):
                 return rbac.authenticate(user, password)
             except Exception:
                 return None
-        if not os.getenv("CF_SOC_REQUIRE_AUTH", "false").lower() in ("1", "true", "yes"):
+        if os.getenv("CF_SOC_REQUIRE_AUTH", "false").lower() not in ("1", "true", "yes"):
             return "viewer"
         return None
 
