@@ -51,6 +51,7 @@ def _auth_required() -> bool:
 
 def _auth_ok(handler):
     if not _auth_required():
+        handler.dashboard_role = "auditor"
         return True
     header = handler.headers.get("Authorization", "")
     if not header.startswith("Basic "):
@@ -76,7 +77,7 @@ def _auth_ok(handler):
 
 # operator | admin | investigator | auditor (read-only)
 DASH_ROLE = os.getenv("CF_DASHBOARD_ROLE", "operator").strip().lower() or "operator"
-_VALID_ROLES = frozenset({"operator", "admin", "investigator", "auditor"})
+_VALID_ROLES = frozenset({"operator", "admin", "investigator", "auditor", "viewer"})
 _WRITE_ROLES = frozenset({"operator", "admin"})
 
 
@@ -466,7 +467,7 @@ class ReusableHTTPServer(HTTPServer):
 def main():
     global BIND
     if DASH_ROLE not in _VALID_ROLES:
-        raise SystemExit("Invalid CF_DASHBOARD_ROLE; choose operator, admin, investigator, or auditor.")
+        raise SystemExit("Invalid CF_DASHBOARD_ROLE; choose operator, admin, investigator, auditor, or viewer.")
     try:
         BIND = assert_safe_bind(BIND, "dashboard")
     except NameError:
