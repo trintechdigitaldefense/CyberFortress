@@ -1,6 +1,5 @@
 """Drop alert JSON → fusion process → audit chain entry."""
 import json
-from pathlib import Path
 
 from core.telemetry.fusion import TelemetryFusion
 from core.audit_chain import verify_chain
