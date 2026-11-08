@@ -33,7 +33,7 @@ trap cleanup EXIT INT TERM
 ip netns add "$NS"
 ip netns exec "$NS" ip link set lo up
 
-echo "Running isolated CyberFortress firewall apply/verify/rollback acceptance in $NS"
+echo "Running CyberFortress apply/verify/rollback acceptance in $NS"
 ip netns exec "$NS" env \
   PYTHONPATH="$ROOT" \
   CF_CONTAINMENT_LIVE=true \
@@ -47,35 +47,30 @@ applied = firewall.block_ip(target, dry_run=False)
 assert applied.get("success") is True, applied
 assert applied.get("verify", {}).get("verified") is True, applied
 assert applied.get("verify", {}).get("bidirectional") is True, applied
-print("PASS: live DROP rules applied and bidirectionally verified inside isolated namespace")
+print("PASS: live DROP rules applied and bidirectionally verified")
 
 restored = firewall.unblock_ip(target, dry_run=False)
 assert restored.get("success") is True, restored
 assert restored.get("verify", {}).get("cleared") is True, restored
-print("PASS: DROP rules removed and rollback read-back verified inside isolated namespace")
+print("PASS: explicit unblock and rollback read-back verified")
 
-# Re-arm only inside this disposable namespace, then exercise the operator
-# emergency-disarm script against a temporary env file.
 applied = firewall.block_ip(target, dry_run=False, comment="acceptance-disarm")
 assert applied.get("success") is True, applied
-print("PASS: re-applied test rules for emergency-disarm acceptance")
+print("PASS: re-applied isolated test rules for emergency-disarm test")
 PY
 
-printf '%s\\n' 'CF_CONTAINMENT_LIVE=true' > "$TMP/cf.env"
-ip netns exec "$NS" env \\
-  PATH="$PATH" \\
-  CF_ENV_FILE="$TMP/cf.env" \\
+printf '%s\n' 'CF_CONTAINMENT_LIVE=true' > "$TMP/cf.env"
+ip netns exec "$NS" env \
+  PATH="$PATH" \
+  CF_ENV_FILE="$TMP/cf.env" \
   bash "$ROOT/scripts/disable_live_mode.sh"
 grep -Fxq 'CF_CONTAINMENT_LIVE=false' "$TMP/cf.env"
-ip netns exec "$NS" iptables -L CF_BLOCK -n | grep -q '^Chain CF_BLOCK'
-if ip netns exec "$NS" iptables -S CF_BLOCK | grep -qv '^-N CF_BLOCK
 
-echo "PASS: isolated firewall acceptance completed; namespace cleanup will remove all test rules."
-; then
+RULES="$(ip netns exec "$NS" iptables -S CF_BLOCK)"
+if [[ "$RULES" != "-N CF_BLOCK" ]]; then
   echo "FAIL: CF_BLOCK still contains rules after emergency disarm" >&2
+  printf '%s\n' "$RULES" >&2
   exit 1
 fi
 echo "PASS: emergency disarm disabled live mode and emptied CF_BLOCK"
-
-
-echo "PASS: isolated firewall acceptance completed; namespace cleanup will remove all test rules."
+echo "PASS: isolated firewall acceptance completed; namespace cleanup removes all test rules."
