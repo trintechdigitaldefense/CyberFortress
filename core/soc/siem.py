@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import socket
+import secrets
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -15,7 +16,28 @@ from core.soc.event_bus import get_bus
 logger = logging.getLogger("cf_siem")
 
 
+def sanitize_ingest_event(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove caller-supplied tenant identity and stamp the authenticated local tenant."""
+    if not isinstance(raw, dict):
+        raise ValueError("SIEM event must be an object")
+    clean = dict(raw)
+    tenant = os.getenv("CF_TENANT_ID", "").strip()
+    clean.pop("tenant_id", None)
+    if tenant:
+        clean["tenant_id"] = tenant
+    return clean
+
+
+def require_ingest_token(token: Optional[str]) -> bool:
+    expected = os.getenv("CF_SIEM_INGEST_TOKEN", "")
+    required = os.getenv("CF_SIEM_REQUIRE_TOKEN", "true").lower() in ("1", "true", "yes")
+    if not expected:
+        return not required
+    return bool(token) and secrets.compare_digest(str(token), expected)
+
+
 def normalize_event(raw: Dict[str, Any]) -> Dict[str, Any]:
+    raw = sanitize_ingest_event(raw)
     return {
         "timestamp": raw.get("timestamp") or datetime.now(timezone.utc).isoformat(),
         "source": raw.get("source") or raw.get("vendor") or "siem_ingest",
@@ -27,7 +49,9 @@ def normalize_event(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def ingest_batch(events: List[Dict[str, Any]]) -> int:
+def ingest_batch(events: List[Dict[str, Any]], token: Optional[str] = None) -> int:
+    if not require_ingest_token(token):
+        raise PermissionError("valid SIEM ingest token required")
     bus = get_bus()
     n = 0
     for e in events:
