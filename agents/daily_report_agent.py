@@ -106,7 +106,7 @@ def build_report() -> str:
     try:
         from core.containment.firewall import firewall_status
         fw = firewall_status()
-        fw_msg = f"{fw.get('mode_label', '—')} · rules={fw.get('rule_count', 0)}"
+        fw_msg = "{fw.get('mode_label', '—')} · rules={fw.get('rule_count', 0)}"
     except Exception as e:
         fw_msg = str(e)[:80]
 
