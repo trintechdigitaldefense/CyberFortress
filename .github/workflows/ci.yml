@@ -63,6 +63,10 @@ jobs:
           bash -n scripts/check_netadmin.sh
           bash -n scripts/disable_live_mode.sh
           bash -n scripts/enable_live_mode.sh
+          bash -n scripts/pilot_vm_preflight.sh
+          bash -n scripts/check_client_ready.sh
+          bash -n start.sh
+          bash -n install.sh
           bash -n scripts/defense_check.sh
           bash -n scripts/quality_check.sh
 
@@ -75,6 +79,25 @@ jobs:
 
       - name: Backup and recovery acceptance
         run: bash scripts/backup_restore_acceptance.sh
+
+      - name: Deployment profile safety
+        run: |
+          python - <<'PY'
+          import yaml
+          from pathlib import Path
+          compose = yaml.safe_load(Path("docker/docker-compose.yml").read_text())
+          services = compose["services"]
+          firewall = services["firewall"]
+          assert "cap_add" not in firewall, "standard Docker profile must not receive NET_ADMIN"
+          for name, service in services.items():
+              for value in service.get("environment", []):
+                  if isinstance(value, str) and value.startswith("CF_CONTAINMENT_LIVE="):
+                      assert value == "CF_CONTAINMENT_LIVE=false", f"{name} can arm live containment in standard Docker profile"
+          start = Path("start.sh").read_text()
+          assert "TERMUX_VERSION" in start and "PROOT_TMP_DIR" in start
+          assert 'export CF_CONTAINMENT_LIVE=false' in start
+          print("PASS: Docker and Termux/proot profiles are monitoring-only")
+          PY
 
       - name: Document supported platform
         run: |
