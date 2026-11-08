@@ -61,6 +61,12 @@ jobs:
       - name: Defense posture script
         run: bash scripts/defense_check.sh
 
+      - name: Isolated firewall namespace acceptance
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iproute2 iptables
+          sudo bash scripts/firewall_namespace_acceptance.sh
+
       - name: Document supported platform
         run: |
           echo "Supported CI OS: ubuntu-latest"
