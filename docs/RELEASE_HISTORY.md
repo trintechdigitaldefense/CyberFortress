@@ -29,10 +29,10 @@ The README's old version and any outdated readiness/marketing claims must be cor
 | 1.0.0 | Target final release | Not released; all acceptance gates outstanding |
 
 
-## 2026-11-08 hardening checkpoint (not a release)
+## 2026-11-08 P2 hardening checkpoint (not a release)
 
-- Hardening branch head at checkpoint: `3751b7058694498421ff98d58e70b9ff6a919c65`.
-- CI run: [42522941703](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42522941703) — all configured checks passed, including 128 tests, Ruff, Bandit, pip-audit and isolated firewall namespace apply/verify/rollback.
-- P0 security controls have passed their current automated gate.
-- Mocked firewall acceptance and isolated network-namespace apply/verify/rollback have passed on an ephemeral Ubuntu CI VM. Client-specific deployment/recovery evidence and all remaining roadmap gates are still outstanding.
-- No version tag was created. v1.0.0 remains unreleased and CyberFortress is not yet client-ready.
+- Automated hardening checkpoint: `d1a274838f8bf33187fd2f6d8f3d7a732d215c90`.
+- CI run [42526197795](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526197795) passed 128 tests, Ruff, Bandit, pip-audit, defense posture, isolated firewall apply/verify/unblock/emergency-disarm, backup checksum/staged restore and deployment profile checks.
+- P0/P1 automated security gates and the P2 automated containment/recovery checks have passed.
+- Actual client VM installation, capability probe, seven-day soak, client-specific legal/ROE evidence and witnessed recovery remain outstanding.
+- No version tag was created. v1.0.0 remains unreleased and CyberFortress is not client-ready.
