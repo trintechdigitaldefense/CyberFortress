@@ -11,6 +11,7 @@ STAGE="$TMP/staged"
 mkdir -p "$FIXTURE/logs/whatsapp_pending" "$FIXTURE/evidence"
 printf '%s\n' 'synthetic operator log' > "$FIXTURE/logs/operator.log"
 printf '%s\n' 'synthetic evidence artifact' > "$FIXTURE/evidence/sample.txt"
+printf '%s\n' 'synthetic pending request with nonce' > "$FIXTURE/logs/whatsapp_pending/sample.json"
 printf '%s\n' 'synthetic pending decision must not be backed up' > "$FIXTURE/logs/whatsapp_pending/sample.decision"
 
 CF_ROOT="$FIXTURE" CF_BACKUP_DEST="$DEST" bash "$ROOT/scripts/backup_offbox.sh"
