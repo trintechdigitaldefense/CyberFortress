@@ -11,7 +11,7 @@
 |---|---|---|---|
 | P0 | Repository inventory, architecture and evidence register | COMPLETE | 197 tracked files inventoried; architecture, feature, tracker, security and release control docs committed |
 | P1 | Critical reliability/security | COMPLETE IN CI | Autonomy result verification, webhook expiry/replay/atomicity, dashboard per-user roles, audit fail-closed, ROE and secrets/SIEM controls; full QA green |
-| P2 | Firewall/containment, deployment and recovery | AUTOMATED ACCEPTANCE PASS; CLIENT VM PENDING | CI run 42526197795 passed isolated NET_ADMIN probe, apply/verify/unblock/emergency-disarm, backup checksum/staged restore and deployment-profile checks; actual client VM install, 7-day soak, client ROE/allowlist and witnessed recovery remain mandatory |
+| P2 | Firewall/containment, deployment and recovery | AUTOMATED ACCEPTANCE PASS; CLIENT VM PENDING | CI run 42526500787 passed isolated NET_ADMIN probe, partial chain-setup rollback, apply/verify/unblock/emergency-disarm, backup checksum/staged restore and deployment-profile/signed-document checks; actual client VM install, 7-day soak, client ROE/allowlist and witnessed recovery remain mandatory |
 | P3 | SOC monitoring and telemetry | NOT STARTED | Synthetic events complete collection-to-audit path without loss |
 | P4 | Incident response/case management | NOT STARTED | Full lifecycle and tenant-safe transitions pass |
 | P5 | Evidence/audit/reporting | NOT STARTED | Evidence hashes, chain verification, export and restore pass |
