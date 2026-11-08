@@ -66,9 +66,14 @@ jobs:
           bash -n scripts/pilot_vm_preflight.sh
           bash -n scripts/check_client_ready.sh
           bash -n start.sh
+          bash -n stop.sh
+          bash -n scripts/process_lifecycle_safety.sh
           bash -n install.sh
           bash -n scripts/defense_check.sh
           bash -n scripts/quality_check.sh
+
+      - name: Process lifecycle safety regression
+        run: bash scripts/process_lifecycle_safety.sh
 
       - name: Defense posture script
         run: bash scripts/defense_check.sh
