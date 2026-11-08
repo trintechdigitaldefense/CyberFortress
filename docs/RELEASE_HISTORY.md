@@ -31,8 +31,8 @@ The README's old version and any outdated readiness/marketing claims must be cor
 
 ## 2026-11-08 P2 hardening checkpoint (not a release)
 
-- Automated hardening checkpoint: `9149b2c164f27b4841c53c6c43a1ea79da3f6e5c`.
-- CI run [42526379267](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526379267) passed 128 tests, Ruff, Bandit, pip-audit, defense posture, isolated NET_ADMIN probe, partial firewall-chain rollback, apply/verify/unblock/emergency-disarm, backup checksum/staged restore and deployment profile checks.
+- Automated hardening checkpoint: `a3db602b668130944c8126f087dc3a87e437759a`.
+- CI run [42526500787](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526500787) passed 128 tests, Ruff, Bandit, pip-audit, defense posture, isolated NET_ADMIN probe, partial firewall-chain rollback, apply/verify/unblock/emergency-disarm, backup checksum/staged restore and deployment profile and signed-document gate checks.
 - P0/P1 automated security gates and P2 automated containment/recovery checks have passed.
 - Actual client VM installation, capability probe, seven-day soak, client-specific legal/ROE evidence and witnessed recovery remain outstanding.
 - No version tag was created. v1.0.0 remains unreleased and CyberFortress is not client-ready.
