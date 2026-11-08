@@ -57,6 +57,17 @@ start_local() {
     set -a; source .env 2>/dev/null || true; set +a
   fi
 
+  # Termux and proot do not provide a dependable host firewall control plane.
+  # Force monitoring-only for this runtime even if a stale .env says LIVE=true.
+  if [[ -n "${TERMUX_VERSION:-}" ||
+        "${PREFIX:-}" == /data/data/com.termux* ||
+        -n "${PROOT_TMP_DIR:-}" ||
+        -n "${PROOT_LOADER:-}" ]]; then
+    export CF_CONTAINMENT_LIVE=false
+    export CF_FIREWALL_AUTO_START=false
+    echo "[!] Restricted Termux/proot runtime detected — forcing MONITORING ONLY."
+  fi
+
   start_bg() {
     local name="$1"; shift
     local log="$ROOT/logs/${name}.out"
