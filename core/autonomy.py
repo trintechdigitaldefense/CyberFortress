@@ -34,13 +34,13 @@ class AutonomyTier(Enum):
 
 TIER_1_ACTIONS = {
     "block_ip",
-    "terminate_session",
     "deploy_decoy",
     "unblock_ip",
     "restore_endpoint",
 }
 
 TIER_2_ACTIONS = {
+    "terminate_session",
     "isolate_endpoint",
     "subnet_isolation",
     "credential_rotation",
