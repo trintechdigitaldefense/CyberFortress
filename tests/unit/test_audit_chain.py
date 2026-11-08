@@ -93,3 +93,13 @@ def test_prev_hash_links(tmp_path):
     assert e1["prev_hash"] == "0" * 64
     assert e2["prev_hash"] == e1["entry_hash"]
     assert e2["entry_hash"] == hash_entry(e2)
+
+
+def test_tampered_hash_blocks_next_append(tmp_path):
+    p = tmp_path / "tampered-hash.jsonl"
+    append_chained(p, {"action": "block_ip", "target": "192.0.2.1"})
+    record = json.loads(p.read_text().splitlines()[0])
+    record["target"] = "192.0.2.99"
+    p.write_text(json.dumps(record) + "\\n")
+    with pytest.raises(AuditChainError):
+        append_chained(p, {"action": "unblock_ip", "target": "192.0.2.1"})
