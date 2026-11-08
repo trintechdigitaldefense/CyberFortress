@@ -58,7 +58,7 @@
 - P0/P1 code-level security controls and the P2 automated firewall/deployment/recovery checks pass on hardening commit `d1a274838f8bf33187fd2f6d8f3d7a732d215c90`.
 - CI run [42526197795](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526197795) passed Ruff, 128 pytest tests, Bandit, pip-audit, audit-chain and defense-posture checks, shell syntax, isolated firewall acceptance, backup/restore acceptance and deployment-profile safety.
 - The isolated namespace test exercised effective NET_ADMIN chain/rule creation, bidirectional DROP verification, explicit unblock, emergency disarm and empty-chain read-back. It did not modify the runner's host firewall or any client network.
-- Backup/recovery acceptance created a synthetic off-box backup, verified its SHA-256 sidecar, staged the archive without overwriting live files, excluded pending WhatsApp decision data and refused a second restore into an existing staging directory.
+- Backup/recovery acceptance created a synthetic off-box backup, verified its SHA-256 sidecar, staged the archive without overwriting live files, excluded pending WhatsApp approval requests and decision data and refused a second restore into an existing staging directory.
 - Standard Docker Compose and Termux/proot are monitoring-only. Native Linux VM is the candidate live-containment profile.
 - Actual client VM installation, host capability output, seven-day monitoring soak, client-specific allowlist/ROE, witnessed backup restore, legal/E&O evidence and client-approved containment change window remain outstanding.
 - These results do not establish client readiness, live containment authorisation, or v1.0.0 acceptance.
