@@ -34,6 +34,24 @@ PORT = int(os.getenv("CF_SOC_API_PORT", "8092"))
 BIND = os.getenv("CF_SOC_API_BIND", "127.0.0.1")
 
 
+
+def required_permission(method: str, path: str):
+    """Return the minimum RBAC permission for a supported SOC API route."""
+    routes = {
+        ("GET", "/metrics"): "read:metrics",
+        ("GET", "/api/metrics"): "read:metrics",
+        ("GET", "/health"): "read:status",
+        ("GET", "/api/soc/health"): "read:status",
+        ("GET", "/api/soc/playbooks"): "read:status",
+        ("GET", "/api/soc/bus"): "read:status",
+        ("GET", "/api/soc/tier2"): "read:status",
+        ("GET", "/api/tier2"): "read:status",
+        ("POST", "/api/soc/ingest"): "write:ingest",
+        ("POST", "/api/soc/ingest/cef"): "write:ingest",
+    }
+    return routes.get((method.upper(), path))
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         logger.info("%s - %s", self.address_string(), fmt % args)
@@ -43,12 +61,6 @@ class Handler(BaseHTTPRequestHandler):
         if header.startswith("Bearer "):
             token = header.split(" ", 1)[1].strip()
             users = os.getenv("CF_SOC_USERS", "")
-            if not users and os.getenv("CF_SOC_REQUIRE_AUTH", "false").lower() not in (
-                "1",
-                "true",
-                "yes",
-            ):
-                return "viewer"
             for part in users.split(","):
                 bits = part.strip().split(":")
                 if len(bits) >= 3 and bits[2] == token:
@@ -63,8 +75,6 @@ class Handler(BaseHTTPRequestHandler):
                 return rbac.authenticate(user, password)
             except Exception:
                 return None
-        if os.getenv("CF_SOC_REQUIRE_AUTH", "false").lower() not in ("1", "true", "yes"):
-            return "viewer"
         return None
 
     def _json(self, code, obj):
@@ -90,10 +100,14 @@ class Handler(BaseHTTPRequestHandler):
             self._json(429, {"ok": False, "error": "rate limited"})
             return
         path = urlparse(self.path).path
+        permission = required_permission("GET", path)
+        if permission is None:
+            self._json(404, {"ok": False, "error": "not found"})
+            return
+        if not rbac.authorize(role, permission):
+            self._json(403, {"ok": False, "error": "forbidden"})
+            return
         if path in ("/metrics", "/api/metrics"):
-            if not rbac.authorize(role, "read:metrics"):
-                self._json(403, {"ok": False, "error": "forbidden"})
-                return
             text = metrics.prometheus_text().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; version=0.0.4")
@@ -138,12 +152,29 @@ class Handler(BaseHTTPRequestHandler):
             self._json(429, {"ok": False, "error": "rate limited"})
             return
         path = urlparse(self.path).path
-        length = int(self.headers.get("Content-Length", "0") or 0)
-        raw = (
-            self.rfile.read(min(length, int(os.getenv("CF_MAX_BODY_BYTES", "262144"))))
-            if length
-            else b"{}"
-        )
+        permission = required_permission("POST", path)
+        if permission is None:
+            self._json(404, {"ok": False, "error": "not found"})
+            return
+        if not rbac.authorize(role, permission):
+            self._json(403, {"ok": False, "error": "forbidden"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0") or 0)
+        except (TypeError, ValueError):
+            self._json(400, {"ok": False, "error": "invalid content-length"})
+            return
+        max_body = max(1, int(os.getenv("CF_MAX_BODY_BYTES", "262144")))
+        if length < 0:
+            self._json(400, {"ok": False, "error": "invalid content-length"})
+            return
+        if length > max_body:
+            self._json(413, {"ok": False, "error": "request body too large"})
+            return
+        raw = self.rfile.read(length) if length else b"{}"
+        if len(raw) != length:
+            self._json(400, {"ok": False, "error": "incomplete request body"})
+            return
         if path == "/api/soc/ingest":
             try:
                 body = json.loads(raw.decode("utf-8") or "{}")
