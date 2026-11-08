@@ -53,7 +53,17 @@
 - Failure, restart, backup and restore behaviour are tested.
 - Termux/proot capability limits are documented; do not assume systemd or CAP_NET_ADMIN.
 
-## Current hardening evidence (2026-11-08)\n\n- P0 code-level security gate is passing on hardening commit `3751b7058694498421ff98d58e70b9ff6a919c65`.\n- CI run [42522941703](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42522941703) passed Ruff, 128 pytest tests, Bandit, pip-audit, audit-chain script, defense-posture script, shell syntax checks and isolated firewall namespace acceptance.\n- Firewall acceptance tests use mocked host commands only. They cover exact client ROE action matching, partial insertion rollback, and rollback read-back failure. No live host firewall or client network was modified.\n- The isolated-network-namespace harness `scripts/firewall_namespace_acceptance.sh` passed on the ephemeral GitHub-hosted Ubuntu runner. It created a loopback-only namespace, applied and bidirectionally verified DROP rules, removed them using the exact rule specification, verified rollback, and deleted the namespace. This is not a client VM or client-network test.\n- Isolated Linux VM apply/verify/rollback evidence remains outstanding. Termux/proot deployments remain monitoring-only unless the required host capabilities and separately approved deployment profile are present.\n- These results do not establish client readiness, live containment authorisation, or v1.0.0 acceptance.\n\n## Required evidence before v1.0.0
+## Current hardening evidence (2026-11-08)
+
+- P0/P1 code-level security controls and the P2 automated firewall/deployment/recovery checks pass on hardening commit `d1a274838f8bf33187fd2f6d8f3d7a732d215c90`.
+- CI run [42526197795](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526197795) passed Ruff, 128 pytest tests, Bandit, pip-audit, audit-chain and defense-posture checks, shell syntax, isolated firewall acceptance, backup/restore acceptance and deployment-profile safety.
+- The isolated namespace test exercised effective NET_ADMIN chain/rule creation, bidirectional DROP verification, explicit unblock, emergency disarm and empty-chain read-back. It did not modify the runner's host firewall or any client network.
+- Backup/recovery acceptance created a synthetic off-box backup, verified its SHA-256 sidecar, staged the archive without overwriting live files, excluded pending WhatsApp decision data and refused a second restore into an existing staging directory.
+- Standard Docker Compose and Termux/proot are monitoring-only. Native Linux VM is the candidate live-containment profile.
+- Actual client VM installation, host capability output, seven-day monitoring soak, client-specific allowlist/ROE, witnessed backup restore, legal/E&O evidence and client-approved containment change window remain outstanding.
+- These results do not establish client readiness, live containment authorisation, or v1.0.0 acceptance.
+
+## Required evidence before v1.0.0
 1. CI run with Ruff, pytest, Bandit and pip-audit passing.
 2. Concurrency and failure tests for metrics and audit.
 3. Webhook signature, nonce, replay and approver tests.
