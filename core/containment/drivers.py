@@ -42,7 +42,7 @@ class IPTablesDriver(ContainmentDriver):
         if action in ("block_ip", "isolate_endpoint"):
             return fw.block_ip(target, dry_run=dry, roe_action=action)
         if action in ("unblock_ip", "restore_endpoint"):
-            return fw.unblock_ip(target, dry_run=dry, roe_action=action)
+            return fw.unblock_ip(target, dry_run=dry, roe_action=action, comment=kwargs.get("comment", "CyberFortress"))
         return {"success": False, "dry_run": dry, "details": f"unsupported firewall action: {action}"}
 
 
