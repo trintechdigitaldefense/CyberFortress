@@ -273,6 +273,12 @@ def block_ip(
         result["details"] = "iptables binary not found"
         return result
 
+    chain_status = ensure_chain(dry_run=False, force_infra=True)
+    if not chain_status.get("ok"):
+        result["details"] = chain_status.get("error") or "firewall chain is not ready"
+        result["infrastructure"] = False
+        return result
+
     try:
         rules = list_cf_rules(strict=True)
     except Exception as exc:
@@ -302,11 +308,6 @@ def block_ip(
         )
         return result
 
-    chain_status = ensure_chain(dry_run=False, force_infra=True)
-    if not chain_status.get("ok"):
-        result["details"] = chain_status.get("error") or "firewall chain is not ready"
-        result["infrastructure"] = False
-        return result
     cmt = re.sub(r"[^A-Za-z0-9_.:-]", "_", comment)[:48]
     cmds = [
         [ipt, "-A", CHAIN, "-s", target, "-j", "DROP", "-m", "comment", "--comment", cmt],
