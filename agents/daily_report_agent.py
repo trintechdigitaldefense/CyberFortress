@@ -105,8 +105,7 @@ def build_report() -> str:
     fw_msg = "—"
     try:
         from core.containment.firewall import firewall_status
-        fw = firewall_status()
-        fw_msg = "{fw.get('mode_label', '—')} · rules={fw.get('rule_count', 0)}"
+                fw_msg = "{fw.get('mode_label', '—')} · rules={fw.get('rule_count', 0)}"
     except Exception as e:
         fw_msg = str(e)[:80]
 
@@ -118,22 +117,22 @@ def build_report() -> str:
         pass
 
     lines = [
-        f"*CyberFortress daily report*",
-        f"Client: {CLIENT}",
-        f"Time: {now}",
-        f"",
-        f"Mode: {mode}",
-        f"Platform: {wd.get('overall', 'UNKNOWN')}",
-        f"Circuit breaker: {breaker_state}",
-        f"Firewall: {fw_msg}",
-        f"",
-        f"Last 24h actions: {counts['total']}",
-        f"  Critical: {sev.get('CRITICAL', 0)}",
-        f"  High: {sev.get('HIGH', 0)}",
-        f"  Info: {sev.get('INFO', 0)}",
-        f"",
-        f"Dashboard: http://127.0.0.1:8091 (operator host)",
-        f"— TrinTech Digital Defense",
+        "*CyberFortress daily report*",
+        "Client: {CLIENT}",
+        "Time: {now}",
+        "",
+        "Mode: {mode}",
+        "Platform: {wd.get('overall', 'UNKNOWN')}",
+        "Circuit breaker: {breaker_state}",
+        "Firewall: {fw_msg}",
+        "",
+        "Last 24h actions: {counts['total']}",
+        "  Critical: {sev.get('CRITICAL', 0)}",
+        "  High: {sev.get('HIGH', 0)}",
+        "  Info: {sev.get('INFO', 0)}",
+        "",
+        "Dashboard: http://127.0.0.1:8091 (operator host)",
+        "— TrinTech Digital Defense",
     ]
     return "\n".join(lines)
 
