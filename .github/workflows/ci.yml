@@ -26,6 +26,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install ruff bandit pip-audit pytest
+          sudo apt-get update
+          sudo apt-get install -y iproute2 iptables rsync
 
       - name: No failure-suppression in quality gate
         run: |
@@ -55,6 +57,12 @@ jobs:
         run: |
           test -f scripts/verify_audit_chain.py
           bash -n scripts/firewall_namespace_acceptance.sh
+          bash -n scripts/backup_offbox.sh
+          bash -n scripts/restore_offbox.sh
+          bash -n scripts/backup_restore_acceptance.sh
+          bash -n scripts/check_netadmin.sh
+          bash -n scripts/disable_live_mode.sh
+          bash -n scripts/enable_live_mode.sh
           bash -n scripts/defense_check.sh
           bash -n scripts/quality_check.sh
 
@@ -63,9 +71,10 @@ jobs:
 
       - name: Isolated firewall namespace acceptance
         run: |
-          sudo apt-get update
-          sudo apt-get install -y iproute2 iptables
           sudo bash scripts/firewall_namespace_acceptance.sh
+
+      - name: Backup and recovery acceptance
+        run: bash scripts/backup_restore_acceptance.sh
 
       - name: Document supported platform
         run: |
