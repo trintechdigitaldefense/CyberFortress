@@ -1,6 +1,6 @@
 # CyberFortress — Feature Register
 
-**Current hardening checkpoint:** `hardening/cyberfortress-final-release` @ `7bc892b20f7a715bf2900b7c358b32f707b9680b`  
+**Current hardening checkpoint:** `hardening/cyberfortress-final-release` @ `3751b7058694498421ff98d58e70b9ff6a919c65`  
 **Purpose:** Distinguish source presence from verified product capability.
 
 Status meanings:
@@ -28,7 +28,7 @@ Status meanings:
 | WhatsApp approval | `agents/whatsapp_webhook.py`, `core/whatsapp_gateway.py`, `core/defense.py` | IMPLEMENTED_BUT_UNVERIFIED | Unit tests pass for signature, configured startup secrets, nonce expiry, replay and atomic decision; live Meta integration/soak remains |
 | ROE/sign-off | `core/roe.py`, `core/readiness.py` | IMPLEMENTED_BUT_UNVERIFIED | Fail-closed missing/invalid sign-off tests pass; full client engagement expiry, scope and revocation acceptance remains |
 | Autonomy and approval tiers | `core/autonomy.py`, `core/circuit_breaker.py`, `core/containment/drivers.py` | IMPLEMENTED_BUT_UNVERIFIED | Tests cover driver failure, dry-run vs execution, process termination verification and no force bypass of Tier-2 approval; live isolated-VM proof remains |
-| Firewall containment | `core/containment/*`, `agents/firewall_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | Mocked acceptance covers ROE, bidirectional apply verification, partial rollback and read-back failure; isolated-VM apply/verify/rollback still required |
+| Firewall containment | `core/containment/*`, `agents/firewall_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | Mocked acceptance and ephemeral Ubuntu network-namespace apply/bidirectional-verify/rollback pass; client VM recovery, protected-target and deployment-profile review remains |
 | Tenant isolation | `core/tenant.py`, `tenant_guard.py`, SOC RBAC | IMPLEMENTED_BUT_UNVERIFIED | Cross-tenant adversarial tests for every resource/API |
 | SIEM/API integration | `core/soc/siem.py`, `agents/siem_bridge_agent.py`, `soc_api_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | Ingest-token enforcement and trusted tenant stamping pass tests; retry, backpressure and delivery soak remain |
 | Playbooks/SOAR | `core/soc/playbooks.py`, `playbooks/*` | IMPLEMENTED_BUT_UNVERIFIED | Dry-run, authorisation, idempotency, timeout and rollback |
@@ -42,4 +42,4 @@ Update this file whenever a capability changes. A status may advance to IMPLEMEN
 
 ## Current verification checkpoint
 
-CI run [42522541273](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42522541273) passed with 128 tests, Ruff, Bandit, pip-audit and repository security checks. This is automated evidence only; rows remain UNVERIFIED where live integration, isolated-VM operation, soak, concurrency or independent review is still outstanding.
+CI run [42522941703](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42522941703) passed with 128 tests, Ruff, Bandit, pip-audit, repository security checks and isolated firewall namespace apply/verify/rollback. This is automated evidence only; rows remain UNVERIFIED where live integration, isolated-VM operation, soak, concurrency or independent review is still outstanding.
