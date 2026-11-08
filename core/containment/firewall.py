@@ -260,8 +260,18 @@ def block_ip(
         result["circuit"] = True
         return result
 
-    if _already_blocked(target):
-        result["verify"] = verify_block(target)
+    try:
+        already_blocked = _already_blocked(target)
+    except Exception as exc:
+        result["details"] = f"Unable to inspect existing firewall rules: {exc}"
+        return result
+
+    if already_blocked:
+        try:
+            result["verify"] = verify_block(target)
+        except Exception as exc:
+            result["details"] = f"Unable to verify existing firewall rules: {exc}"
+            return result
         result["success"] = bool(result["verify"].get("verified") and result["verify"].get("bidirectional"))
         result["details"] = (
             f"already present and verified in {CHAIN} for {target}"
@@ -294,7 +304,12 @@ def block_ip(
             return result
         inserted.append(cmd)
 
-    verification = verify_block(target)
+    try:
+        verification = verify_block(target)
+    except Exception as exc:
+        result["details"] = f"Firewall insertion completed but read-back failed: {exc}"
+        result["verify"] = {"verified": False, "bidirectional": False, "message": "read-back failed"}
+        return result
     result["verify"] = verification
     result["success"] = bool(verification.get("verified") and verification.get("bidirectional"))
     result["details"] = f"Inserted and verified bidirectional DROP in {CHAIN} for {target}"
@@ -357,7 +372,12 @@ def unblock_ip(target: str, dry_run: bool = True, roe_action: str = "unblock_ip"
         result["details"] = f"Unable to verify rollback from {CHAIN}: {detail}"
         result["verify"] = {"cleared": False, "message": "firewall read-back failed"}
         return result
-    remaining = _already_blocked(target)
+    try:
+        remaining = _already_blocked(target)
+    except Exception as exc:
+        result["details"] = f"Firewall rollback read-back failed: {exc}"
+        result["verify"] = {"cleared": False, "message": "firewall state unreadable"}
+        return result
     result["success"] = not remaining
     result["details"] = f"Removed rules for {target} in {CHAIN} (deleted={removed})"
     result["verify"] = {
