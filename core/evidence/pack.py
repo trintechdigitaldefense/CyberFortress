@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger("cf_evidence")
 
 EVIDENCE_ROOT = Path(os.getenv("CF_EVIDENCE_DIR", "./evidence"))
-AUDIT_PATH = Path(os.getenv("CF_AUDIT_PATH", "./logs/cma_audit.jsonl"))
+AUDIT_PATH = Path(os.getenv("CF_AUDIT_PATH", os.getenv("CF_CMA_AUDIT_LOG", "./logs/cma_audit.jsonl")))
 
 
 def _esc(val: Any) -> str:
