@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
@@ -57,16 +58,43 @@ class SessionKiller(ContainmentDriver):
             "details": "",
         }
         try:
+            if self.dry_run:
+                result["details"] = f"[DRY-RUN] Would terminate session/process {target}"
+                result["success"] = True
+                return result
             if target.isdigit():
-                cmd = ["kill", "-9", target]
+                pid = int(target)
+                completed = self._run(["kill", "-9", str(pid)])
+                if completed.returncode != 0:
+                    detail = (completed.stderr or b"").decode(errors="replace")[:200]
+                    raise RuntimeError(detail or f"kill exited {completed.returncode}")
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    result["verification"] = {"verified": True, "method": "pid_absent"}
+                    result["success"] = True
+                    result["details"] = f"Process {pid} is no longer present"
+                except PermissionError as exc:
+                    result["details"] = f"Cannot verify process termination: {exc}"
+                else:
+                    result["verification"] = {"verified": False, "method": "pid_still_present"}
+                    result["details"] = f"Process {pid} remains present after termination request"
             else:
-                cmd = ["loginctl", "terminate-user", target]
-            completed = self._run(cmd)
-            if completed.returncode != 0:
-                detail = (completed.stderr or b"").decode(errors="replace")[:200]
-                raise RuntimeError(detail or f"command exited {completed.returncode}")
-            result["details"] = f"Session/process termination command succeeded for {target}"
-            result["success"] = True
+                completed = self._run(["loginctl", "terminate-user", target])
+                if completed.returncode != 0:
+                    detail = (completed.stderr or b"").decode(errors="replace")[:200]
+                    raise RuntimeError(detail or f"loginctl exited {completed.returncode}")
+                listing = self._run(["loginctl", "list-sessions", "--no-legend"])
+                if listing.returncode != 0:
+                    raise RuntimeError("unable to verify remaining login sessions")
+                rows = (listing.stdout or b"").decode(errors="replace").splitlines()
+                remains = any(len(row.split()) >= 3 and row.split()[2] == target for row in rows)
+                result["verification"] = {"verified": not remains, "method": "loginctl_list_sessions"}
+                result["success"] = not remains
+                result["details"] = (
+                    f"No login sessions remain for {target}"
+                    if not remains else f"Login sessions remain for {target}"
+                )
         except Exception as e:
             result["details"] = str(e)
         return result
