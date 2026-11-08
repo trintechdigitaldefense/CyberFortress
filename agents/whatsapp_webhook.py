@@ -75,7 +75,7 @@ def record_decision(
             try:
                 with os.fdopen(fd, "wb") as stream:
                     os.fchmod(stream.fileno(), 0o600)
-                    stream.write((json.dumps(expired_payload, sort_keys=True) + "\\n").encode("utf-8"))
+                    stream.write((json.dumps(expired_payload, sort_keys=True) + "\n").encode("utf-8"))
                     stream.flush()
                     os.fsync(stream.fileno())
                 try:
