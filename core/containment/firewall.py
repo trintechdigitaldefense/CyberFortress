@@ -354,7 +354,12 @@ def block_ip(
     return result
 
 
-def unblock_ip(target: str, dry_run: bool = True, roe_action: str = "unblock_ip") -> Dict[str, Any]:
+def unblock_ip(
+    target: str,
+    dry_run: bool = True,
+    roe_action: str = "unblock_ip",
+    comment: str = "CyberFortress",
+) -> Dict[str, Any]:
     ipt = _iptables_bin()
     live = _live()
     result: Dict[str, Any] = {
@@ -395,9 +400,10 @@ def unblock_ip(target: str, dry_run: bool = True, roe_action: str = "unblock_ip"
         return result
 
     removed = 0
+    cmt = re.sub(r"[^A-Za-z0-9_.:-]", "_", comment)[:48]
     for _ in range(12):
         for flag in ("-s", "-d"):
-            cmd = [ipt, "-D", CHAIN, flag, target, "-j", "DROP"]
+            cmd = [ipt, "-D", CHAIN, flag, target, "-j", "DROP", "-m", "comment", "--comment", cmt]
             r = _run_block(cmd, dry_run=False)
             if r.returncode == 0:
                 removed += 1
