@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+import signal
 import subprocess
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
@@ -64,22 +66,31 @@ class SessionKiller(ContainmentDriver):
                 return result
             if target.isdigit():
                 pid = int(target)
-                completed = self._run(["kill", "-9", str(pid)])
-                if completed.returncode != 0:
-                    detail = (completed.stderr or b"").decode(errors="replace")[:200]
-                    raise RuntimeError(detail or f"kill exited {completed.returncode}")
+                if pid <= 1 or pid == os.getpid():
+                    result["details"] = "Refusing to terminate PID 0, PID 1, or the CyberFortress process"
+                    return result
                 try:
-                    os.kill(pid, 0)
+                    os.kill(pid, signal.SIGKILL)
                 except ProcessLookupError:
                     result["verification"] = {"verified": True, "method": "pid_absent"}
                     result["success"] = True
-                    result["details"] = f"Process {pid} is no longer present"
-                except PermissionError as exc:
-                    result["details"] = f"Cannot verify process termination: {exc}"
+                    result["details"] = f"Process {pid} was already absent"
                 else:
-                    result["verification"] = {"verified": False, "method": "pid_still_present"}
-                    result["details"] = f"Process {pid} remains present after termination request"
+                    try:
+                        os.kill(pid, 0)
+                    except ProcessLookupError:
+                        result["verification"] = {"verified": True, "method": "pid_absent"}
+                        result["success"] = True
+                        result["details"] = f"Process {pid} is no longer present"
+                    except PermissionError as exc:
+                        result["details"] = f"Cannot verify process termination: {exc}"
+                    else:
+                        result["verification"] = {"verified": False, "method": "pid_still_present"}
+                        result["details"] = f"Process {pid} remains present after termination request"
             else:
+                if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]{0,31}", target):
+                    result["details"] = "Invalid session username"
+                    return result
                 completed = self._run(["loginctl", "terminate-user", target])
                 if completed.returncode != 0:
                     detail = (completed.stderr or b"").decode(errors="replace")[:200]
