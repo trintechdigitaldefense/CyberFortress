@@ -36,9 +36,9 @@ class IPTablesDriver(ContainmentDriver):
 
         dry = self.dry_run
         action = (action or "block_ip").lower()
-        if action in ("block_ip", "isolate_endpoint", "subnet_isolation"):
+        if action in ("block_ip", "isolate_endpoint"):
             return fw.block_ip(target, dry_run=dry, roe_action=action)
-        if action in ("unblock_ip", "restore_endpoint", "restore_subnet"):
+        if action in ("unblock_ip", "restore_endpoint"):
             return fw.unblock_ip(target, dry_run=dry, roe_action=action)
         return {"success": False, "dry_run": dry, "details": f"unsupported firewall action: {action}"}
 
@@ -103,8 +103,6 @@ def get_driver(action: str, dry_run: bool = True) -> ContainmentDriver:
         "unblock_ip",
         "isolate_endpoint",
         "restore_endpoint",
-        "subnet_isolation",
-        "restore_subnet",
     ):
         return IPTablesDriver(dry_run=dry_run)
     if action in ("terminate_session",):
