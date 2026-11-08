@@ -107,14 +107,8 @@ def append_chained(path: Path, entry: Dict[str, Any]) -> Dict[str, Any]:
         with open(path, "a", encoding="utf-8") as f:
             f.write(line)
             f.flush()
-            try:
-                os.fsync(f.fileno())
-            except OSError:
-                pass
-        try:
-            os.chmod(path, 0o640)
-        except OSError:
-            pass
+            os.fsync(f.fileno())
+        os.chmod(path, 0o640)
         return entry
     finally:
         try:
