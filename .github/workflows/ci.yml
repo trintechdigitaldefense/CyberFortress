@@ -51,8 +51,12 @@ jobs:
       - name: pip-audit (blocking)
         run: pip-audit -r requirements.txt
 
-      - name: Audit chain script present
-        run: test -f scripts/verify_audit_chain.py
+      - name: Audit and acceptance script syntax
+        run: |
+          test -f scripts/verify_audit_chain.py
+          bash -n scripts/firewall_namespace_acceptance.sh
+          bash -n scripts/defense_check.sh
+          bash -n scripts/quality_check.sh
 
       - name: Defense posture script
         run: bash scripts/defense_check.sh
