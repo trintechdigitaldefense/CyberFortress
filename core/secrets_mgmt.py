@@ -68,7 +68,7 @@ def write_secret_file(name: str, value: str) -> Path:
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(directory, 0o700)
     target = directory / f"{name}.secret"
-    _atomic_private_write(target, value + "\\n")
+    _atomic_private_write(target, value + "\n")
     return target
 
 
@@ -98,5 +98,5 @@ def rotate_env_keys(path: Path, names: Iterable[str]) -> Dict[str, str]:
     for name, value in rotated.items():
         if name not in seen:
             output.append(f"{name}={value}")
-    _atomic_private_write(target, "\\n".join(output) + "\\n")
+    _atomic_private_write(target, "\n".join(output) + "\n")
     return rotated
