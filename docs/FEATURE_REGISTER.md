@@ -33,7 +33,8 @@ Status meanings:
 | SIEM/API integration | `core/soc/siem.py`, `agents/siem_bridge_agent.py`, `soc_api_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | Ingest-token enforcement and trusted tenant stamping pass tests; retry, backpressure and delivery soak remain |
 | Playbooks/SOAR | `core/soc/playbooks.py`, `playbooks/*` | IMPLEMENTED_BUT_UNVERIFIED | Dry-run, authorisation, idempotency, timeout and rollback |
 | Deployment profiles | `install.sh`, `start.sh`, Docker Compose, `scripts/*preflight*` | IMPLEMENTED_BUT_UNVERIFIED | Termux/proot and standard Docker forced monitoring-only; native Linux VM is candidate live profile; actual client install/upgrade/soak/restore remain |
-| Secrets management | `core/secrets_mgmt.py` | IMPLEMENTED_BUT_UNVERIFIED | Secure token generation, private file writes, env rotation and permission checks pass unit tests; operator recovery/rotation drill remains |\n| Client branding | README text identity; no dedicated image assets found in inspected tree | PARTIALLY_IMPLEMENTED | Approved logo pack, dashboard/report integration and brand review |
+| Secrets management | `core/secrets_mgmt.py` | IMPLEMENTED_BUT_UNVERIFIED | Secure token generation, private file writes, env rotation and permission checks pass unit tests; operator recovery/rotation drill remains |
+| Client branding | README text identity; no dedicated image assets found in inspected tree | PARTIALLY_IMPLEMENTED | Approved logo pack, dashboard/report integration and brand review |
 
 ## Register maintenance
 
