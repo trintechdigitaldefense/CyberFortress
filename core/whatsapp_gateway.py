@@ -240,7 +240,7 @@ def request_approval(
     justification: str = "Authorized defensive action under TT Computer Misuse Act",
 ) -> bool:
     request_id = f"CF-{int(time.time())}-{secrets.token_hex(3)}"
-    nonce = secrets.token_hex(3).upper()
+    nonce = secrets.token_hex(32).upper()
 
     meta = {
         "request_id": request_id,
