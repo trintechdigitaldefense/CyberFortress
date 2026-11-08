@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import logging
 import os
-import urllib.request
+from urllib.parse import urlparse
+
+import requests
 from pathlib import Path
 from typing import Dict, Set
 
@@ -40,8 +42,13 @@ def refresh_url() -> int:
     if not url:
         return 0
     try:
-        with urllib.request.urlopen(url, timeout=15) as resp:
-            text = resp.read().decode("utf-8", errors="replace")
+        parsed = urlparse(url)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+            logger.warning("TI feed URL rejected: HTTPS URL with hostname required")
+            return 0
+        response = requests.get(url, timeout=15, allow_redirects=False)
+        response.raise_for_status()
+        text = response.text
         dest = TI_DIR / "feed_url.txt"
         dest.write_text(text, encoding="utf-8")
         load_local()
