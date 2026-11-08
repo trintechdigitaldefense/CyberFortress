@@ -67,6 +67,8 @@ def _auth_ok(handler):
                 return False
             handler.dashboard_role = role
             return True
+        if not DASH_PASS:
+            return False
         ok = hmac.compare_digest(user, DASH_USER) and hmac.compare_digest(password, DASH_PASS)
         if ok:
             handler.dashboard_role = DASH_ROLE
