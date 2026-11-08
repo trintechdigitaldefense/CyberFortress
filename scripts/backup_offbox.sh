@@ -1,58 +1,60 @@
 #!/usr/bin/env bash
-# CyberFortress off-box backup for logs/ and evidence/
-# Prefer rsync/scp to a remote host or mounted volume outside the primary box.
-#
-# Usage:
-#   export CF_BACKUP_DEST=/mnt/offbox/cyberfortress-backups
-#   # or: export CF_BACKUP_DEST=user@backup-host:/path/cf-backups
-#   ./scripts/backup_offbox.sh
-#
-# Cron example (daily 02:15):
-#   15 2 * * * cd /opt/CyberFortress && ./scripts/backup_offbox.sh >> logs/backup.log 2>&1
-
+# Create and verify an off-box backup of operational logs and evidence.
+# Secrets, .env, sign-off files and pending WhatsApp decisions are excluded.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="${CF_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 DEST="${CF_BACKUP_DEST:-}"
 STAMP="$(date -u +%Y%m%d_%H%M%S)"
 NAME="cf_backup_${STAMP}"
 
 if [[ -z "$DEST" ]]; then
-  echo "[!] Set CF_BACKUP_DEST to an off-box path or user@host:/path"
-  echo "    Example: export CF_BACKUP_DEST=/mnt/nas/cyberfortress-backups"
+  echo "[!] Set CF_BACKUP_DEST to an off-box path or user@host:/path" >&2
   exit 1
 fi
+for cmd in rsync tar sha256sum; do
+  command -v "$cmd" >/dev/null 2>&1 || {
+    echo "[!] Required backup command missing: $cmd" >&2
+    exit 1
+  }
+done
+[[ -d "$ROOT" ]] || { echo "[!] Backup source root missing: $ROOT" >&2; exit 1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$TMP/$NAME/logs" "$TMP/$NAME/evidence"
 
-mkdir -p "$TMP/$NAME"
+if [[ -d "$ROOT/logs" ]]; then
+  rsync -a --exclude 'whatsapp_pending/*.decision' "$ROOT/logs/" "$TMP/$NAME/logs/"
+fi
+if [[ -d "$ROOT/evidence" ]]; then
+  rsync -a "$ROOT/evidence/" "$TMP/$NAME/evidence/"
+fi
 
-# Copy critical operational data
-[[ -d "$ROOT/logs" ]] && rsync -a --exclude 'whatsapp_pending/*.decision' "$ROOT/logs/" "$TMP/$NAME/logs/" || true
-[[ -d "$ROOT/evidence" ]] && rsync -a "$ROOT/evidence/" "$TMP/$NAME/evidence/" || true
-
-# Manifest
 {
   echo "generated_utc=$STAMP"
   echo "host=$(hostname -f 2>/dev/null || hostname)"
   echo "containment_live=${CF_CONTAINMENT_LIVE:-false}"
-  find "$TMP/$NAME" -type f | wc -l | xargs -I{} echo "file_count={}"
+  echo "source_profile=logs+evidence_only"
+  echo "file_count=$(find "$TMP/$NAME" -type f | wc -l | tr -d ' ')"
 } > "$TMP/$NAME/BACKUP_MANIFEST.txt"
 
 ARCHIVE="$TMP/${NAME}.tar.gz"
 tar -C "$TMP" -czf "$ARCHIVE" "$NAME"
-
-echo "[+] Archive: $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
+tar -tzf "$ARCHIVE" >/dev/null
+(
+  cd "$TMP"
+  sha256sum "$(basename "$ARCHIVE")" > "$(basename "$ARCHIVE").sha256"
+)
 
 if [[ "$DEST" == *:* ]] && [[ "$DEST" != /* ]]; then
-  # remote scp target user@host:path
-  scp -q "$ARCHIVE" "$DEST/"
-  echo "[+] Uploaded to $DEST/"
+  scp -q "$ARCHIVE" "$ARCHIVE.sha256" "$DEST/"
+  echo "[+] Uploaded archive and SHA-256 sidecar to $DEST/"
 else
   mkdir -p "$DEST"
-  cp "$ARCHIVE" "$DEST/"
-  echo "[+] Copied to $DEST/$(basename "$ARCHIVE")"
+  cp "$ARCHIVE" "$ARCHIVE.sha256" "$DEST/"
+  echo "[+] Copied archive and SHA-256 sidecar to $DEST/"
 fi
 
-echo "[+] Off-box backup complete"
+echo "[+] Backup archive integrity verified before transfer."
+echo "[+] Backup complete: $(basename "$ARCHIVE")"
