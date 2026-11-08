@@ -70,10 +70,37 @@ start_local() {
 
   start_bg() {
     local name="$1"; shift
+    local pid_file="$PID_DIR/${name}.pid"
     local log="$ROOT/logs/${name}.out"
+    local expected_module=""
+    local recorded_pid=""
+    local command_line=""
+
+    if [[ "${1:-}" == "python" || "${1:-}" == "python3" ]] && [[ "${2:-}" == "-m" ]]; then
+      expected_module="${3:-}"
+    fi
+
+    # Avoid duplicate launches, and never trust a PID file without checking identity.
+    if [[ -f "$pid_file" ]]; then
+      recorded_pid="$(cat "$pid_file" 2>/dev/null || true)"
+      if [[ "$recorded_pid" =~ ^[0-9]+$ ]] && [[ "$recorded_pid" -gt 1 ]] && kill -0 "$recorded_pid" 2>/dev/null; then
+        if [[ -r "/proc/$recorded_pid/cmdline" ]]; then
+          command_line="$(tr '\\0' ' ' < "/proc/$recorded_pid/cmdline" 2>/dev/null || true)"
+        elif command -v ps >/dev/null 2>&1; then
+          command_line="$(ps -p "$recorded_pid" -o args= 2>/dev/null || true)"
+        fi
+        if [[ -n "$expected_module" && "$command_line" == *python* && "$command_line" == *"$expected_module"* ]]; then
+          echo "  · $name already running (pid $recorded_pid); skipping duplicate"
+          return 0
+        fi
+      fi
+      # Stale or mismatched PID record: discard the record, never signal its PID.
+      rm -f -- "$pid_file"
+    fi
+
     nohup "$@" >"$log" 2>&1 &
     local pid=$!
-    echo "$pid" >"$PID_DIR/${name}.pid"
+    echo "$pid" >"$pid_file"
     echo "  · $name started (pid $pid)"
   }
 
