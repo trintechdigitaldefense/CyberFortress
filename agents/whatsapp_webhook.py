@@ -40,7 +40,7 @@ PORT = int(os.getenv("CF_WHATSAPP_WEBHOOK_PORT", "8089"))
 PENDING_DIR.mkdir(parents=True, exist_ok=True)
 
 APPROVE_RE = re.compile(r"^APPROVE\s+([A-Fa-f0-9]{4,64})$", re.I)
-DENY_RE = re.compile(r"^DENY\s+([A-Fa-f0-9]{4,12})$", re.I)
+DENY_RE = re.compile(r"^DENY\s+([A-Fa-f0-9]{4,64})$", re.I)
 
 
 def record_decision(
@@ -274,7 +274,7 @@ def main():
     logger.info("Approvals require: APPROVE <nonce> from registered admin only")
     bind = assert_safe_bind(os.getenv("CF_WHATSAPP_WEBHOOK_BIND", "127.0.0.1"), "whatsapp_webhook")
     if os.getenv("CF_ALLOW_PUBLIC_BIND", "false").lower() in ("1", "true", "yes"):
-        bind = os.getenv("CF_WHATSAPP_WEBHOOK_BIND", "0.0.0.0")
+        bind = os.getenv("CF_WHATSAPP_WEBHOOK_BIND", bind)
     logger.info("Webhook bind=%s port=%s", bind, PORT)
     write_heartbeat("whatsapp", {"phase": "starting", "port": PORT})
     threading.Thread(target=_heartbeat_loop, name="wa-hb", daemon=True).start()
