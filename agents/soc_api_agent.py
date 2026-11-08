@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import hmac
 import os
 import threading
 import time
@@ -17,12 +18,12 @@ from core.soc.event_bus import get_bus
 from core.watchdog import write_heartbeat
 
 try:
-    from core.defense import rate_limiter, secure_headers
+    from core.defense import rate_limit_allow, security_headers
 except Exception:
-    rate_limiter = None
+    rate_limit_allow = None
 
-    def secure_headers():
-        return {}
+    def security_headers(handler):
+        return None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -63,9 +64,10 @@ class Handler(BaseHTTPRequestHandler):
             users = os.getenv("CF_SOC_USERS", "")
             for part in users.split(","):
                 bits = part.strip().split(":")
-                if len(bits) >= 3 and bits[2] == token:
+                if len(bits) >= 3 and hmac.compare_digest(bits[2], token):
                     return bits[1]
-            if os.getenv("CF_DASHBOARD_PASS") and token == os.getenv("CF_DASHBOARD_PASS"):
+            dashboard_pass = os.getenv("CF_DASHBOARD_PASS", "")
+            if dashboard_pass and hmac.compare_digest(dashboard_pass, token):
                 return "operator"
             return None
         if header.startswith("Basic "):
@@ -81,11 +83,7 @@ class Handler(BaseHTTPRequestHandler):
         body = json.dumps(obj, default=str).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
-        try:
-            for k, v in (secure_headers() or {}).items():
-                self.send_header(k, v)
-        except Exception:
-            pass
+        security_headers(self)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -96,7 +94,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(401)
             self.end_headers()
             return
-        if rate_limiter is not None and not rate_limiter.allow(self.client_address[0]):
+        if rate_limit_allow is not None and not rate_limit_allow(self.client_address[0]):
             self._json(429, {"ok": False, "error": "rate limited"})
             return
         path = urlparse(self.path).path
@@ -111,6 +109,7 @@ class Handler(BaseHTTPRequestHandler):
             text = metrics.prometheus_text().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; version=0.0.4")
+            security_headers(self)
             self.send_header("Content-Length", str(len(text)))
             self.end_headers()
             self.wfile.write(text)
