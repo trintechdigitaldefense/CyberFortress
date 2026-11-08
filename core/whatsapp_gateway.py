@@ -201,15 +201,11 @@ def log_approval_event(
         "sender_hash": sender_hash,
         "nonce": nonce,
     }
-    try:
-        from core.audit_chain import append_chained
+    from core.audit_chain import append_chained
 
-        append_chained(AUDIT_PATH, entry)
-    except Exception:
-        AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(AUDIT_PATH, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-    logger.info(f"Approval audit: {result} for {request_id}")
+    # Fail closed: approval processing must not downgrade to unchained logging.
+    append_chained(AUDIT_PATH, entry)
+    logger.info("Approval audit: %s for %s", result, request_id)
 
 
 def list_pending() -> list:
