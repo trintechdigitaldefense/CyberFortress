@@ -40,7 +40,7 @@ class IPTablesDriver(ContainmentDriver):
             return fw.block_ip(target, dry_run=dry)
         if action in ("unblock_ip", "restore_endpoint", "restore_subnet"):
             return fw.unblock_ip(target, dry_run=dry)
-        return fw.block_ip(target, dry_run=dry)
+        return {"success": False, "dry_run": dry, "details": f"unsupported firewall action: {action}"}
 
 
 class SessionKiller(ContainmentDriver):
@@ -106,9 +106,9 @@ def get_driver(action: str, dry_run: bool = True) -> ContainmentDriver:
         "subnet_isolation",
         "restore_subnet",
     ):
-        raise ValueError(f"unsupported containment action: {action}")
+        return IPTablesDriver(dry_run=dry_run)
     if action in ("terminate_session",):
         return SessionKiller(dry_run=dry_run)
     if action in ("deploy_decoy",):
         return DecoyDeployer(dry_run=dry_run)
-    return IPTablesDriver(dry_run=dry_run)
+    raise ValueError(f"unsupported containment action: {action}")
