@@ -27,3 +27,12 @@ The README's old version and any outdated readiness/marketing claims must be cor
 |---|---|---|
 | 0.6.0-rc1 | Current hardening development track | Root `VERSION` at baseline commit `eaffd671f5802d2c20b80110f624b9aac0f868bf` |
 | 1.0.0 | Target final release | Not released; all acceptance gates outstanding |
+
+
+## 2026-11-08 hardening checkpoint (not a release)
+
+- Hardening branch head at checkpoint: `7bc892b20f7a715bf2900b7c358b32f707b9680b`.
+- CI run: [42522541273](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42522541273) — all configured checks passed, including 128 tests, Ruff, Bandit and pip-audit.
+- P0 security controls have passed their current automated gate.
+- Mocked firewall acceptance has begun; isolated Linux VM verification and all remaining roadmap gates are still outstanding.
+- No version tag was created. v1.0.0 remains unreleased and CyberFortress is not yet client-ready.
