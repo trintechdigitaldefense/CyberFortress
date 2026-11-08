@@ -14,7 +14,7 @@ from core.telemetry.api_connectors import SentinelAPIConnector, MirageAPIConnect
 from core.telemetry.host_signals import HostLogAdapter, HostResourceAdapter
 from core.escalation import ingest_event, recommend_playbook, AlertLevel
 from core.autonomy import execute_with_autonomy
-from core.rules import resolve_playbook, pack_summary
+from core.rules import resolve_playbook
 from core.monitoring_metrics import record_events, record_adapter_error
 
 logger = logging.getLogger("cf_telemetry.fusion")
@@ -77,7 +77,7 @@ class TelemetryFusion:
             "auto_executed": executed,
         }
         try:
-            from core.audit_chain import append_chained, AuditChainError
+            from core.audit_chain import append_chained
 
             append_chained(AUDIT_PATH, entry)
         except Exception as e:
