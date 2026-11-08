@@ -15,17 +15,8 @@
   "eo_policy_notes": "Internal only — do not commit policy numbers; COI offline",
   "roe_document": "path/or/filename of signed ROE PDF",
   "nda_document": "path/or/filename of signed NDA PDF",
-  "authorized_actions": [
-    "block_ip",
-    "terminate_session",
-    "deploy_decoy",
-    "isolate_endpoint",
-    "unblock_ip",
-    "restore_endpoint"
-  ],
-  "whatsapp_admins": [
-    "+18683620679"
-  ],
+  "authorized_actions": [],
+  "whatsapp_admins": [],
   "rule_pack": "smb",
   "signed_by": "Lead Operator Name",
   "signed_by_role": "TrinTech Lead Operator",
