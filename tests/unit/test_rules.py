@@ -1,5 +1,5 @@
 import os
-from core.rules import load_pack, match_rule, resolve_playbook, pack_summary, list_available_packs
+from core.rules import load_pack, match_rule, resolve_playbook, list_available_packs
 
 
 def test_default_pack_loads():
