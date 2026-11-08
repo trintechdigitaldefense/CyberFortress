@@ -23,6 +23,7 @@ RESTORED="$STAGE/$NAME"
 cmp "$FIXTURE/logs/operator.log" "$RESTORED/logs/operator.log"
 cmp "$FIXTURE/evidence/sample.txt" "$RESTORED/evidence/sample.txt"
 [[ ! -e "$RESTORED/logs/whatsapp_pending/sample.decision" ]]
+[[ ! -e "$RESTORED/logs/whatsapp_pending/sample.json" ]]
 [[ -f "$RESTORED/BACKUP_MANIFEST.txt" ]]
 
 # The restore command must refuse to overwrite an existing staging target.
