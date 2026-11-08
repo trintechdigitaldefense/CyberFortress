@@ -4,7 +4,7 @@ CyberFortress WhatsApp Webhook Receiver (hardened)
 
 - Only CF_WHATSAPP_ADMINS numbers can approve
 - Requires APPROVE <nonce> or DENY <nonce> matching pending request
-- Rate limit, body cap, optional Meta X-Hub-Signature-256
+- Rate limit, body cap, mandatory Meta X-Hub-Signature-256
 - Unknown sender → DENY-UNKNOWN-SENDER + log
 """
 
@@ -152,8 +152,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        sig = self.headers.get("X-Hub-Signature-256")
-        if not verify_meta_signature(body, sig):
+        app_secret = os.getenv("CF_WHATSAPP_APP_SECRET", "")
+        sig = self.headers.get("X-Hub-Signature-256", "")
+        if not app_secret or not sig or not verify_meta_signature(app_secret, body, sig):
             logger.warning("Invalid Meta signature from %s", client)
             self.send_response(403)
             self.end_headers()
