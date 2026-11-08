@@ -108,8 +108,8 @@ def validate_block_target(target: str) -> Dict[str, Any]:
     t = (target or "").strip()
     if not t:
         return {"ok": False, "error": "empty target"}
-    if "/" in t and os.getenv("CF_FIREWALL_ALLOW_CIDR", "false").lower() not in ("1", "true", "yes"):
-        return {"ok": False, "error": "CIDR targets are disabled by default"}
+    if "/" in t:
+        return {"ok": False, "error": "CIDR targets are not supported; supply one IP address"}
     host = t.split("/")[0].strip()
     try:
         addr = ipaddress.ip_address(host)
@@ -202,11 +202,16 @@ def _already_blocked(target: str) -> bool:
     return False
 
 
-def block_ip(target: str, dry_run: bool = True, comment: str = "CyberFortress") -> Dict[str, Any]:
+def block_ip(
+    target: str,
+    dry_run: bool = True,
+    comment: str = "CyberFortress",
+    roe_action: str = "block_ip",
+) -> Dict[str, Any]:
     ipt = _iptables_bin()
     live = _live()
     result: Dict[str, Any] = {
-        "action": "block_ip",
+        "action": roe_action,
         "target": target,
         "chain": CHAIN,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -218,8 +223,8 @@ def block_ip(target: str, dry_run: bool = True, comment: str = "CyberFortress") 
 
     if not result["dry_run"]:
         from core.roe import is_action_authorized
-        if not is_action_authorized("block_ip"):
-            result["details"] = "action block_ip not authorized by client ROE"
+        if not is_action_authorized(roe_action):
+            result["details"] = f"action {roe_action} not authorized by client ROE"
             result["rejected"] = True
             result["roe_denied"] = True
             return result
@@ -252,42 +257,54 @@ def block_ip(target: str, dry_run: bool = True, comment: str = "CyberFortress") 
         return result
 
     if _already_blocked(target):
-        result["success"] = True
-        result["details"] = f"already present in {CHAIN} for {target}"
         result["verify"] = verify_block(target)
+        result["success"] = bool(result["verify"].get("verified") and result["verify"].get("bidirectional"))
+        result["details"] = (
+            f"already present and verified in {CHAIN} for {target}"
+            if result["success"] else f"existing rules failed bidirectional verification for {target}"
+        )
         return result
 
-    ensure_chain(dry_run=False, force_infra=True)
+    chain_status = ensure_chain(dry_run=False, force_infra=True)
+    if not chain_status.get("ok"):
+        result["details"] = chain_status.get("error") or "firewall chain is not ready"
+        result["infrastructure"] = False
+        return result
     cmt = re.sub(r"[^A-Za-z0-9_.:-]", "_", comment)[:48]
     cmds = [
         [ipt, "-A", CHAIN, "-s", target, "-j", "DROP", "-m", "comment", "--comment", cmt],
         [ipt, "-A", CHAIN, "-d", target, "-j", "DROP", "-m", "comment", "--comment", cmt],
     ]
     details = []
-    ok = True
+    inserted = []
     for cmd in cmds:
-        r = _run_block(cmd, dry_run=False)
+        completed = _run_block(cmd, dry_run=False)
         details.append(" ".join(cmd[1:]))
-        if r.returncode != 0:
-            ok = False
-            if r.stderr:
-                details.append(r.stderr.decode(errors="replace")[:200])
+        if completed.returncode != 0:
+            error = (completed.stderr or b"").decode(errors="replace")[:200]
+            for prior in reversed(inserted):
+                rollback = [ipt, "-D", *prior[2:]]
+                _run_block(rollback, dry_run=False)
+            result["details"] = f"DROP insertion failed; partial changes rolled back where possible: {error}"
+            result["rollback_attempted"] = bool(inserted)
+            return result
+        inserted.append(cmd)
 
-    result["success"] = ok
-    result["details"] = f"Inserted DROP in {CHAIN} for {target}: " + "; ".join(details)
-    result["verify"] = verify_block(target) if ok else {"verified": False, "message": "insert failed"}
-    if ok and not result["verify"].get("verified"):
-        result["success"] = False
-        result["details"] += " | VERIFY FAILED: rule not found after insert"
-        logger.error("Post-action verify failed for %s", target)
+    verification = verify_block(target)
+    result["verify"] = verification
+    result["success"] = bool(verification.get("verified") and verification.get("bidirectional"))
+    result["details"] = f"Inserted and verified bidirectional DROP in {CHAIN} for {target}"
+    if not result["success"]:
+        result["details"] += " | VERIFY FAILED: both source and destination rules were not confirmed"
+        logger.error("Post-action bidirectional verification failed for %s", target)
     return result
 
 
-def unblock_ip(target: str, dry_run: bool = True) -> Dict[str, Any]:
+def unblock_ip(target: str, dry_run: bool = True, roe_action: str = "unblock_ip") -> Dict[str, Any]:
     ipt = _iptables_bin()
     live = _live()
     result: Dict[str, Any] = {
-        "action": "unblock_ip",
+        "action": roe_action,
         "target": target,
         "chain": CHAIN,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -308,8 +325,8 @@ def unblock_ip(target: str, dry_run: bool = True) -> Dict[str, Any]:
 
     if not result["dry_run"]:
         from core.roe import is_action_authorized
-        if not is_action_authorized("unblock_ip"):
-            result["details"] = "action unblock_ip not authorized by client ROE"
+        if not is_action_authorized(roe_action):
+            result["details"] = f"action {roe_action} not authorized by client ROE"
             result["rejected"] = True
             result["roe_denied"] = True
             return result
