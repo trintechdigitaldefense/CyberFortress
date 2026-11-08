@@ -69,3 +69,11 @@ def test_empty_password_refuses_auth_ok(monkeypatch):
     importlib.reload(d)
     assert d._auth_required() is True
     assert d._auth_ok(_H(auth=_basic("operator", ""))) is False
+
+
+def test_investigator_is_read_only_for_dashboard_mutations(monkeypatch):
+    monkeypatch.setenv("CF_DASHBOARD_PASS", "x")
+    monkeypatch.setenv("CF_DASHBOARD_ROLE", "investigator")
+    import agents.dashboard as d
+    importlib.reload(d)
+    assert d._can_write() is False
