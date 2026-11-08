@@ -11,7 +11,7 @@ ok()  { echo "  [+] $1"; PASS=$((PASS+1)); }
 bad() { echo "  [!] $1"; FAIL=$((FAIL+1)); }
 
 echo "=============================================="
-echo " CyberFortress — client-ready preflight"
+echo " CyberFortress — client deployment software preflight"
 echo "=============================================="
 
 echo
@@ -79,5 +79,5 @@ if [[ "$FAIL" -gt 0 ]]; then
   echo " Status: NOT client-ready until failures are fixed"
   exit 1
 fi
-echo " Status: Preflight OK — complete PILOT_DEPLOYMENT + HOST_REQUIREMENTS + ROE/NDA before live mode"
+echo " Status: Software preflight OK only. Live containment remains blocked until native-VM NET_ADMIN, client ROE/NDA, counsel review, E&O and pilot acceptance pass."
 echo "=============================================="
