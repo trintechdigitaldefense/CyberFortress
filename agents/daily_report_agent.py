@@ -122,7 +122,7 @@ def build_report() -> str:
         f"Client: {CLIENT}",
         f"Time: {now}",
         "",
-        "Mode: {mode}",
+        f"Mode: {mode}",
         f"Platform: {wd.get('overall', 'UNKNOWN')}",
         f"Circuit breaker: {breaker_state}",
         f"Firewall: {fw_msg}",
