@@ -63,7 +63,8 @@ def _auth_ok(handler):
 
 # operator | admin | investigator | auditor (read-only)
 DASH_ROLE = os.getenv("CF_DASHBOARD_ROLE", "operator").strip().lower() or "operator"
-_WRITE_ROLES = frozenset({"operator", "admin", "investigator"})
+_VALID_ROLES = frozenset({"operator", "admin", "investigator", "auditor"})
+_WRITE_ROLES = frozenset({"operator", "admin"})
 
 
 def _can_write() -> bool:
@@ -446,6 +447,8 @@ class ReusableHTTPServer(HTTPServer):
 
 def main():
     global BIND
+    if DASH_ROLE not in _VALID_ROLES:
+        raise SystemExit("Invalid CF_DASHBOARD_ROLE; choose operator, admin, investigator, or auditor.")
     try:
         BIND = assert_safe_bind(BIND, "dashboard")
     except NameError:
