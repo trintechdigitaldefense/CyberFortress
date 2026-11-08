@@ -10,12 +10,10 @@ mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage lo
 
 chmod +x "$ROOT/start.sh" "$ROOT/stop.sh" "$ROOT/install.sh" 2>/dev/null || true
 
-MODE="${1:-auto}"
+source "$ROOT/scripts/load_env.sh"\n\nMODE="${1:-auto}"
 
 live_flag() {
-  if [[ -f .env ]]; then
-    set -a; source .env 2>/dev/null || true; set +a
-  fi
+  load_cyberfortress_env "$ROOT/.env"
   echo "${CF_CONTAINMENT_LIVE:-false}"
 }
 
@@ -53,9 +51,7 @@ status_local() {
 start_local() {
   echo "[+] Starting CyberFortress locally (no Docker)..."
   export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
-  if [[ -f .env ]]; then
-    set -a; source .env 2>/dev/null || true; set +a
-  fi
+  load_cyberfortress_env "$ROOT/.env"
 
   # Termux and proot do not provide a dependable host firewall control plane.
   # Force monitoring-only for this runtime even if a stale .env says LIVE=true.
