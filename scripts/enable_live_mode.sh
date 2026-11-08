@@ -38,6 +38,8 @@ required_true = [
     "roe_signed",
     "nda_signed",
     "host_netadmin_verified",
+    "attorney_review_completed",
+    "eo_insurance_confirmed",
 ]
 wa_deferred = data.get("whatsapp_deferred") is True
 if not wa_deferred:
@@ -53,7 +55,7 @@ if missing:
         print("    WhatsApp: set whatsapp_deferred=true to arm without Meta creds yet")
     sys.exit(1)
 
-for field in ("client_name", "engagement_id", "signed_by", "signoff_date_utc", "client_approver"):
+for field in ("client_name", "engagement_id", "signed_by", "signoff_date_utc", "client_approver", "attorney_firm_or_counsel", "attorney_review_date_utc"):
     val = str(data.get(field, "")).strip()
     bad = (
         not val
@@ -62,6 +64,7 @@ for field in ("client_name", "engagement_id", "signed_by", "signoff_date_utc", "
         or val == "YYYY-MM-DD"
         or val == "Lead Operator Name"
         or val == "Client Contact Name"
+        or val == "Counsel name / firm"
     )
     if bad:
         print(f"[!] Replace placeholder value for: {field}")
