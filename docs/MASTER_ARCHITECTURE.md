@@ -45,9 +45,9 @@ Every transition above must be demonstrated by integration tests before it is ca
 
 ## Deployment profiles
 
-- **Android Termux / Ubuntu proot:** monitoring and reporting only unless a capability is explicitly tested and supported. Do not assume systemd or host firewall privileges.
-- **Dedicated Linux VM:** monitoring; containment remains disabled until host capability, engagement scope, sign-off, approval and rollback checks pass.
-- **Docker:** only claim host protection when networking and privileges have been explicitly designed and tested.
+- **Android Termux / Ubuntu proot:** monitoring and reporting only. `start.sh` forces LIVE=false and firewall auto-start off. Do not assume systemd or host firewall privileges.
+- **Dedicated native Linux VM:** candidate monitoring and later approved containment profile; actual client host capability, engagement scope, sign-off, approval and rollback checks are mandatory.
+- **Standard Docker Compose:** monitoring-only; no NET_ADMIN capability is granted and LIVE=false is forced. No host-firewall protection claim is supported in this profile.
 
 ## Important baseline discrepancies
 

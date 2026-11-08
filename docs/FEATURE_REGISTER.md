@@ -28,11 +28,11 @@ Status meanings:
 | WhatsApp approval | `agents/whatsapp_webhook.py`, `core/whatsapp_gateway.py`, `core/defense.py` | IMPLEMENTED_BUT_UNVERIFIED | Unit tests pass for signature, configured startup secrets, nonce expiry, replay and atomic decision; live Meta integration/soak remains |
 | ROE/sign-off | `core/roe.py`, `core/readiness.py` | IMPLEMENTED_BUT_UNVERIFIED | Fail-closed missing/invalid sign-off tests pass; full client engagement expiry, scope and revocation acceptance remains |
 | Autonomy and approval tiers | `core/autonomy.py`, `core/circuit_breaker.py`, `core/containment/drivers.py` | IMPLEMENTED_BUT_UNVERIFIED | Tests cover driver failure, dry-run vs execution, process termination verification and no force bypass of Tier-2 approval; live isolated-VM proof remains |
-| Firewall containment | `core/containment/*`, `agents/firewall_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | Mocked acceptance and ephemeral Ubuntu network-namespace apply/bidirectional-verify/rollback pass; client VM recovery, protected-target and deployment-profile review remains |
+| Firewall containment | `core/containment/*`, `agents/firewall_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | CI namespace acceptance passes effective NET_ADMIN probe, partial chain-setup rollback, bidirectional apply verification, explicit unblock and emergency disarm; client VM and protected-target acceptance remain |
 | Tenant isolation | `core/tenant.py`, `tenant_guard.py`, SOC RBAC | IMPLEMENTED_BUT_UNVERIFIED | Cross-tenant adversarial tests for every resource/API |
 | SIEM/API integration | `core/soc/siem.py`, `agents/siem_bridge_agent.py`, `soc_api_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | Ingest-token enforcement and trusted tenant stamping pass tests; retry, backpressure and delivery soak remain |
 | Playbooks/SOAR | `core/soc/playbooks.py`, `playbooks/*` | IMPLEMENTED_BUT_UNVERIFIED | Dry-run, authorisation, idempotency, timeout and rollback |
-| Deployment profiles | `install.sh`, Docker and systemd assets | IMPLEMENTED_BUT_UNVERIFIED | Clean install/upgrade/rollback on each claimed platform |
+| Deployment profiles | `install.sh`, `start.sh`, Docker Compose, `scripts/*preflight*` | IMPLEMENTED_BUT_UNVERIFIED | Termux/proot and standard Docker forced monitoring-only; native Linux VM is candidate live profile; actual client install/upgrade/soak/restore remain |
 | Secrets management | `core/secrets_mgmt.py` | IMPLEMENTED_BUT_UNVERIFIED | Secure token generation, private file writes, env rotation and permission checks pass unit tests; operator recovery/rotation drill remains |\n| Client branding | README text identity; no dedicated image assets found in inspected tree | PARTIALLY_IMPLEMENTED | Approved logo pack, dashboard/report integration and brand review |
 
 ## Register maintenance
@@ -42,4 +42,4 @@ Update this file whenever a capability changes. A status may advance to IMPLEMEN
 
 ## Current verification checkpoint
 
-CI run [42522941703](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42522941703) passed with 128 tests, Ruff, Bandit, pip-audit, repository security checks and isolated firewall namespace apply/verify/rollback. This is automated evidence only; rows remain UNVERIFIED where live integration, isolated-VM operation, soak, concurrency or independent review is still outstanding.
+CI run [42526500787](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526500787) passed with 128 tests, Ruff, Bandit, pip-audit, isolated firewall chain rollback/apply/verify/unblock/disarm, backup checksum/staged restore and deployment-profile safety. This is automated evidence only; actual client VM installation, soak, legal sign-off, live Meta integration, concurrency and independent review remain outstanding.
