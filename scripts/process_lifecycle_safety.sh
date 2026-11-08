@@ -2,7 +2,6 @@
 # Regression test: stop.sh must not kill an unrelated process from a stale/reused PID.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
 PID=""
 
@@ -15,26 +14,29 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$TMP/logs/pids"
-cp "$ROOT/stop.sh" "$TMP/stop.sh"
+# Preserve stop.sh's expected checkout layout: its PID directory is relative
+# to the parent of the script's directory.
+CHECKOUT="$TMP/repo"
+mkdir -p "$CHECKOUT/logs/pids"
+cp "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/stop.sh" "$CHECKOUT/stop.sh"
 
 python3 -c 'import time; time.sleep(60)' &
 PID=$!
-printf '%s\n' "$PID" > "$TMP/logs/pids/dashboard.pid"
+printf '%s\n' "$PID" > "$CHECKOUT/logs/pids/dashboard.pid"
 
-bash "$TMP/stop.sh"
+bash "$CHECKOUT/stop.sh"
 
 if ! kill -0 "$PID" 2>/dev/null; then
   echo "FAIL: stop.sh signalled an unrelated process"
   exit 1
 fi
 
-if [[ -e "$TMP/logs/pids/dashboard.pid" ]]; then
+if [[ -e "$CHECKOUT/logs/pids/dashboard.pid" ]]; then
   echo "FAIL: mismatched PID record was not safely discarded"
   exit 1
 fi
 
-if grep -nE 'pkill|fuser -k|free_port|lsof -t -iTCP|ss -lptn' "$ROOT/stop.sh"; then
+if grep -nE 'pkill|fuser -k|free_port|lsof -t -iTCP|ss -lptn' "$CHECKOUT/stop.sh"; then
   echo "FAIL: broad process/port termination found in stop.sh"
   exit 1
 fi
