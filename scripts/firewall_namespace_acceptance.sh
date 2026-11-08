@@ -23,7 +23,9 @@ printf '%s\n' '{"authorized_actions":["block_ip","unblock_ip"]}' > "$SIGNOFF"
 chmod 600 "$SIGNOFF"
 
 cleanup() {
-  ip netns del "$NS" >/dev/null 2>&1 || true
+  if ip netns list | awk '{print $1}' | grep -Fxq "$NS"; then
+    ip netns del "$NS"
+  fi
   rm -rf "$TMP"
 }
 trap cleanup EXIT INT TERM
