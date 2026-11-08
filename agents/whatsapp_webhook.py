@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import threading
+import tempfile
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
@@ -77,24 +78,23 @@ def record_decision(
         "received_at": time.time(),
     }
     encoded = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")
-    try:
-        fd = os.open(str(decision_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        logger.warning("Approval already consumed for %s", request_id)
-        return False
+    fd, temp_name = tempfile.mkstemp(prefix=f".{request_id}.decision.", dir=str(PENDING_DIR))
+    temp_path = Path(temp_name)
     try:
         with os.fdopen(fd, "wb") as stream:
+            os.fchmod(stream.fileno(), 0o600)
             stream.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
-    except Exception:
         try:
-            decision_path.unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
-    logger.info("Atomically recorded %s for %s nonce_ok=%s", final_decision, request_id, nonce_ok)
-    return True
+            os.link(temp_path, decision_path)
+        except FileExistsError:
+            logger.warning("Approval already consumed for %s", request_id)
+            return False
+        logger.info("Atomically recorded %s for %s nonce_ok=%s", final_decision, request_id, nonce_ok)
+        return True
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def secrets_compare(a: str, b: str) -> bool:
