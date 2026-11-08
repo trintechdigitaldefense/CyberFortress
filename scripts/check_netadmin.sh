@@ -29,21 +29,43 @@ else
   echo "  [INFO] Not root (uid $UID_NOW) — live chain setup may fail without sudo/capabilities"
 fi
 
-if command -v capsh >/dev/null 2>&1; then
-  if capsh --print 2>/dev/null | grep -qi "cap_net_admin"; then
-    ok "capsh reports CAP_NET_ADMIN in bounding/effective set (or similar)"
-  else
-    echo "  [INFO] capsh present but CAP_NET_ADMIN not clearly listed"
-  fi
-fi
-
+# A read-only iptables listing does not prove CAP_NET_ADMIN. Create an
+# unreferenced, uniquely named temporary chain, add/check/delete one TEST rule,
+# verify deletion, then remove the empty chain. No INPUT/OUTPUT/FORWARD hooks
+# or production chains are modified.
 if command -v iptables >/dev/null 2>&1; then
-  if iptables -L -n >/dev/null 2>&1; then
-    ok "iptables -L -n succeeded (netfilter reachable)"
+  PROBE_CHAIN="CFPROBE_$$_$RANDOM"
+  PROBE_IP="198.51.100.1"
+  PROBE_OK=false
+  PROBE_ERR=""
+  cleanup_probe() {
+    iptables -F "$PROBE_CHAIN" >/dev/null 2>&1 || true
+    iptables -X "$PROBE_CHAIN" >/dev/null 2>&1 || true
+  }
+  trap cleanup_probe EXIT
+  if iptables -N "$PROBE_CHAIN" 2>/tmp/cf_probe_error.txt; then
+    if iptables -A "$PROBE_CHAIN" -s "$PROBE_IP" -j DROP 2>>/tmp/cf_probe_error.txt &&
+       iptables -C "$PROBE_CHAIN" -s "$PROBE_IP" -j DROP 2>>/tmp/cf_probe_error.txt &&
+       iptables -D "$PROBE_CHAIN" -s "$PROBE_IP" -j DROP 2>>/tmp/cf_probe_error.txt &&
+       ! iptables -C "$PROBE_CHAIN" -s "$PROBE_IP" -j DROP >/dev/null 2>&1 &&
+       iptables -X "$PROBE_CHAIN" 2>>/tmp/cf_probe_error.txt; then
+      PROBE_OK=true
+      ok "CAP_NET_ADMIN effective: temporary chain/rule create, verify, delete and cleanup passed"
+      trap - EXIT
+    else
+      PROBE_ERR="$(cat /tmp/cf_probe_error.txt)"
+      bad "CAP_NET_ADMIN probe failed during rule lifecycle"
+      cleanup_probe
+      trap - EXIT
+    fi
   else
-    ERR="$(iptables -L -n 2>&1 || true)"
-    bad "iptables -L failed — host cannot use netfilter"
-    echo "         $ERR"
+    PROBE_ERR="$(cat /tmp/cf_probe_error.txt)"
+    bad "Cannot create isolated temporary firewall chain — CAP_NET_ADMIN unavailable"
+    cleanup_probe
+    trap - EXIT
+  fi
+  if [[ -n "$PROBE_ERR" ]]; then
+    echo "         $PROBE_ERR"
   fi
 fi
 
