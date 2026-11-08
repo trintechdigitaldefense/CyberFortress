@@ -70,3 +70,29 @@ def test_force_cannot_bypass_tier2_human_approval(monkeypatch):
     monkeypatch.setattr(autonomy, "write_cma_entry", lambda *a, **k: None)
     monkeypatch.setattr(autonomy, "_perform_containment", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not execute")))
     assert autonomy.execute_with_autonomy("isolate_endpoint", "192.0.2.2", force=True) is False
+
+
+def test_session_killer_requires_process_absence(monkeypatch):
+    import subprocess
+    from core.containment.drivers import SessionKiller
+
+    driver = SessionKiller(dry_run=False)
+    monkeypatch.setattr(driver, "_run", lambda cmd: subprocess.CompletedProcess(cmd, 0, b"", b""))
+    def absent(pid, sig):
+        raise ProcessLookupError()
+    monkeypatch.setattr("core.containment.drivers.os.kill", absent)
+    result = driver.execute("424242", action="terminate_session")
+    assert result["success"] is True
+    assert result["verification"]["verified"] is True
+
+
+def test_session_killer_does_not_claim_success_if_process_remains(monkeypatch):
+    import subprocess
+    from core.containment.drivers import SessionKiller
+
+    driver = SessionKiller(dry_run=False)
+    monkeypatch.setattr(driver, "_run", lambda cmd: subprocess.CompletedProcess(cmd, 0, b"", b""))
+    monkeypatch.setattr("core.containment.drivers.os.kill", lambda pid, sig: None)
+    result = driver.execute("424242", action="terminate_session")
+    assert result["success"] is False
+    assert result["verification"]["verified"] is False
