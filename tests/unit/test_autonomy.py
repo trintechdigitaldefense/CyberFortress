@@ -40,3 +40,23 @@ def test_tier1_returns_true_only_after_driver_success(monkeypatch):
     monkeypatch.setattr(autonomy, "_perform_containment", lambda *a, **k: {"success": True, "details": "verified"})
     monkeypatch.setattr(autonomy.breaker, "record", lambda *a, **k: None)
     assert autonomy.execute_with_autonomy("block_ip", "192.0.2.1") is True
+
+
+def test_dry_run_is_not_reported_as_executed(monkeypatch):
+    import core.autonomy as autonomy
+    monkeypatch.setattr(autonomy, "DRY_RUN", True)
+    monkeypatch.setattr(autonomy, "get_driver", lambda action, dry_run: type(
+        "Driver", (), {"name": "test", "execute": lambda self, **kwargs: {
+            "success": True, "dry_run": True, "details": "simulated"
+        }}
+    )())
+    result = autonomy._perform_containment("block_ip", "192.0.2.1")
+    assert result["success"] is False
+    assert result["simulated"] is True
+
+
+def test_unknown_containment_action_is_rejected():
+    import pytest
+    from core.containment.drivers import get_driver
+    with pytest.raises(ValueError):
+        get_driver("unknown_action", dry_run=False)
