@@ -1,74 +1,95 @@
-# CyberFortress Pilot Deployment Checklist
+# CyberFortress client deployment and recovery profile
 
-**TrinTech Digital Defense — Protected Asset**
+**Status: P2 hardening instructions. This document is not client acceptance or permission to arm containment.**
 
-**Mandatory** before any client network placement and **before** live mode.
+## Supported deployment profiles
 
-Related docs:
-- **Host / CAP_NET_ADMIN:** [HOST_REQUIREMENTS.md](HOST_REQUIREMENTS.md)
-- **Live WhatsApp + TLS:** [WHATSAPP_TLS.md](WHATSAPP_TLS.md)
-- **Operator process:** [OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md)
-- **Intentional live mode:** [GO_LIVE.md](GO_LIVE.md)
+| Profile | Supported use | Live firewall containment |
+|---|---|---|
+| Native Ubuntu/Debian Linux VM with effective \`CAP_NET_ADMIN\` | Monitoring and, after every legal/technical gate, approved containment | Candidate profile; must pass the host probe and client VM acceptance |
+| Android Termux / Ubuntu proot | Local monitoring, analysis and dry-run workflows | **Not supported. Forced monitoring-only by \`start.sh\`.** |
+| Standard Docker Compose profile | Isolated application services and monitoring | **Monitoring-only. Compose intentionally grants no NET_ADMIN and forces LIVE=false.** |
+| Privileged/host-network container | Not an accepted client profile in this release | Do not enable; requires a separately designed and reviewed host-network profile |
 
-```bash
-# Preflight
-./scripts/check_client_ready.sh
-./scripts/check_netadmin.sh   # required before live CF_BLOCK
-```
+Do not infer host firewall control from root UID, a successful read-only \`iptables -L\`, or a running container. The host probe must successfully create, verify, delete and clean up a temporary unreferenced firewall chain and rule.
 
----
+## Native Linux VM deployment
 
-## Hardening defaults (enforced in repo)
+1. Provision a dedicated Ubuntu 22.04+ or supported Debian VM. Confirm console/out-of-band recovery and snapshot availability before testing.
+2. Create a non-root service/operator account. Install Python 3.10+, Git, iptables, rsync and the repository's Python requirements.
+3. Obtain the approved release candidate branch and verify the commit SHA with the deployment record. Do not deploy an unreviewed working tree.
+4. Run \`./install.sh\`; keep \`.env\` mode 0600 and populate only required secrets using the approved secret-handling process.
+5. Keep \`CF_CONTAINMENT_LIVE=false\` and \`CF_FIREWALL_AUTO_START=false\`. Start with \`./start.sh local\`.
+6. Run:
+   \`\`\`bash
+   ./scripts/check_client_ready.sh
+   ./scripts/readiness_check.sh
+   ./scripts/pilot_vm_preflight.sh
+   \`\`\`
+7. Confirm health endpoints are bound to loopback, inspect service logs, verify all required agents are healthy, and complete a minimum seven-day monitoring soak before live acceptance.
+8. Configure client-specific allowlists, scope, ROE and authorized actions only from signed engagement documents. The example sign-off intentionally contains no authorized actions and no phone numbers.
+9. Before live containment, obtain signed NDA/ROE, counsel review, E&O confirmation, client approver, operator runbook acknowledgement and all required sign-off fields. WhatsApp may be deferred only if explicitly recorded as deferred.
+10. Run \`./scripts/enable_live_mode.sh --check\`. Only an authorised lead operator may then run \`--enable\` after the client change window and typed confirmation.
 
-| Control | Default | Notes |
-|---------|---------|-------|
-| `CF_CONTAINMENT_LIVE` | `false` | Enable only via `scripts/enable_live_mode.sh` |
-| `CF_WATCHDOG_FAIL_CLOSED` | `true` | Auto-trip breaker if UNHEALTHY |
-| `CF_ALLOW_FORCE` | `false` | Prefer WhatsApp APPROVE |
-| Admin ports | `127.0.0.1` | SSH tunnel / admin VPN only |
-| Containers | non-root `cfops` | uid 10001 |
-| Secrets | `.env` only | Never commit |
-| WhatsApp TLS | required for HITL | [WHATSAPP_TLS.md](WHATSAPP_TLS.md) |
-| Off-box backup | script | `scripts/backup_offbox.sh` |
+## Host capability probe
 
----
+\`scripts/check_netadmin.sh\` uses a uniquely named, unreferenced temporary chain. It adds one TEST DROP rule, checks it, removes it, confirms absence and deletes the temporary chain. It does not attach to INPUT, OUTPUT or FORWARD or alter the production \`CF_BLOCK\` chain. Any failure records \`netadmin_ok=false\`; treat the host as monitoring-only.
 
-## 0. Host (live firewall)
+The probe must be rerun on the actual client VM immediately before arming. CI namespace evidence is not a substitute for this client-specific check.
 
-- [ ] Pilot runs on **VM or bare metal** (not a netfilter-locked container)
-- [ ] `./scripts/check_netadmin.sh` passes
-- [ ] `host_netadmin_verified: true` in `config/pilot_signoff.json` before arming
+## Emergency disarm and rollback
 
-If check fails → **MONITORING only** until host is fixed.
+Run from the host with the same network namespace as the firewall agent:
 
-## 1. Legal & Authorization
+\`\`\`bash
+./scripts/disable_live_mode.sh
+./stop.sh
+./start.sh local
+./scripts/check_netadmin.sh
+iptables -S CF_BLOCK
+\`\`\`
 
-- [ ] Signed NDA ([templates/NDA_TEMPLATE.md](templates/NDA_TEMPLATE.md))
-- [ ] Signed ROE ([templates/ROE_TEMPLATE.md](templates/ROE_TEMPLATE.md)) — monitoring, listed containment actions, WhatsApp HITL
-- [ ] Primary + secondary WhatsApp admin numbers designated
-- [ ] TT Computer Misuse Act justifications accepted by client
-- [ ] Operators assigned per [OPERATOR_RUNBOOK.md](OPERATOR_RUNBOOK.md)
-- [ ] `config/pilot_signoff.json` filled (no placeholders; all flags true only after real signatures)
+The disarm script:
+- writes \`CF_CONTAINMENT_LIVE=false\` to \`.env\`;
+- flushes only the dedicated \`CF_BLOCK\` chain (not unrelated firewall chains);
+- verifies that the chain is empty; and
+- exits non-zero if it cannot inspect or verify the firewall.
 
-## 2. Technical preflight
+It intentionally leaves parent-chain jumps in place because an empty dedicated chain has no DROP rules. If disarm exits non-zero, stop CyberFortress services, preserve logs, and have the host/network administrator inspect the firewall before resuming. Never run a broad \`iptables -F\` against the host.
 
-- [ ] `./install.sh` and `./start.sh` healthy
-- [ ] Dashboard + health on localhost only
-- [ ] Dry-run pilot: `bash scripts/pilot_dry_run.sh`
-- [ ] Audit chain verifies
+## Backup and recovery
 
-## 3. WhatsApp
+Create an off-box backup of operational logs and evidence:
 
-- [ ] Meta token + phone number ID in `.env` (never committed)
-- [ ] TLS in front of webhook for inbound APPROVE
-- [ ] Test message / daily report path verified
+\`\`\`bash
+export CF_BACKUP_DEST=/mnt/secure-offbox/cyberfortress
+./scripts/backup_offbox.sh
+\`\`\`
 
-## 4. Go-live
+The script fails on copy/archive errors, verifies the tar archive, and writes a SHA-256 sidecar. It intentionally excludes \`.env\`, sign-off files, secrets and pending WhatsApp decisions. Store those sensitive configuration artifacts separately using the client's approved encrypted backup process.
 
-- [ ] `./scripts/enable_live_mode.sh --check`
-- [ ] `./scripts/enable_live_mode.sh --enable`
-- [ ] Restart; confirm `containment_live=true` and firewall not UNAVAILABLE
+Stage and verify a backup without overwriting live data:
 
----
+\`\`\`bash
+./scripts/restore_offbox.sh /path/to/cf_backup_YYYYMMDD_HHMMSS.tar.gz /secure/restore-staging
+\`\`\`
 
-*Defend. Detect. Dominate.*
+Restore verifies the SHA-256 sidecar, rejects unsafe archive members and extracts into a new staging directory. It never overwrites live \`logs/\` or \`evidence/\`. Review the staged files, compare the manifest and evidence hashes, then perform any controlled recovery while services are stopped.
+
+Run the disposable recovery acceptance before each release candidate:
+
+\`\`\`bash
+bash scripts/backup_restore_acceptance.sh
+bash scripts/firewall_namespace_acceptance.sh
+\`\`\`
+
+## P2 acceptance evidence still required
+
+- Actual client VM hostname/profile, OS/kernel, firewall backend and capability-probe output.
+- Successful clean install and service-health evidence on that VM.
+- Seven-day monitoring soak and incident/failure drill records.
+- Backup transfer to the client's approved off-box destination and a witnessed staged restore.
+- Client-specific allowlist, ROE scope, legal approval, E&O confirmation and signed change window.
+- Client-approved containment apply, verification, emergency disarm and rollback evidence, performed only on explicitly authorised test targets.
+
+Until those records are attached to the engagement, keep the client deployment in monitoring-only mode. P3 SOC telemetry acceptance must not be declared complete in their place.
