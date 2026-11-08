@@ -145,53 +145,76 @@ def ensure_chain(dry_run: bool = False, force_infra: bool = False) -> Dict[str, 
         return {"ok": False, "error": "iptables not found on PATH", "chain": CHAIN}
 
     do_real = (not dry_run) and (live or auto or force_infra)
-
     steps = []
-    if do_real:
-        r = _run_real([ipt, "-N", CHAIN])
-        steps.append({"cmd": f"iptables -N {CHAIN}", "rc": r.returncode})
-    else:
-        logger.info("[STANDBY] Would create chain %s", CHAIN)
-        steps.append({"cmd": f"iptables -N {CHAIN}", "rc": 0, "simulated": True})
-
-    for parent in ("INPUT", "OUTPUT", "FORWARD"):
-        if do_real:
-            chk = _run_read([ipt, "-C", parent, "-j", CHAIN])
-            if chk.returncode != 0:
-                r = _run_real([ipt, "-I", parent, "1", "-j", CHAIN])
-                steps.append({"cmd": f"iptables -I {parent} -j {CHAIN}", "rc": r.returncode})
-            else:
-                steps.append({"cmd": f"iptables -C {parent} -j {CHAIN}", "rc": 0, "exists": True})
-        else:
+    if not do_real:
+        for parent in ("INPUT", "OUTPUT", "FORWARD"):
             steps.append({"cmd": f"iptables -I {parent} -j {CHAIN}", "rc": 0, "simulated": True})
+        return {
+            "ok": True,
+            "chain": CHAIN,
+            "infrastructure": False,
+            "live_mode": live,
+            "auto_start": auto,
+            "steps": steps,
+            "message": f"Chain {CHAIN} setup simulated (no host firewall changes)",
+        }
 
-    if do_real:
-        probe = _run_read([ipt, "-L", CHAIN, "-n"])
-        err = (probe.stderr or b"").decode(errors="replace").lower()
-        if probe.returncode != 0 and ("permission denied" in err or "operation not permitted" in err):
+    existing = _run_read([ipt, "-L", CHAIN, "-n"])
+    if existing.returncode != 0:
+        created = _run_real([ipt, "-N", CHAIN])
+        steps.append({"cmd": f"iptables -N {CHAIN}", "rc": created.returncode})
+        if created.returncode != 0:
+            detail = (created.stderr or b"").decode(errors="replace")[:200]
             return {
                 "ok": False,
-                "error": "Permission denied — host lacks netfilter capability (CAP_NET_ADMIN)",
+                "error": f"Unable to create firewall chain {CHAIN}: {detail}",
                 "chain": CHAIN,
                 "infrastructure": False,
                 "live_mode": live,
                 "auto_start": auto,
                 "steps": steps,
-                "message": "UNAVAILABLE: cannot manage iptables on this host",
             }
+
+    for parent in ("INPUT", "OUTPUT", "FORWARD"):
+        check = _run_read([ipt, "-C", parent, "-j", CHAIN])
+        if check.returncode != 0:
+            inserted = _run_real([ipt, "-I", parent, "1", "-j", CHAIN])
+            steps.append({"cmd": f"iptables -I {parent} -j {CHAIN}", "rc": inserted.returncode})
+            if inserted.returncode != 0:
+                detail = (inserted.stderr or b"").decode(errors="replace")[:200]
+                return {
+                    "ok": False,
+                    "error": f"Unable to attach {CHAIN} to {parent}: {detail}",
+                    "chain": CHAIN,
+                    "infrastructure": False,
+                    "live_mode": live,
+                    "auto_start": auto,
+                    "steps": steps,
+                }
+        else:
+            steps.append({"cmd": f"iptables -C {parent} -j {CHAIN}", "rc": 0, "exists": True})
+
+    probe = _run_read([ipt, "-L", CHAIN, "-n"])
+    if probe.returncode != 0:
+        detail = (probe.stderr or b"").decode(errors="replace")[:200]
+        return {
+            "ok": False,
+            "error": f"Firewall chain read-back failed: {detail}",
+            "chain": CHAIN,
+            "infrastructure": False,
+            "live_mode": live,
+            "auto_start": auto,
+            "steps": steps,
+        }
 
     return {
         "ok": True,
         "chain": CHAIN,
-        "infrastructure": do_real,
+        "infrastructure": True,
         "live_mode": live,
         "auto_start": auto,
         "steps": steps,
-        "message": (
-            f"Chain {CHAIN} ready (empty until containment actions add DROP rules)"
-            if do_real
-            else f"Chain {CHAIN} setup simulated (set CF_FIREWALL_AUTO_START=true and install iptables)"
-        ),
+        "message": f"Chain {CHAIN} ready (empty until authorised containment adds DROP rules)",
     }
 
 
