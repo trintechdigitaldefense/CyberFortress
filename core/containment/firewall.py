@@ -160,6 +160,9 @@ def ensure_chain(dry_run: bool = False, force_infra: bool = False) -> Dict[str, 
         }
 
     existing = _run_read([ipt, "-L", CHAIN, "-n"])
+    created_chain = False
+    inserted_parents: List[str] = []
+
     if existing.returncode != 0:
         created = _run_real([ipt, "-N", CHAIN])
         steps.append({"cmd": f"iptables -N {CHAIN}", "rc": created.returncode})
@@ -173,7 +176,46 @@ def ensure_chain(dry_run: bool = False, force_infra: bool = False) -> Dict[str, 
                 "live_mode": live,
                 "auto_start": auto,
                 "steps": steps,
+                "rollback_verified": False,
             }
+        created_chain = True
+
+    def rollback_setup(reason: str) -> Dict[str, Any]:
+        rollback_errors = []
+        for parent in reversed(inserted_parents):
+            removed = _run_real([ipt, "-D", parent, "-j", CHAIN])
+            steps.append({"cmd": f"iptables -D {parent} -j {CHAIN}", "rc": removed.returncode})
+            if removed.returncode != 0:
+                rollback_errors.append(f"could not remove {parent} hook")
+                continue
+            check = _run_read([ipt, "-C", parent, "-j", CHAIN])
+            if check.returncode == 0:
+                rollback_errors.append(f"{parent} hook remains after rollback")
+
+        if created_chain and not rollback_errors:
+            deleted = _run_real([ipt, "-X", CHAIN])
+            steps.append({"cmd": f"iptables -X {CHAIN}", "rc": deleted.returncode})
+            if deleted.returncode != 0:
+                rollback_errors.append("new chain could not be deleted")
+            else:
+                check_chain = _run_read([ipt, "-L", CHAIN, "-n"])
+                if check_chain.returncode == 0:
+                    rollback_errors.append("new chain still exists after rollback")
+
+        return {
+            "ok": False,
+            "error": reason + (
+                "; setup rollback failed: " + ", ".join(rollback_errors)
+                if rollback_errors else "; setup rollback verified"
+            ),
+            "chain": CHAIN,
+            "infrastructure": False,
+            "live_mode": live,
+            "auto_start": auto,
+            "steps": steps,
+            "rollback_verified": not rollback_errors,
+            "rollback_errors": rollback_errors,
+        }
 
     for parent in ("INPUT", "OUTPUT", "FORWARD"):
         check = _run_read([ipt, "-C", parent, "-j", CHAIN])
@@ -182,30 +224,15 @@ def ensure_chain(dry_run: bool = False, force_infra: bool = False) -> Dict[str, 
             steps.append({"cmd": f"iptables -I {parent} -j {CHAIN}", "rc": inserted.returncode})
             if inserted.returncode != 0:
                 detail = (inserted.stderr or b"").decode(errors="replace")[:200]
-                return {
-                    "ok": False,
-                    "error": f"Unable to attach {CHAIN} to {parent}: {detail}",
-                    "chain": CHAIN,
-                    "infrastructure": False,
-                    "live_mode": live,
-                    "auto_start": auto,
-                    "steps": steps,
-                }
+                return rollback_setup(f"Unable to attach {CHAIN} to {parent}: {detail}")
+            inserted_parents.append(parent)
         else:
             steps.append({"cmd": f"iptables -C {parent} -j {CHAIN}", "rc": 0, "exists": True})
 
     probe = _run_read([ipt, "-L", CHAIN, "-n"])
     if probe.returncode != 0:
         detail = (probe.stderr or b"").decode(errors="replace")[:200]
-        return {
-            "ok": False,
-            "error": f"Firewall chain read-back failed: {detail}",
-            "chain": CHAIN,
-            "infrastructure": False,
-            "live_mode": live,
-            "auto_start": auto,
-            "steps": steps,
-        }
+        return rollback_setup(f"Firewall chain read-back failed: {detail}")
 
     return {
         "ok": True,
