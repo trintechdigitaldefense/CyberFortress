@@ -73,8 +73,10 @@ def _perform_containment(action: str, target: str) -> dict:
         return {**result, "success": False, "simulated": True}
     verification = result.get("verify")
     if isinstance(verification, dict):
-        if action in ("block_ip", "isolate_endpoint", "subnet_isolation") and verification.get("verified") is False:
-            return {**result, "success": False, "details": "post-action verification failed"}
+        if action in ("block_ip", "isolate_endpoint", "subnet_isolation") and (
+            verification.get("verified") is not True or verification.get("bidirectional") is not True
+        ):
+            return {**result, "success": False, "details": "post-action bidirectional verification failed"}
         if action in ("unblock_ip", "restore_endpoint", "restore_subnet") and verification.get("cleared") is False:
             return {**result, "success": False, "details": "rollback verification failed"}
     logger.info("Containment driver reports verified success: %s", result.get("details"))
