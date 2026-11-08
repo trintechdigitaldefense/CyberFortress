@@ -33,6 +33,10 @@ trap cleanup EXIT INT TERM
 ip netns add "$NS"
 ip netns exec "$NS" ip link set lo up
 
+echo "Running CyberFortress host capability preflight in isolated namespace $NS"
+ip netns exec "$NS" env PYTHONPATH="$ROOT" bash "$ROOT/scripts/check_netadmin.sh"
+echo "PASS: effective NET_ADMIN rule lifecycle preflight"
+
 echo "Running CyberFortress apply/verify/rollback acceptance in $NS"
 ip netns exec "$NS" env \
   PYTHONPATH="$ROOT" \
