@@ -4,7 +4,6 @@ import json
 import subprocess
 
 from core.containment import firewall as fw
-from core.roe import SIGNOFF_PATH
 
 
 def _signoff(tmp_path, monkeypatch, actions):
