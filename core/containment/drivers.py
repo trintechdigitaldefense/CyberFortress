@@ -61,8 +61,11 @@ class SessionKiller(ContainmentDriver):
                 cmd = ["kill", "-9", target]
             else:
                 cmd = ["loginctl", "terminate-user", target]
-            self._run(cmd)
-            result["details"] = f"Session/process termination requested for {target}"
+            completed = self._run(cmd)
+            if completed.returncode != 0:
+                detail = (completed.stderr or b"").decode(errors="replace")[:200]
+                raise RuntimeError(detail or f"command exited {completed.returncode}")
+            result["details"] = f"Session/process termination command succeeded for {target}"
             result["success"] = True
         except Exception as e:
             result["details"] = str(e)
@@ -83,10 +86,10 @@ class DecoyDeployer(ContainmentDriver):
             "details": "",
         }
         try:
-            msg = f"Decoy deploy requested for {target}"
-            if self.dry_run:
-                msg = f"[DRY-RUN] {msg}"
-            result["details"] = msg
+            if not self.dry_run:
+                result["details"] = "No decoy deployment backend is configured; refusing to claim deployment success"
+                return result
+            result["details"] = f"[DRY-RUN] Would deploy decoy for {target}"
             result["success"] = True
         except Exception as e:
             result["details"] = str(e)
@@ -103,7 +106,7 @@ def get_driver(action: str, dry_run: bool = True) -> ContainmentDriver:
         "subnet_isolation",
         "restore_subnet",
     ):
-        return IPTablesDriver(dry_run=dry_run)
+        raise ValueError(f"unsupported containment action: {action}")
     if action in ("terminate_session",):
         return SessionKiller(dry_run=dry_run)
     if action in ("deploy_decoy",):
