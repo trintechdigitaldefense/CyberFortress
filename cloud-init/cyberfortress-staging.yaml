@@ -1,0 +1,62 @@
+#cloud-config
+# CyberFortress isolated native-Linux staging VM.
+# Inject a real SSH public key through the cloud provider's secure metadata UI.
+# Never place private keys, API tokens, or client data in this file.
+hostname: cyberfortress-staging
+manage_etc_hosts: true
+timezone: Etc/UTC
+package_update: true
+package_upgrade: true
+packages:
+  - git
+  - curl
+  - ca-certificates
+  - python3
+  - python3-venv
+  - python3-pip
+  - build-essential
+  - iptables
+  - iproute2
+  - nftables
+  - util-linux
+  - rsync
+  - tar
+  - jq
+  - ufw
+users:
+  - default
+  - name: cfoperator
+    gecos: CyberFortress Staging Operator
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    ssh_authorized_keys: []
+ssh_pwauth: false
+disable_root: true
+write_files:
+  - path: /etc/ssh/sshd_config.d/60-cyberfortress-staging.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+      PubkeyAuthentication yes
+  - path: /etc/motd
+    owner: root:root
+    permissions: '0644'
+    content: |
+      CyberFortress isolated staging VM.
+      Monitoring-only until explicit test approval.
+      Do not connect to client networks or enable live containment.
+runcmd:
+  - [systemctl, restart, ssh]
+  - [ufw, --force, reset]
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  # SSH only. Add a source-restricted SSH rule in the provider firewall
+  # before deployment; replace this broad host rule with your trusted IP.
+  - [ufw, allow, 22/tcp]
+  - [ufw, --force, enable]
+  - [install, -d, -o, cfoperator, -g, cfoperator, -m, '0750', /opt/cyberfortress]
+final_message: "CyberFortress staging base configured. Inject SSH key securely, restrict SSH source IP, then deploy the repository manually."
