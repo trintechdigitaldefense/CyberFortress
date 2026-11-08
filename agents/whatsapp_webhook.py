@@ -173,7 +173,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
         token = qs.get("hub.verify_token", [None])[0]
         challenge = qs.get("hub.challenge", [None])[0]
 
-        if mode == "subscribe" and token == VERIFY_TOKEN:
+        if VERIFY_TOKEN and VERIFY_TOKEN != DEFAULT_VERIFY_TOKEN and mode == "subscribe" and token == VERIFY_TOKEN:
             logger.info("Webhook verified successfully")
             self.send_response(200)
             self.end_headers()
