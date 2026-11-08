@@ -106,7 +106,8 @@ def test_expired_nonce_is_rejected(pending):
         "request_id": rid, "nonce": "AABBCC", "expires_at": time.time() - 1
     }))
     assert wh.record_decision(rid, "APPROVE", "+18680000001", "AABBCC") is False
-    assert not (d / f"{rid}.decision").exists()
+    expired = json.loads((d / f"{rid}.decision").read_text())
+    assert expired["decision"] == "DENY-EXPIRED"
 
 
 def test_nonce_can_be_consumed_only_once(pending):
