@@ -3,15 +3,15 @@
 **Target:** v1.0.0  
 **Working branch:** `hardening/cyberfortress-final-release`  
 **Baseline commit:** `eaffd671f5802d2c20b80110f624b9aac0f868bf`  
-**Overall state:** IN PROGRESS — NOT CLIENT READY.
+**Overall state:** P0 SECURITY GATE PASSED IN CI; FIREWALL ACCEPTANCE IN PROGRESS — NOT CLIENT READY.
 
 ## Phase gates
 
 | Gate | Scope | State | Exit condition |
 |---|---|---|---|
-| P0 | Repository inventory, architecture and evidence register | IN PROGRESS | All tracked files mapped; config/API/agent/containment maps complete |
-| P1 | Critical reliability/security | BLOCKED | Metrics, audit, webhook, ROE, autonomy and dashboard tests pass |
-| P2 | Firewall/containment safety | NOT STARTED | Scope, allowlist, approval, verification and rollback pass isolated-VM tests |
+| P0 | Repository inventory, architecture and evidence register | COMPLETE | 197 tracked files inventoried; architecture, feature, tracker, security and release control docs committed |
+| P1 | Critical reliability/security | COMPLETE IN CI | Autonomy result verification, webhook expiry/replay/atomicity, dashboard per-user roles, audit fail-closed, ROE and secrets/SIEM controls; full QA green |
+| P2 | Firewall/containment safety | IN PROGRESS | Mocked ROE, apply, partial rollback and read-back acceptance tests pass; isolated Linux VM apply/verify/rollback still required |
 | P3 | SOC monitoring and telemetry | NOT STARTED | Synthetic events complete collection-to-audit path without loss |
 | P4 | Incident response/case management | NOT STARTED | Full lifecycle and tenant-safe transitions pass |
 | P5 | Evidence/audit/reporting | NOT STARTED | Evidence hashes, chain verification, export and restore pass |
@@ -20,7 +20,7 @@
 | P8 | Safe SOAR/playbooks | NOT STARTED | Every playbook dry-run, approval, timeout and rollback tested |
 | P9 | Deployment profiles | NOT STARTED | Clean install/upgrade/restore on each claimed profile |
 | P10 | Branding and documentation | NOT STARTED | Approved brand assets integrated and docs match implementation |
-| P11 | Automated QA | BLOCKED | Ruff, full pytest, Bandit, pip-audit and release gate all pass |
+| P11 | Automated QA | PASSING ON CURRENT HEAD | Ruff, 128 pytest tests, Bandit, pip-audit, audit-chain script, defense posture script and platform documentation checks pass on CI |
 | P12 | Pilot soak | NOT STARTED | Internal soak, failure drills and isolated VM evidence recorded |
 | P13 | Release acceptance | NOT STARTED | Independent review and signed acceptance; v1.0.0 tag only then |
 
