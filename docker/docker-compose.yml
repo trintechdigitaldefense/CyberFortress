@@ -19,7 +19,7 @@ services:
       - ../telemetry:/app/telemetry
     environment:
       - CF_MODE=production
-      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+      - CF_CONTAINMENT_LIVE=false
       - CF_ALLOW_FORCE=${CF_ALLOW_FORCE:-false}
       - CF_AUTO_RESPOND=${CF_AUTO_RESPOND:-true}
       - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
@@ -44,7 +44,7 @@ services:
     environment:
       - CF_AUTO_RESPOND=${CF_AUTO_RESPOND:-true}
       - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
-      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+      - CF_CONTAINMENT_LIVE=false
     networks:
       - cyberfortress_net
 
@@ -79,7 +79,7 @@ services:
     environment:
       - CF_WATCHDOG_INTERVAL=60
       - CF_WATCHDOG_FAIL_CLOSED=${CF_WATCHDOG_FAIL_CLOSED:-true}
-      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+      - CF_CONTAINMENT_LIVE=false
     networks:
       - cyberfortress_net
 
@@ -89,9 +89,7 @@ services:
       dockerfile: docker/Dockerfile
     container_name: cf_firewall
     restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
+    # Standard Docker profile is monitoring-only. It has no host firewall capability.
     command: ["python3", "-m", "agents.firewall_agent"]
     env_file:
       - path: ../.env
@@ -99,8 +97,8 @@ services:
     volumes:
       - ../logs:/app/logs
     environment:
-      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
-      - CF_FIREWALL_AUTO_START=${CF_FIREWALL_AUTO_START:-true}
+      - CF_CONTAINMENT_LIVE=false
+      - CF_FIREWALL_AUTO_START=false
     networks:
       - cyberfortress_net
 
@@ -188,7 +186,7 @@ services:
       - ../secrets:/app/secrets
     environment:
       - CF_HEALTH_PORT=8090
-      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+      - CF_CONTAINMENT_LIVE=false
     networks:
       - cyberfortress_net
 
@@ -213,7 +211,7 @@ services:
       - CF_DASHBOARD_PORT=8091
       - CF_AUDIT_PATH=/app/logs/cma_audit.jsonl
       - CF_WHATSAPP_PENDING_DIR=/app/logs/whatsapp_pending
-      - CF_CONTAINMENT_LIVE=${CF_CONTAINMENT_LIVE:-false}
+      - CF_CONTAINMENT_LIVE=false
     networks:
       - cyberfortress_net
 
