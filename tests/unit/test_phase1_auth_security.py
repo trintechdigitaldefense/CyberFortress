@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from pathlib import Path
 
 
 def test_whatsapp_signature_required_when_enabled(monkeypatch):
