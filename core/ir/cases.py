@@ -156,6 +156,38 @@ class CaseStore:
             "case_dir": str(self._dir),
         }
 
+    def transition(
+        self,
+        case: IncidentCase,
+        new_status: str,
+        changed_by: str = "system",
+        reason: str = "",
+    ) -> IncidentCase:
+        allowed = {
+            "open": {"investigating", "awaiting_approval", "contained", "closed"},
+            "investigating": {"awaiting_approval", "contained", "reported", "closed"},
+            "awaiting_approval": {"investigating", "contained", "closed"},
+            "contained": {"investigating", "reported", "closed"},
+            "reported": {"closed", "investigating"},
+            "closed": set(),
+        }
+        current = case.status
+        if new_status not in allowed.get(current, set()):
+            raise ValueError(f"invalid case transition: {current} -> {new_status}")
+        case.status = new_status
+        if new_status == "closed":
+            case.closed_at = _now()
+            case.close_reason = reason or f"closed by {changed_by}"
+        case.actions.append({
+            "type": "status_transition",
+            "from": current,
+            "to": new_status,
+            "changed_by": changed_by,
+            "reason": reason,
+            "timestamp": _now(),
+        })
+        return self.update(case)
+
     def update(self, case: IncidentCase) -> IncidentCase:
         case.updated_at = _now()
         self._write(case)
