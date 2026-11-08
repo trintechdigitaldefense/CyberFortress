@@ -196,7 +196,7 @@ def ensure_chain(dry_run: bool = False, force_infra: bool = False) -> Dict[str, 
 
 
 def _already_blocked(target: str) -> bool:
-    for r in list_cf_rules():
+    for r in list_cf_rules(strict=True):
         if r.get("source") == target or r.get("destination") == target:
             return True
     return False
@@ -250,7 +250,11 @@ def block_ip(
         result["details"] = "iptables binary not found"
         return result
 
-    rules = list_cf_rules()
+    try:
+        rules = list_cf_rules(strict=True)
+    except Exception as exc:
+        result["details"] = f"Unable to read firewall state safely: {exc}"
+        return result
     if len(rules) >= MAX_RULES:
         result["details"] = f"max rules reached ({MAX_RULES}) — refuse new DROP for {target}"
         result["circuit"] = True
@@ -365,12 +369,17 @@ def unblock_ip(target: str, dry_run: bool = True, roe_action: str = "unblock_ip"
     return result
 
 
-def list_cf_rules() -> List[Dict[str, str]]:
+def list_cf_rules(strict: bool = False) -> List[Dict[str, str]]:
     ipt = _iptables_bin()
     if not ipt:
+        if strict:
+            raise RuntimeError("iptables binary not found")
         return []
     r = _run_read([ipt, "-L", CHAIN, "-n", "-v", "--line-numbers"])
     if r.returncode != 0:
+        if strict:
+            detail = (r.stderr or b"").decode(errors="replace")[:200]
+            raise RuntimeError(detail or f"iptables read exited {r.returncode}")
         return []
     text = r.stdout.decode(errors="replace")
     rules: List[Dict[str, str]] = []
@@ -491,4 +500,4 @@ def verify_block(target: str) -> dict:
     """Post-action check that target appears in CF_BLOCK (or skipped in dry-run paths)."""
     from core.containment.verify import verify_block as _verify
 
-    return _verify(target, chain=CHAIN, list_rules_fn=list_cf_rules)
+    return _verify(target, chain=CHAIN, list_rules_fn=lambda: list_cf_rules(strict=True))
