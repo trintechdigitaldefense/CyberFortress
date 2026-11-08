@@ -60,11 +60,15 @@ def classify_action(action: str, scope: str = "single") -> AutonomyTier:
 def _perform_containment(action: str, target: str) -> dict:
     driver = get_driver(action, dry_run=DRY_RUN)
     logger.info(f"Invoking containment driver '{driver.name}' for {action} on {target} (dry_run={DRY_RUN})")
-    result = driver.execute(target=target, action=action)
-    if result.get("success"):
-        logger.info(f"Containment success: {result.get('details')}")
-    else:
-        logger.error(f"Containment failed: {result.get('details')}")
+    try:
+        result = driver.execute(target=target, action=action)
+    except Exception as exc:
+        logger.exception("Containment driver raised for %s on %s", action, target)
+        return {"success": False, "driver": driver.name, "action": action, "target": target, "details": f"driver exception: {type(exc).__name__}"}
+    if not isinstance(result, dict) or result.get("success") is not True:
+        logger.error("Containment failed: %s", result.get("details") if isinstance(result, dict) else "invalid driver result")
+        return result if isinstance(result, dict) else {"success": False, "details": "invalid driver result"}
+    logger.info("Containment driver reports success: %s", result.get("details"))
     return result
 
 
