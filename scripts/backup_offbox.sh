@@ -25,7 +25,7 @@ trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/$NAME/logs" "$TMP/$NAME/evidence"
 
 if [[ -d "$ROOT/logs" ]]; then
-  rsync -a --exclude 'whatsapp_pending/*.decision' "$ROOT/logs/" "$TMP/$NAME/logs/"
+  rsync -a --exclude 'whatsapp_pending/***' "$ROOT/logs/" "$TMP/$NAME/logs/"
 fi
 if [[ -d "$ROOT/evidence" ]]; then
   rsync -a "$ROOT/evidence/" "$TMP/$NAME/evidence/"
