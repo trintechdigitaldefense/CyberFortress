@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CyberFortress — stop everything
+# CyberFortress — stop only processes started and recorded by this checkout.
 # Usage: bash stop.sh
 set -euo pipefail
 
@@ -7,102 +7,127 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 PID_DIR="$ROOT/logs/pids"
 
-chmod +x "$ROOT/start.sh" "$ROOT/stop.sh" "$ROOT/install.sh" 2>/dev/null || true
+echo "[+] Stopping CyberFortress processes recorded by this checkout..."
 
-echo "[+] Stopping CyberFortress..."
+# A PID file is not sufficient authority to kill a process: PIDs can be reused.
+# Verify the live process command line still identifies the expected module.
+process_matches_module() {
+  local pid="$1"
+  local module="$2"
+  local command_line=""
 
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  [[ "$pid" -gt 1 ]] || return 1
+  [[ "$pid" != "$$" ]] || return 1
+
+  if [[ -r "/proc/$pid/cmdline" ]]; then
+    command_line="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
+  elif command -v ps >/dev/null 2>&1; then
+    command_line="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+  fi
+
+  [[ -n "$command_line" ]] || return 1
+  [[ "$command_line" == *"$module"* ]] || return 1
+  [[ "$command_line" == *"python"* ]]
+}
+
+stop_recorded_process() {
+  local pid_file="$1"
+  local module="$2"
+  local name pid attempt
+
+  name="$(basename "$pid_file" .pid)"
+  pid="$(cat "$pid_file" 2>/dev/null || true)"
+
+  if [[ ! "$pid" =~ ^[0-9]+$ ]] || [[ "$pid" -le 1 ]]; then
+    echo "  [!] $name has an invalid PID record; removing stale file"
+    rm -f -- "$pid_file"
+    return 0
+  fi
+
+  if ! kill -0 "$pid" 2>/dev/null; then
+    echo "  [i] $name is already stopped"
+    rm -f -- "$pid_file"
+    return 0
+  fi
+
+  if ! process_matches_module "$pid" "$module"; then
+    echo "  [!] $name PID $pid no longer matches $module; refusing to signal it"
+    rm -f -- "$pid_file"
+    return 0
+  fi
+
+  kill -TERM "$pid"
+  for attempt in {1..30}; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "  [+] stopped $name (pid $pid)"
+      rm -f -- "$pid_file"
+      return 0
+    fi
+    # Re-check identity before any further signal in case the PID was reused.
+    if ! process_matches_module "$pid" "$module"; then
+      echo "  [+] $name process exited or PID identity changed"
+      rm -f -- "$pid_file"
+      return 0
+    fi
+    sleep 0.2
+  done
+
+  if process_matches_module "$pid" "$module"; then
+    echo "  [!] $name did not stop after SIGTERM; sending SIGKILL to verified PID"
+    kill -KILL "$pid"
+  else
+    echo "  [!] $name PID identity changed; refusing SIGKILL"
+  fi
+  rm -f -- "$pid_file"
+}
+
+# Docker shutdown is limited to this repository's compose project.
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   if docker compose version >/dev/null 2>&1; then
-    docker compose -f docker/docker-compose.yml down 2>/dev/null || true
+    docker compose -f docker/docker-compose.yml down
   elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose -f docker/docker-compose.yml down 2>/dev/null || true
+    docker-compose -f docker/docker-compose.yml down
   fi
-  echo "  · Docker services stopped (if any)"
 fi
 
 if [[ -d "$PID_DIR" ]]; then
-  for f in "$PID_DIR"/*.pid; do
-    [[ -f "$f" ]] || continue
-    name=$(basename "$f" .pid)
-    pid=$(cat "$f" 2>/dev/null || true)
-    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" 2>/dev/null || true
-      sleep 0.15
-      kill -9 "$pid" 2>/dev/null || true
-      echo "  · stopped $name (pid $pid)"
-    fi
-    rm -f "$f"
+  # Stop only the modules that start.sh records in this checkout.
+  declare -A MODULES=(
+    [threat_agent]="agents.threat_hunting_agent"
+    [fusion_agent]="agents.telemetry_fusion_agent"
+    [compliance]="agents.compliance_logger"
+    [watchdog]="agents.watchdog_agent"
+    [firewall]="agents.firewall_agent"
+    [whatsapp]="agents.whatsapp_webhook"
+    [health]="agents.healthcheck"
+    [dashboard]="agents.dashboard"
+    [daily_report]="agents.daily_report_agent"
+    [weekly_evidence]="agents.weekly_evidence_agent"
+    [ir_detect]="agents.ir_detect_agent"
+    [ir_investigate]="agents.ir_investigate_agent"
+    [ir_respond]="agents.ir_respond_agent"
+    [ir_report]="agents.ir_report_agent"
+    [tenant_orch]="agents.tenant_orchestrator_agent"
+    [soc_api]="agents.soc_api_agent"
+    [siem_bridge]="agents.siem_bridge_agent"
+    [playbook]="agents.playbook_agent"
+    [threat_intel]="agents.threat_intel_agent"
+    [auto_defense]="agents.auto_defense_agent"
+  )
+
+  for name in "${!MODULES[@]}"; do
+    pid_file="$PID_DIR/$name.pid"
+    [[ -f "$pid_file" ]] || continue
+    stop_recorded_process "$pid_file" "${MODULES[$name]}"
+  done
+
+  # Remove only empty/stale PID files for unknown names; never signal their PIDs.
+  for pid_file in "$PID_DIR"/*.pid; do
+    [[ -f "$pid_file" ]] || continue
+    echo "  [!] Unknown PID record $(basename "$pid_file"); leaving it untouched"
   done
 fi
 
-kill_module() {
-  local mod="$1"
-  if command -v pkill >/dev/null 2>&1; then
-    if pkill -f "python3? -m ${mod}" 2>/dev/null; then
-      echo "  · pkill ${mod}"
-    fi
-  elif command -v pgrep >/dev/null 2>&1; then
-    local pids
-    pids=$(pgrep -f "python3? -m ${mod}" 2>/dev/null || true)
-    if [[ -n "${pids:-}" ]]; then
-      # shellcheck disable=SC2086
-      kill $pids 2>/dev/null || true
-      sleep 0.15
-      # shellcheck disable=SC2086
-      kill -9 $pids 2>/dev/null || true
-      echo "  · killed orphan ${mod}"
-    fi
-  fi
-}
-
-kill_module "agents.dashboard"
-kill_module "agents.healthcheck"
-kill_module "agents.whatsapp_webhook"
-kill_module "agents.threat_hunting_agent"
-kill_module "agents.telemetry_fusion_agent"
-kill_module "agents.compliance_logger"
-kill_module "agents.watchdog_agent"
-kill_module "agents.firewall_agent"
-kill_module "agents.daily_report_agent"
-kill_module "agents.weekly_evidence_agent"
-sleep 0.3
-
-free_port() {
-  local port="$1"
-  if command -v fuser >/dev/null 2>&1; then
-    if fuser "${port}/tcp" >/dev/null 2>&1; then
-      fuser -k "${port}/tcp" >/dev/null 2>&1 || true
-      echo "  · freed port $port (fuser)"
-    fi
-  fi
-  if command -v lsof >/dev/null 2>&1; then
-    local pids
-    pids=$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
-    if [[ -n "${pids:-}" ]]; then
-      # shellcheck disable=SC2086
-      kill $pids 2>/dev/null || true
-      sleep 0.1
-      # shellcheck disable=SC2086
-      kill -9 $pids 2>/dev/null || true
-      echo "  · freed port $port (lsof)"
-    fi
-  fi
-  if command -v ss >/dev/null 2>&1; then
-    local pids
-    pids=$(ss -lptn "sport = :$port" 2>/dev/null | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | sort -u)
-    if [[ -n "${pids:-}" ]]; then
-      # shellcheck disable=SC2086
-      kill $pids 2>/dev/null || true
-      sleep 0.1
-      # shellcheck disable=SC2086
-      kill -9 $pids 2>/dev/null || true
-      echo "  · freed port $port (ss)"
-    fi
-  fi
-}
-free_port 8089
-free_port 8090
-free_port 8091
-
-rm -f logs/platform_started_at 2>/dev/null || true
-echo "[+] Stopped."
+rm -f -- "$ROOT/logs/platform_started_at"
+echo "[+] Stop sequence complete. No unrelated listener ports were targeted."
