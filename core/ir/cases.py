@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -44,6 +45,7 @@ class IncidentCase:
     updated_at: str = ""
     closed_at: Optional[str] = None
     close_reason: Optional[str] = None
+    tenant_id: str = ""
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -57,7 +59,24 @@ class IncidentCase:
         return cls(**{k: data[k] for k in fields if k in data})
 
 
+def validate_case_id(case_id: str) -> str:
+    """Validate an incident identifier before using it in a filesystem path."""
+    if not isinstance(case_id, str) or not re.fullmatch(r"IR-[0-9]{8}-[a-fA-F0-9]{6}", case_id):
+        raise ValueError("invalid incident case id")
+    return case_id
+
+
 class CaseStore:
+    def __init__(self, case_dir: Optional[Path] = None):
+        base = Path(case_dir) if case_dir is not None else CASE_DIR
+        tenant = os.getenv("CF_TENANT_ID", "").strip()
+        if tenant and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", tenant):
+            raise ValueError("invalid tenant identifier")
+        self.tenant_id = tenant
+        self._dir = base / tenant if tenant else base
+        self._dir.mkdir(parents=True, exist_ok=True)
+        self._index = self._dir / "index.jsonl"
+
     def create(
         self,
         *,
@@ -85,12 +104,17 @@ class CaseStore:
             confidence=confidence,
             tags=tags or [],
             updated_at=_now(),
+            tenant_id=self.tenant_id,
         )
         self._write(case)
         return case
 
     def get(self, case_id: str) -> Optional[IncidentCase]:
-        path = CASE_DIR / f"{case_id}.json"
+        try:
+            case_id = validate_case_id(case_id)
+        except ValueError:
+            return None
+        path = self._dir / f"{case_id}.json"
         if not path.exists():
             return None
         return IncidentCase.from_dict(json.loads(path.read_text(encoding="utf-8")))
@@ -107,7 +131,7 @@ class CaseStore:
     def list_by_status(self, statuses: Sequence[str], limit: int = 50) -> List[IncidentCase]:
         wanted = set(statuses)
         cases: List[IncidentCase] = []
-        for path in sorted(CASE_DIR.glob("IR-*.json"), reverse=True)[:400]:
+        for path in sorted(self._dir.glob("IR-*.json"), reverse=True)[:400]:
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if data.get("status") in wanted:
@@ -120,7 +144,7 @@ class CaseStore:
 
     def summary(self) -> Dict[str, Any]:
         counts: Dict[str, int] = {}
-        for path in CASE_DIR.glob("IR-*.json"):
+        for path in self._dir.glob("IR-*.json"):
             try:
                 st = json.loads(path.read_text(encoding="utf-8")).get("status", "unknown")
                 counts[st] = counts.get(st, 0) + 1
@@ -129,7 +153,7 @@ class CaseStore:
         return {
             "by_status": counts,
             "open_total": sum(counts.get(s, 0) for s in OPENISH),
-            "case_dir": str(CASE_DIR),
+            "case_dir": str(self._dir),
         }
 
     def update(self, case: IncidentCase) -> IncidentCase:
@@ -154,9 +178,12 @@ class CaseStore:
 
     def _write(self, case: IncidentCase) -> None:
         with _LOCK:
-            path = CASE_DIR / f"{case.case_id}.json"
+            validate_case_id(case.case_id)
+            if case.tenant_id != self.tenant_id:
+                raise PermissionError("cross-tenant case write denied")
+            path = self._dir / f"{case.case_id}.json"
             path.write_text(json.dumps(case.to_dict(), indent=2), encoding="utf-8")
-            with open(INDEX, "a", encoding="utf-8") as f:
+            with open(self._index, "a", encoding="utf-8") as f:
                 f.write(
                     json.dumps(
                         {
