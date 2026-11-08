@@ -15,7 +15,7 @@ LOG_DIR = Path(os.getenv("CF_LOG_DIR", "./logs"))
 if Path("/app/logs").exists():
     LOG_DIR = Path("/app/logs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-AUDIT_PATH = Path(os.getenv("CF_AUDIT_PATH", str(LOG_DIR / "cma_audit.jsonl")))
+AUDIT_PATH = Path(os.getenv("CF_AUDIT_PATH", os.getenv("CF_CMA_AUDIT_LOG", str(LOG_DIR / "cma_audit.jsonl")) ))
 
 logging.basicConfig(
     level=logging.INFO,
