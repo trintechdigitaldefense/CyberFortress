@@ -46,7 +46,7 @@
 |---|---|---|---|---|
 | Baseline | `eaffd671f5802d2c20b80110f624b9aac0f868bf` | Inventory and initial source review | 197 tracked files; selected P0 files inspected | COMPLETE |
 | 2026-11-08 | P0/P1 checkpoint | ROE fail-closed, WhatsApp nonce/replay/atomic approval, autonomy result verification, dashboard RBAC, chained audit fail-closed, CI hardening | CI run [42523061570](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42523061570): 128 tests and all configured checks passed | AUTOMATED GATE PASS |
-| 2026-11-08 | `d1a274838f8bf33187fd2f6d8f3d7a732d215c90` / [CI 42526197795](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526197795) | Effective NET_ADMIN probe, emergency disarm + CF_BLOCK read-back, Termux/proot and Docker monitoring-only, counsel/E&O live gate, off-box checksum backup and staged restore, deployment profile guard | 128 tests; Ruff, Bandit, pip-audit, firewall namespace and backup/restore acceptance all PASS; no client VM or client network touched | AUTOMATED P2 ACCEPTANCE PASS; CLIENT VM PENDING |
+| 2026-11-08 | `9149b2c164f27b4841c53c6c43a1ea79da3f6e5c` / [CI 42526379267](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526379267) | Effective NET_ADMIN probe, partial chain-setup rollback, emergency disarm + CF_BLOCK read-back, Termux/proot and Docker monitoring-only, counsel/E&O live gate, off-box checksum backup excluding pending WhatsApp approval state, staged restore, deployment profile guard | 128 tests; Ruff, Bandit, pip-audit, firewall namespace and backup/restore acceptance all PASS; no client VM or client network touched | AUTOMATED P2 ACCEPTANCE PASS; CLIENT VM PENDING |
 
 ## Rules
 
