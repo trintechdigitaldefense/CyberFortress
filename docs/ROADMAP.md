@@ -24,7 +24,7 @@ These are CI results, not proof of a clean installation or live host capability 
 **Exit:** no conflicting version, test-count or readiness claims; clean CI on the updated branch.
 
 ### R2 — Runtime, installation and recovery reliability
-- [ ] Audit install/start/stop/update/uninstall paths for idempotency, safe failure and clear diagnostics.
+- [x] Harden local start/stop lifecycle: repeated starts skip already-running recorded agents; shutdown validates PID identity and never kills unrelated listeners by port; stale/reused PID records are handled conservatively. A regression check is enforced in CI. (Install/update/uninstall audit remains open.)
 - [ ] Verify all supported profiles and ensure Termux/proot and standard Docker remain monitoring-only.
 - [ ] Review systemd service users, filesystem permissions, restart policy, resource limits and shutdown ordering.
 - [ ] Exercise backup/restore code paths, including malformed archives, interrupted copies, disk-full and permission failures.
