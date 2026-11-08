@@ -121,6 +121,7 @@ def append_chained(path: Path, entry: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def verify_chain(path: Path) -> Tuple[bool, Optional[int], str]:
+    path = Path(path)
     if not path.exists():
         return True, None, "no log file (empty chain ok)"
     prev = GENESIS
@@ -144,6 +145,7 @@ def verify_chain(path: Path) -> Tuple[bool, Optional[int], str]:
 
 def load_entries(path: Path, *, skip_corrupt: bool = False) -> List[Dict[str, Any]]:
     """Load entries. By default raises on first corrupt line; set skip_corrupt for salvage."""
+    path = Path(path)
     out: List[Dict[str, Any]] = []
     if not path.exists():
         return out
