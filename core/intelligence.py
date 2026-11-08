@@ -15,7 +15,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional, Set
+from typing import Any, Deque, Dict, List, Optional
 
 _LOCK = threading.Lock()
 WINDOW_S = int(os.getenv("CF_INTEL_WINDOW_S", "900"))
