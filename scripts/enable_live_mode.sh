@@ -75,6 +75,12 @@ for field in ("roe_document", "nda_document"):
     if not val or "path/or/filename" in val:
         print(f"[!] Set real path/filename for signed document: {field}")
         sys.exit(1)
+    document = Path(val).expanduser()
+    if not document.is_absolute():
+        document = Path.cwd() / document
+    if not document.is_file():
+        print(f"[!] Signed document does not exist or is not a file: {field}")
+        sys.exit(1)
 
 actions = data.get("authorized_actions") or []
 if not isinstance(actions, list) or len(actions) < 1:
