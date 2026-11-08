@@ -53,6 +53,29 @@ restored = firewall.unblock_ip(target, dry_run=False)
 assert restored.get("success") is True, restored
 assert restored.get("verify", {}).get("cleared") is True, restored
 print("PASS: DROP rules removed and rollback read-back verified inside isolated namespace")
+
+# Re-arm only inside this disposable namespace, then exercise the operator
+# emergency-disarm script against a temporary env file.
+applied = firewall.block_ip(target, dry_run=False, comment="acceptance-disarm")
+assert applied.get("success") is True, applied
+print("PASS: re-applied test rules for emergency-disarm acceptance")
 PY
+
+printf '%s\\n' 'CF_CONTAINMENT_LIVE=true' > "$TMP/cf.env"
+ip netns exec "$NS" env \\
+  PATH="$PATH" \\
+  CF_ENV_FILE="$TMP/cf.env" \\
+  bash "$ROOT/scripts/disable_live_mode.sh"
+grep -Fxq 'CF_CONTAINMENT_LIVE=false' "$TMP/cf.env"
+ip netns exec "$NS" iptables -L CF_BLOCK -n | grep -q '^Chain CF_BLOCK'
+if ip netns exec "$NS" iptables -S CF_BLOCK | grep -qv '^-N CF_BLOCK
+
+echo "PASS: isolated firewall acceptance completed; namespace cleanup will remove all test rules."
+; then
+  echo "FAIL: CF_BLOCK still contains rules after emergency disarm" >&2
+  exit 1
+fi
+echo "PASS: emergency disarm disabled live mode and emptied CF_BLOCK"
+
 
 echo "PASS: isolated firewall acceptance completed; namespace cleanup will remove all test rules."
