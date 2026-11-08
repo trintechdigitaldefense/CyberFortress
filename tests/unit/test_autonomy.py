@@ -60,3 +60,13 @@ def test_unknown_containment_action_is_rejected():
     from core.containment.drivers import get_driver
     with pytest.raises(ValueError):
         get_driver("unknown_action", dry_run=False)
+
+
+def test_force_cannot_bypass_tier2_human_approval(monkeypatch):
+    import core.autonomy as autonomy
+    monkeypatch.setattr(autonomy, "ALLOW_FORCE", True)
+    monkeypatch.setattr(autonomy, "is_action_authorized", lambda action: True)
+    monkeypatch.setattr(autonomy, "get_justification", lambda action: {"section": "test", "justification": "test"})
+    monkeypatch.setattr(autonomy, "write_cma_entry", lambda *a, **k: None)
+    monkeypatch.setattr(autonomy, "_perform_containment", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not execute")))
+    assert autonomy.execute_with_autonomy("isolate_endpoint", "192.0.2.2", force=True) is False
