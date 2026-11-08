@@ -93,3 +93,17 @@ def test_soc_user_roles_are_applied_per_authenticated_user(monkeypatch):
     assert d._auth_ok(operator) is True
     assert d._can_write(operator) is True
     assert d._auth_ok(_H(auth=_basic("audit", "wrong"))) is False
+
+
+def test_explicit_anonymous_local_mode_is_read_only(monkeypatch):
+    monkeypatch.setenv("CF_DASHBOARD_PASS", "")
+    monkeypatch.setenv("CF_DASHBOARD_REQUIRE_AUTH", "false")
+    monkeypatch.setenv("CF_DASHBOARD_ALLOW_ANON", "true")
+    monkeypatch.setenv("CF_DASHBOARD_BIND", "127.0.0.1")
+    monkeypatch.setenv("CF_DASHBOARD_ROLE", "operator")
+    monkeypatch.delenv("CF_SOC_USERS", raising=False)
+    import agents.dashboard as d
+    importlib.reload(d)
+    handler = _H()
+    assert d._auth_ok(handler) is True
+    assert d._can_write(handler) is False
