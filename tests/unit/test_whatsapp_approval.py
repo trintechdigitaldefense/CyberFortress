@@ -97,6 +97,8 @@ def test_default_verify_token_rejected_at_start(monkeypatch):
     import agents.whatsapp_webhook as wh
     importlib.reload(wh)
     assert wh.VERIFY_TOKEN == "cf_verify_token_change_me"
+    with pytest.raises(RuntimeError, match="VERIFY_TOKEN"):
+        wh.validate_startup_config()
 
 
 def test_expired_nonce_is_rejected(pending):
