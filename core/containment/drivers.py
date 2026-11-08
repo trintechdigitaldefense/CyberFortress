@@ -37,9 +37,9 @@ class IPTablesDriver(ContainmentDriver):
         dry = self.dry_run
         action = (action or "block_ip").lower()
         if action in ("block_ip", "isolate_endpoint", "subnet_isolation"):
-            return fw.block_ip(target, dry_run=dry)
+            return fw.block_ip(target, dry_run=dry, roe_action=action)
         if action in ("unblock_ip", "restore_endpoint", "restore_subnet"):
-            return fw.unblock_ip(target, dry_run=dry)
+            return fw.unblock_ip(target, dry_run=dry, roe_action=action)
         return {"success": False, "dry_run": dry, "details": f"unsupported firewall action: {action}"}
 
 
