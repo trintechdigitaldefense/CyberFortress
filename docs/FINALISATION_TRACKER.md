@@ -3,7 +3,7 @@
 **Target:** v1.0.0  
 **Working branch:** `hardening/cyberfortress-final-release`  
 **Baseline commit:** `eaffd671f5802d2c20b80110f624b9aac0f868bf`  
-**Overall state:** P0/P1 AUTOMATED GATES PASS; P2 AUTOMATED FIREWALL + RECOVERY GATES IN PROGRESS — NOT CLIENT READY.
+**Overall state:** P0/P1 AUTOMATED GATES PASS; P2 AUTOMATED FIREWALL + RECOVERY ACCEPTANCE PASSED; CLIENT VM EVIDENCE PENDING — NOT CLIENT READY.
 
 ## Phase gates
 
