@@ -147,7 +147,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(401)
             self.end_headers()
             return
-        if rate_limiter is not None and not rate_limiter.allow(self.client_address[0]):
+        if rate_limit_allow is not None and not rate_limit_allow(self.client_address[0]):
             self._json(429, {"ok": False, "error": "rate limited"})
             return
         path = urlparse(self.path).path
