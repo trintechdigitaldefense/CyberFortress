@@ -11,7 +11,7 @@
 |---|---|---|---|
 | P0 | Repository inventory, architecture and evidence register | COMPLETE | 197 tracked files inventoried; architecture, feature, tracker, security and release control docs committed |
 | P1 | Critical reliability/security | COMPLETE IN CI | Autonomy result verification, webhook expiry/replay/atomicity, dashboard per-user roles, audit fail-closed, ROE and secrets/SIEM controls; full QA green |
-| P2 | Firewall/containment, deployment and recovery | IN PROGRESS | Isolated namespace host-capability probe, apply/verify/rollback, emergency disarm, backup checksum and staged restore acceptance must pass CI; actual client VM install, 7-day soak, client ROE/allowlist and witnessed recovery evidence remain mandatory |
+| P2 | Firewall/containment, deployment and recovery | AUTOMATED ACCEPTANCE PASS; CLIENT VM PENDING | CI run 42526197795 passed isolated NET_ADMIN probe, apply/verify/unblock/emergency-disarm, backup checksum/staged restore and deployment-profile checks; actual client VM install, 7-day soak, client ROE/allowlist and witnessed recovery remain mandatory |
 | P3 | SOC monitoring and telemetry | NOT STARTED | Synthetic events complete collection-to-audit path without loss |
 | P4 | Incident response/case management | NOT STARTED | Full lifecycle and tenant-safe transitions pass |
 | P5 | Evidence/audit/reporting | NOT STARTED | Evidence hashes, chain verification, export and restore pass |
@@ -46,7 +46,7 @@
 |---|---|---|---|---|
 | Baseline | `eaffd671f5802d2c20b80110f624b9aac0f868bf` | Inventory and initial source review | 197 tracked files; selected P0 files inspected | COMPLETE |
 | 2026-11-08 | P0/P1 checkpoint | ROE fail-closed, WhatsApp nonce/replay/atomic approval, autonomy result verification, dashboard RBAC, chained audit fail-closed, CI hardening | CI run [42523061570](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42523061570): 128 tests and all configured checks passed | AUTOMATED GATE PASS |
-| 2026-11-08 | Current P2 hardening commits | Effective NET_ADMIN probe, emergency disarm + CF_BLOCK read-back, Termux/proot and Docker monitoring-only, counsel/E&O live gate, off-box checksum backup and staged restore, new acceptance harnesses | New CI run required on current HEAD; no client VM or client network touched | PENDING CI
+| 2026-11-08 | `d1a274838f8bf33187fd2f6d8f3d7a732d215c90` / [CI 42526197795](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526197795) | Effective NET_ADMIN probe, emergency disarm + CF_BLOCK read-back, Termux/proot and Docker monitoring-only, counsel/E&O live gate, off-box checksum backup and staged restore, deployment profile guard | 128 tests; Ruff, Bandit, pip-audit, firewall namespace and backup/restore acceptance all PASS; no client VM or client network touched | AUTOMATED P2 ACCEPTANCE PASS; CLIENT VM PENDING |
 
 ## Rules
 
