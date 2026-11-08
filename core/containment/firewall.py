@@ -347,12 +347,21 @@ def unblock_ip(target: str, dry_run: bool = True, roe_action: str = "unblock_ip"
             r = _run_block(cmd, dry_run=False)
             if r.returncode == 0:
                 removed += 1
-    result["success"] = True
+    probe = _run_read([ipt, "-L", CHAIN, "-n"])
+    if probe.returncode != 0:
+        detail = (probe.stderr or b"").decode(errors="replace")[:200]
+        result["details"] = f"Unable to verify rollback from {CHAIN}: {detail}"
+        result["verify"] = {"cleared": False, "message": "firewall read-back failed"}
+        return result
+    remaining = _already_blocked(target)
+    result["success"] = not remaining
     result["details"] = f"Removed rules for {target} in {CHAIN} (deleted={removed})"
     result["verify"] = {
-        "cleared": not _already_blocked(target),
-        "message": "gone from chain" if not _already_blocked(target) else "still present",
+        "cleared": not remaining,
+        "message": "gone from chain" if not remaining else "still present",
     }
+    if remaining:
+        result["details"] += " | ROLLBACK VERIFY FAILED: matching rule remains"
     return result
 
 
