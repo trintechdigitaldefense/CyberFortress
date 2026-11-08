@@ -150,21 +150,27 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 self._json(400, {"ok": False, "error": "invalid json"})
                 return
-            if isinstance(body, list):
-                n = siem.ingest_batch(body)
-            elif isinstance(body, dict) and "events" in body:
-                n = siem.ingest_batch(body.get("events") or [])
-            else:
-                n = siem.ingest_batch([body])
+            token = self.headers.get("X-CF-SIEM-Token", "")
+            try:
+                if isinstance(body, list):
+                    n = siem.ingest_batch(body, token=token)
+                elif isinstance(body, dict) and "events" in body:
+                    n = siem.ingest_batch(body.get("events") or [], token=token)
+                else:
+                    n = siem.ingest_batch([body], token=token)
+            except PermissionError:
+                self._json(403, {"ok": False, "error": "valid SIEM ingest token required"})
+                return
             self._json(200, {"ok": True, "ingested": n, "bus": get_bus().stats()})
             return
         if path == "/api/soc/ingest/cef":
             text = raw.decode("utf-8", errors="replace")
-            n = 0
-            for line in text.splitlines():
-                ev = siem.parse_cef(line)
-                if ev and get_bus().publish(ev):
-                    n += 1
+            events = [ev for line in text.splitlines() if (ev := siem.parse_cef(line))]
+            try:
+                n = siem.ingest_batch(events, token=self.headers.get("X-CF-SIEM-Token", ""))
+            except PermissionError:
+                self._json(403, {"ok": False, "error": "valid SIEM ingest token required"})
+                return
             self._json(200, {"ok": True, "ingested": n})
             return
         self._json(404, {"ok": False})
