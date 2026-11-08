@@ -41,7 +41,7 @@ def _live() -> bool:
 
 
 def _auto_start() -> bool:
-    return os.getenv("CF_FIREWALL_AUTO_START", "true").lower() == "true"
+    return os.getenv("CF_FIREWALL_AUTO_START", "false").lower() == "true"
 
 
 def _iptables_bin() -> Optional[str]:
@@ -108,6 +108,8 @@ def validate_block_target(target: str) -> Dict[str, Any]:
     t = (target or "").strip()
     if not t:
         return {"ok": False, "error": "empty target"}
+    if "/" in t and os.getenv("CF_FIREWALL_ALLOW_CIDR", "false").lower() not in ("1", "true", "yes"):
+        return {"ok": False, "error": "CIDR targets are disabled by default"}
     host = t.split("/")[0].strip()
     try:
         addr = ipaddress.ip_address(host)
@@ -214,6 +216,14 @@ def block_ip(target: str, dry_run: bool = True, comment: str = "CyberFortress") 
         "details": "",
     }
 
+    if not result["dry_run"]:
+        from core.roe import is_action_authorized
+        if not is_action_authorized("block_ip"):
+            result["details"] = "action block_ip not authorized by client ROE"
+            result["rejected"] = True
+            result["roe_denied"] = True
+            return result
+
     v = validate_block_target(target)
     if not v.get("ok"):
         result["details"] = v.get("error", "invalid target")
@@ -295,6 +305,14 @@ def unblock_ip(target: str, dry_run: bool = True) -> Dict[str, Any]:
     except ValueError:
         result["details"] = f"invalid IP: {target}"
         return result
+
+    if not result["dry_run"]:
+        from core.roe import is_action_authorized
+        if not is_action_authorized("unblock_ip"):
+            result["details"] = "action unblock_ip not authorized by client ROE"
+            result["rejected"] = True
+            result["roe_denied"] = True
+            return result
 
     if result["dry_run"]:
         result["success"] = True
