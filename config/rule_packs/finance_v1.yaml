@@ -15,9 +15,9 @@ rules:
     playbook: block_ip
   - id: CF-FIN-003
     name: phishing_finance
-    match_indicators: [phishing, bce, business_email_compromise, wire_fraud]
+    match_indicators: [phishing, bec, business_email_compromise, wire_fraud]
     severity: HIGH
-    playbook: block_ip
+    playbook: halt_operations
   - id: CF-FIN-004
     name: ransomware
     match_indicators: [ransomware, encryption, shadow_copy_delete]
