@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ENV_FILE="$ROOT/.env"
+ENV_FILE="${CF_ENV_FILE:-$ROOT/.env}"
 cd "$ROOT"
 
 echo "[!] Disabling live containment..."
