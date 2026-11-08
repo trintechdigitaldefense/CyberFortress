@@ -106,13 +106,18 @@ def execute_with_autonomy(
         logger.error(f"ROE deny: {action}")
         return False
 
-    if force and not ALLOW_FORCE:
-        logger.error("FORCE requested but CF_ALLOW_FORCE is false — refusing")
+    if force and (not ALLOW_FORCE or tier == AutonomyTier.TIER_2_GUARDED):
+        reason = (
+            "high-impact Tier-2 actions always require WhatsApp human approval"
+            if tier == AutonomyTier.TIER_2_GUARDED
+            else "CF_ALLOW_FORCE is false"
+        )
+        logger.error("FORCE requested but refused: %s", reason)
         write_cma_entry(
             action,
             target,
-            justification + " [FORCE BLOCKED — CF_ALLOW_FORCE=false; use WhatsApp APPROVE]",
-            severity="INFO",
+            justification + f" [FORCE BLOCKED — {reason}]",
+            severity="CRITICAL",
         )
         return False
 
