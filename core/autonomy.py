@@ -115,7 +115,11 @@ def execute_with_autonomy(
         logger.warning(f"FORCE override — executing {action} on {target}")
         write_cma_entry(action, target, justification + " [FORCE OVERRIDE]", severity="CRITICAL")
         notify_tier1(action, target, justification + " (FORCE)")
-        _perform_containment(action, target)
+        result = _perform_containment(action, target)
+        if not isinstance(result, dict) or result.get("success") is not True:
+            write_cma_entry(action, target, justification + " [EXECUTION FAILED — FORCE path]", severity="CRITICAL", execution_result=result)
+            return False
+        write_cma_entry(action, target, justification + " [EXECUTION VERIFIED — FORCE path]", severity="CRITICAL", execution_result=result)
         breaker.record(action, target, severity="CRITICAL", tier=2)
         return True
 
@@ -123,7 +127,11 @@ def execute_with_autonomy(
         logger.info("Tier 1 — executing immediately + notifying")
         write_cma_entry(action, target, justification, severity=severity)
         notify_tier1(action, target, justification)
-        _perform_containment(action, target)
+        result = _perform_containment(action, target)
+        if not isinstance(result, dict) or result.get("success") is not True:
+            write_cma_entry(action, target, justification + " [EXECUTION FAILED — Tier 1]", severity="CRITICAL", execution_result=result)
+            return False
+        write_cma_entry(action, target, justification + " [EXECUTION VERIFIED — Tier 1]", severity=severity, execution_result=result)
         breaker.record(action, target, severity=severity, tier=1)
         return True
 
@@ -158,7 +166,11 @@ def execute_with_autonomy(
     if approved:
         logger.info(f"Tier 2 — APPROVED — executing {action}")
         write_cma_entry(action, target, justification + " [APPROVED via WhatsApp]", severity=severity)
-        _perform_containment(action, target)
+        result = _perform_containment(action, target)
+        if not isinstance(result, dict) or result.get("success") is not True:
+            write_cma_entry(action, target, justification + " [EXECUTION FAILED — Tier 2]", severity="CRITICAL", execution_result=result)
+            return False
+        write_cma_entry(action, target, justification + " [EXECUTION VERIFIED — Tier 2]", severity=severity, execution_result=result)
         breaker.record(action, target, severity=severity, tier=2)
         return True
 
