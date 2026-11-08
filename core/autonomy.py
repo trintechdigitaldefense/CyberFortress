@@ -77,8 +77,13 @@ def _perform_containment(action: str, target: str) -> dict:
             verification.get("verified") is not True or verification.get("bidirectional") is not True
         ):
             return {**result, "success": False, "details": "post-action bidirectional verification failed"}
-        if action in ("unblock_ip", "restore_endpoint", "restore_subnet") and verification.get("cleared") is False:
+        if action in ("unblock_ip", "restore_endpoint", "restore_subnet") and verification.get("cleared") is not True:
             return {**result, "success": False, "details": "rollback verification failed"}
+    if action == "terminate_session" and (
+        not isinstance(result.get("verification"), dict)
+        or result["verification"].get("verified") is not True
+    ):
+        return {**result, "success": False, "details": "session termination could not be verified"}
     logger.info("Containment driver reports verified success: %s", result.get("details"))
     return result
 
