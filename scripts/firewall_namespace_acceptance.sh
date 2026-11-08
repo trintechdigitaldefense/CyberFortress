@@ -37,14 +37,34 @@ echo "Running CyberFortress host capability preflight in isolated namespace $NS"
 ip netns exec "$NS" env PYTHONPATH="$ROOT" bash "$ROOT/scripts/check_netadmin.sh"
 echo "PASS: effective NET_ADMIN rule lifecycle preflight"
 
-echo "Running CyberFortress apply/verify/rollback acceptance in $NS"
+echo "Running CyberFortress chain-setup rollback acceptance in $NS"
 ip netns exec "$NS" env \
   PYTHONPATH="$ROOT" \
   CF_CONTAINMENT_LIVE=true \
   CF_FIREWALL_AUTO_START=false \
   CF_PILOT_SIGNOFF="$SIGNOFF" \
   python3 - <<'PY'
+import subprocess
 from core.containment import firewall
+
+original = firewall._run_real
+def fail_forward_attach(command):
+    if len(command) > 2 and command[1] == "-I" and command[2] == "FORWARD":
+        return subprocess.CompletedProcess(command, 1, b"", b"synthetic attach failure")
+    return original(command)
+
+firewall._run_real = fail_forward_attach
+try:
+    failed = firewall.ensure_chain(dry_run=False, force_infra=True)
+finally:
+    firewall._run_real = original
+assert failed.get("ok") is False, failed
+assert failed.get("rollback_verified") is True, failed
+ipt = firewall._iptables_bin()
+assert subprocess.run([ipt, "-L", firewall.CHAIN, "-n"], capture_output=True).returncode != 0
+for parent in ("INPUT", "OUTPUT", "FORWARD"):
+    assert subprocess.run([ipt, "-C", parent, "-j", firewall.CHAIN], capture_output=True).returncode != 0
+print("PASS: partial chain setup failure removed inserted hooks and the new chain")
 
 target = "8.8.8.8"
 applied = firewall.block_ip(target, dry_run=False)
