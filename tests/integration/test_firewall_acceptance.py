@@ -19,6 +19,7 @@ def test_live_block_requires_exact_client_roe(tmp_path, monkeypatch):
     monkeypatch.setattr(fw, "_iptables_bin", lambda: "iptables")
     monkeypatch.setattr(fw, "ensure_chain", lambda **kwargs: {"ok": True})
     monkeypatch.setattr(fw, "_already_blocked", lambda target: False)
+    monkeypatch.setattr(fw, "list_cf_rules", lambda strict=False: [])
     monkeypatch.setattr(fw, "_run_block", lambda cmd, dry_run: subprocess.CompletedProcess(cmd, 0, b"", b""))
     monkeypatch.setattr(fw, "verify_block", lambda target: {
         "verified": True, "bidirectional": True, "matching_rules": []
@@ -38,6 +39,7 @@ def test_live_block_rolls_back_partial_insert(tmp_path, monkeypatch):
     monkeypatch.setattr(fw, "_iptables_bin", lambda: "iptables")
     monkeypatch.setattr(fw, "ensure_chain", lambda **kwargs: {"ok": True})
     monkeypatch.setattr(fw, "_already_blocked", lambda target: False)
+    monkeypatch.setattr(fw, "list_cf_rules", lambda strict=False: [])
     monkeypatch.setattr(fw, "verify_block", lambda target: {"verified": False, "bidirectional": False})
     calls = []
 
