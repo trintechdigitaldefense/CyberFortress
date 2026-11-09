@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from core.soc.event_bus import get_bus
-from core.tenant_guard import assert_single_tenant_runtime
+from core.tenant_guard import assert_single_tenant_runtime, strip_client_tenant_fields
 
 logger = logging.getLogger("cf_siem")
 
@@ -21,9 +21,8 @@ def sanitize_ingest_event(raw: Dict[str, Any]) -> Dict[str, Any]:
     """Remove caller-supplied tenant identity and stamp the authenticated local tenant."""
     if not isinstance(raw, dict):
         raise ValueError("SIEM event must be an object")
-    clean = dict(raw)
     tenant = assert_single_tenant_runtime()
-    clean.pop("tenant_id", None)
+    clean = strip_client_tenant_fields(raw)
     if tenant:
         clean["tenant_id"] = tenant
     return clean
