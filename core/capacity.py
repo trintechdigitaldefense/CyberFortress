@@ -12,9 +12,9 @@ def limits() -> Dict[str, Any]:
         "max_events_per_cycle": int(os.getenv("CF_CAP_EVENTS_PER_CYCLE", "500")),
         "max_open_ir_cases": int(os.getenv("CF_CAP_OPEN_IR_CASES", "200")),
         "max_firewall_rules": int(os.getenv("CF_FIREWALL_MAX_RULES", "200")),
-        "max_tenants_per_host": int(os.getenv("CF_CAP_TENANTS_PER_HOST", "25")),
+        "max_tenants_per_host": int(os.getenv("CF_CAP_TENANTS_PER_HOST", "1")),
         "agent_interval_floor_s": float(os.getenv("CF_CAP_INTERVAL_FLOOR", "5")),
-        "recommended_sites": "single-site to multi-site SMB/mid-market (≤25 tenants/host)",
+        "recommended_sites": "one tenant per isolated runtime; shared-process multi-tenant mode is disabled",
         "not_designed_for": "global multi-region SOC with 10k+ EPS without external SIEM",
     }
 
