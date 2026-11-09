@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 from core.soc import ha, metrics, playbooks, rbac, siem, threat_intel
 from core.soc.event_bus import get_bus
 from core.watchdog import write_heartbeat
+from core.tenant_guard import TenantError, assert_single_tenant_runtime
 
 try:
     from core.defense import rate_limit_allow, security_headers
@@ -89,6 +90,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        try:
+            assert_single_tenant_runtime()
+        except TenantError:
+            self._json(503, {"ok": False, "error": "multiple tenant configurations require isolated runtimes"})
+            return
         role = self._auth()
         if role is None:
             self.send_response(401)
@@ -142,6 +148,11 @@ class Handler(BaseHTTPRequestHandler):
         self._json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self):
+        try:
+            assert_single_tenant_runtime()
+        except TenantError:
+            self._json(503, {"ok": False, "error": "multiple tenant configurations require isolated runtimes"})
+            return
         role = self._auth()
         if role is None:
             self.send_response(401)
