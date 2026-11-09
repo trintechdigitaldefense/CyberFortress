@@ -24,10 +24,11 @@ cd CyberFortress
 
 | Command | What it does |
 |---------|----------------|
-| `./install.sh` | Installs core Python dependencies, creates `.env` and runtime folders |
+| `./install.sh` | Creates `.venv`, installs pinned dependencies, creates `.env` if absent |
 | `./start.sh` | Starts the selected local services |
 | `./stop.sh` | Stops services |
 | `./start.sh status` | Shows service status |
+| `bash scripts/upgrade.sh` | Fast-forward-only source upgrade with source rollback on install failure |
 
 Dashboard: http://127.0.0.1:8091 · Health: http://127.0.0.1:8090
 
@@ -68,7 +69,7 @@ bash scripts/quality_check.sh
 bash scripts/release_gate.sh
 ```
 
-See [docs/QUALITY_STATUS.md](docs/QUALITY_STATUS.md) for the evidence status and limitations.
+See [docs/INSTALL_UPGRADE.md](docs/INSTALL_UPGRADE.md) for install/upgrade and systemd instructions. Multi-tenant operation is limited to one isolated runtime per tenant; see [docs/TENANT_AND_API_SECURITY.md](docs/TENANT_AND_API_SECURITY.md). See [docs/QUALITY_STATUS.md](docs/QUALITY_STATUS.md) for evidence status and limitations.
 
 ---
 
@@ -85,6 +86,8 @@ See [docs/LEGAL_GATE.md](docs/LEGAL_GATE.md), [docs/GO_LIVE.md](docs/GO_LIVE.md)
 | Document | Purpose |
 |---|---|
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Engineering completion plan and owner-run validation gates |
+| [docs/INSTALL_UPGRADE.md](docs/INSTALL_UPGRADE.md) | Clean install, safe upgrade and systemd deployment |
+| [docs/TENANT_AND_API_SECURITY.md](docs/TENANT_AND_API_SECURITY.md) | Tenant runtime boundary and SOC API authentication/RBAC |
 | [docs/OVERVIEW.md](docs/OVERVIEW.md) | Product overview |
 | [docs/FEATURE_REGISTER.md](docs/FEATURE_REGISTER.md) | Capability status and required proof |
 | [docs/QUALITY_STATUS.md](docs/QUALITY_STATUS.md) | Honest quality scorecard |
