@@ -11,6 +11,8 @@ mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage lo
 chmod +x "$ROOT/start.sh" "$ROOT/stop.sh" "$ROOT/install.sh" 2>/dev/null || true
 
 source "$ROOT/scripts/load_env.sh"
+PYTHON_BIN="$ROOT/.venv/bin/python"
+[[ -x "$PYTHON_BIN" ]] || PYTHON_BIN="$(command -v python3)"
 
 MODE="${1:-auto}"
 
@@ -102,26 +104,26 @@ start_local() {
     echo "  · $name started (pid $pid)"
   }
 
-  start_bg threat_agent   python3 -m agents.threat_hunting_agent
-  start_bg fusion_agent   python3 -m agents.telemetry_fusion_agent
-  start_bg compliance     python3 -m agents.compliance_logger
-  start_bg watchdog       python3 -m agents.watchdog_agent
-  start_bg firewall       python3 -m agents.firewall_agent
-  start_bg whatsapp       python3 -m agents.whatsapp_webhook
-  start_bg health         python3 -m agents.healthcheck --serve
-  start_bg dashboard      python3 -m agents.dashboard
-  start_bg daily_report   python3 -m agents.daily_report_agent
-  start_bg weekly_evidence python3 -m agents.weekly_evidence_agent
-  start_bg ir_detect       python3 -m agents.ir_detect_agent
-  start_bg ir_investigate  python3 -m agents.ir_investigate_agent
-  start_bg ir_respond      python3 -m agents.ir_respond_agent
-  start_bg ir_report       python3 -m agents.ir_report_agent
-  start_bg tenant_orch     python3 -m agents.tenant_orchestrator_agent
-  start_bg soc_api         python3 -m agents.soc_api_agent
-  start_bg siem_bridge     python3 -m agents.siem_bridge_agent
-  start_bg playbook        python3 -m agents.playbook_agent
-  start_bg threat_intel    python3 -m agents.threat_intel_agent
-  start_bg auto_defense    python3 -m agents.auto_defense_agent
+  start_bg threat_agent   "$PYTHON_BIN" -m agents.threat_hunting_agent
+  start_bg fusion_agent   "$PYTHON_BIN" -m agents.telemetry_fusion_agent
+  start_bg compliance     "$PYTHON_BIN" -m agents.compliance_logger
+  start_bg watchdog       "$PYTHON_BIN" -m agents.watchdog_agent
+  start_bg firewall       "$PYTHON_BIN" -m agents.firewall_agent
+  start_bg whatsapp       "$PYTHON_BIN" -m agents.whatsapp_webhook
+  start_bg health         "$PYTHON_BIN" -m agents.healthcheck --serve
+  start_bg dashboard      "$PYTHON_BIN" -m agents.dashboard
+  start_bg daily_report   "$PYTHON_BIN" -m agents.daily_report_agent
+  start_bg weekly_evidence "$PYTHON_BIN" -m agents.weekly_evidence_agent
+  start_bg ir_detect       "$PYTHON_BIN" -m agents.ir_detect_agent
+  start_bg ir_investigate  "$PYTHON_BIN" -m agents.ir_investigate_agent
+  start_bg ir_respond      "$PYTHON_BIN" -m agents.ir_respond_agent
+  start_bg ir_report       "$PYTHON_BIN" -m agents.ir_report_agent
+  start_bg tenant_orch     "$PYTHON_BIN" -m agents.tenant_orchestrator_agent
+  start_bg soc_api         "$PYTHON_BIN" -m agents.soc_api_agent
+  start_bg siem_bridge     "$PYTHON_BIN" -m agents.siem_bridge_agent
+  start_bg playbook        "$PYTHON_BIN" -m agents.playbook_agent
+  start_bg threat_intel    "$PYTHON_BIN" -m agents.threat_intel_agent
+  start_bg auto_defense    "$PYTHON_BIN" -m agents.auto_defense_agent
 
   local up=0 down=0
   sleep 1
