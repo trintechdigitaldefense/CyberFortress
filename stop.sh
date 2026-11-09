@@ -83,11 +83,11 @@ stop_recorded_process() {
 }
 
 # Docker shutdown is limited to this repository's compose project.
-if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+if [[ -f "$ROOT/docker/docker-compose.yml" ]] && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   if docker compose version >/dev/null 2>&1; then
-    docker compose -f docker/docker-compose.yml down
+    docker compose -f "$ROOT/docker/docker-compose.yml" down
   elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose -f docker/docker-compose.yml down
+    docker-compose -f "$ROOT/docker/docker-compose.yml" down
   fi
 fi
 
