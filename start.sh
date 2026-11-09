@@ -11,6 +11,8 @@ mkdir -p "$PID_DIR" logs evidence secrets telemetry/sentinel telemetry/mirage lo
 chmod +x "$ROOT/start.sh" "$ROOT/stop.sh" "$ROOT/install.sh" 2>/dev/null || true
 
 source "$ROOT/scripts/load_env.sh"
+load_cyberfortress_env "$ROOT/.env"
+export CF_ROOT="$ROOT"
 PYTHON_BIN="$ROOT/.venv/bin/python"
 [[ -x "$PYTHON_BIN" ]] || PYTHON_BIN="$(command -v python3)"
 
@@ -56,6 +58,11 @@ start_local() {
   echo "[+] Starting CyberFortress locally (no Docker)..."
   export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
   load_cyberfortress_env "$ROOT/.env"
+  export CF_ROOT="$ROOT"
+  if ! "$PYTHON_BIN" -c 'from core.tenant_guard import assert_single_tenant_runtime; assert_single_tenant_runtime()'; then
+    echo "[!] Refusing to start agents without a valid isolated tenant runtime." >&2
+    return 1
+  fi
 
   # Termux and proot do not provide a dependable host firewall control plane.
   # Force monitoring-only for this runtime even if a stale .env says LIVE=true.
