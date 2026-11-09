@@ -67,7 +67,7 @@ for filename, member_name, member_type in (
             archive.addfile(info)
 PY
 for BAD in "$TMP/cf_backup_traversal.tar.gz" "$TMP/cf_backup_symlink.tar.gz"; do
-  sha256sum "$BAD" > "$BAD.sha256"
+  (cd "$TMP" && sha256sum "$(basename "$BAD")" > "$(basename "$BAD").sha256")
   if bash "$ROOT/scripts/restore_offbox.sh" "$BAD" "$TMP/bad-stage"; then
     echo "FAIL: restore accepted an unsafe archive member in $BAD" >&2
     exit 1
