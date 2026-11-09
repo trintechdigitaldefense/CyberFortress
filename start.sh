@@ -76,7 +76,7 @@ start_local() {
     local recorded_pid=""
     local command_line=""
 
-    if [[ "${1:-}" == "python" || "${1:-}" == "python3" ]] && [[ "${2:-}" == "-m" ]]; then
+    if [[ -n "${1:-}" ]] && [[ "$(basename "$1")" == "python" || "$(basename "$1")" == "python3" ]] && [[ "${2:-}" == "-m" ]]; then
       expected_module="${3:-}"
     fi
 
