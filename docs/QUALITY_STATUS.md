@@ -18,7 +18,7 @@ This file is an **honest** status board. Scores are not marketing claims.
 | Tenant isolation | Engineering gate complete (P2) | One tenant per isolated runtime; agent, case-store, dashboard and SOC API guards; shared-process multi-tenant mode refused |
 | Telemetry schema | Done (P3) | v1.0 validate/normalize |
 | Readiness layers | Done (P4) | software → monitoring → pilot → live |
-| Release tests | Done (P5) | 138 tests + release_gate.sh |
+| Release tests | CI verified | 141 tests plus installer, upgrade, lifecycle, firewall and backup/restore failure-injection gates |
 | Isolated VM soak | **Required** | See `docs/PILOT_SOAK.md` |
 | Legal / ROE / E&O | **Required** | See `docs/LEGAL_GATE.md` |
 
