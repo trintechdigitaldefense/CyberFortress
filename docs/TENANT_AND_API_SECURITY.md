@@ -23,7 +23,7 @@ CF_RATE_LIMIT_MAX=120
 CF_RATE_LIMIT_WINDOW=60
 ```
 
-Roles are `viewer`, `analyst`, `operator` and `admin`. Ingest requires both an authorized role with `write:ingest` and the separate SIEM ingest token. Missing roles and unknown roles fail closed. Unknown routes are not served. Request bodies above the configured maximum are rejected with HTTP 413.
+Roles are `viewer`, `investigator`, `auditor`, `analyst`, `operator` and `admin`. Viewer, investigator and auditor are read-only; analysts can ingest and manage case/evidence data; operators can approve Tier-2 actions; admins have the full permission set. Ingest requires both an authorized role with `write:ingest` and the separate SIEM ingest token. Missing roles and unknown roles fail closed. Unknown routes are not served. Request bodies above the configured maximum are rejected with HTTP 413.
 
 Do not expose the SOC API directly to the internet. If remote access is required, place it behind an approved TLS reverse proxy, restrict source networks, and manage certificates and identity at that boundary. Never reuse the dashboard password as an ingest token.
 
