@@ -9,7 +9,7 @@ from pathlib import Path
 
 from core.agent_runtime import run_forever
 from core.capacity import limits
-from core.tenant import apply_tenant_env, list_tenants, load_tenant_settings
+from core.tenant import list_tenants, load_tenant_settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,27 +25,21 @@ def _cycle():
     tenants = list_tenants()
     max_t = limits()["max_tenants_per_host"]
     if len(tenants) > max_t:
-        logger.warning("Tenant count %s exceeds host cap %s — truncating", len(tenants), max_t)
-        tenants = tenants[:max_t]
+        logger.error("Tenant count %s exceeds isolated-runtime cap %s — refusing shared processing", len(tenants), max_t)
+        return {"tenants": len(tenants), "detail": [], "cap": max_t, "blocked": True}
     report = []
     for tid in tenants:
         settings = load_tenant_settings(tid)
-        prev = os.environ.get("CF_TENANT_ID")
-        try:
-            apply_tenant_env(tid)
-            audit = Path(os.environ.get("CF_AUDIT_PATH", ""))
-            report.append(
-                {
-                    "tenant_id": tid,
-                    "client": settings.get("client_name", tid),
-                    "audit_exists": audit.exists(),
-                    "audit_bytes": audit.stat().st_size if audit.exists() else 0,
-                    "rule_pack": settings.get("rule_pack") or os.getenv("CF_RULE_PACK_NAME", ""),
-                }
-            )
-        finally:
-            if prev is not None:
-                os.environ["CF_TENANT_ID"] = prev
+        audit = Path("logs") / "tenants" / tid / "cma_audit.jsonl"
+        report.append(
+            {
+                "tenant_id": tid,
+                "client": settings.get("client_name", tid),
+                "audit_exists": audit.exists(),
+                "audit_bytes": audit.stat().st_size if audit.exists() else 0,
+                "rule_pack": settings.get("rule_pack") or "",
+            }
+        )
     logger.info("Tenants scanned: %s", len(report))
     return {"tenants": len(report), "detail": report[:25], "cap": max_t}
 
