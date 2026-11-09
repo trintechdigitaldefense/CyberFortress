@@ -49,6 +49,10 @@ if [[ "$ACTION" == "--uninstall" || "$ACTION" == "uninstall" ]]; then
 fi
 
 echo "[+] Install root: $INSTALL_ROOT"
+if [[ ! -x "$INSTALL_ROOT/.venv/bin/python" ]]; then
+  echo "[!] Project virtualenv missing. Run $INSTALL_ROOT/install.sh first."
+  exit 1
+fi
 if [[ ! -d "$INSTALL_ROOT/agents" ]]; then
   echo "[!] $INSTALL_ROOT/agents missing — set CF_INSTALL_ROOT or run from repo"
   exit 1
@@ -73,6 +77,16 @@ ensure_env CF_CONTAINMENT_LIVE false
 ensure_env CF_ALLOW_FORCE false
 ensure_env CF_ROOT "$INSTALL_ROOT"
 
+if ! getent group cyberfortress >/dev/null 2>&1; then
+  groupadd --system cyberfortress
+fi
+if ! id cyberfortress >/dev/null 2>&1; then
+  useradd --system --gid cyberfortress --home-dir "$INSTALL_ROOT" --shell /usr/sbin/nologin cyberfortress
+fi
+install -d -o cyberfortress -g cyberfortress -m 0750 "$INSTALL_ROOT/logs" "$INSTALL_ROOT/evidence" "$INSTALL_ROOT/telemetry" "$INSTALL_ROOT/config"
+install -d -o cyberfortress -g cyberfortress -m 0700 "$INSTALL_ROOT/secrets"
+chown -R cyberfortress:cyberfortress "$INSTALL_ROOT/logs" "$INSTALL_ROOT/evidence" "$INSTALL_ROOT/telemetry" "$INSTALL_ROOT/config"
+
 render() {
   sed "s|/opt/CyberFortress|$INSTALL_ROOT|g" "$1" >"$2"
   echo "  wrote $2"
@@ -86,7 +100,9 @@ mkdir -p "$UNIT_DIR/cyberfortress-agent@healthcheck.service.d"
 cat >"$UNIT_DIR/cyberfortress-agent@healthcheck.service.d/override.conf" <<OV
 [Service]
 ExecStart=
-ExecStart=/usr/bin/python3 -m agents.healthcheck --serve
+User=cyberfortress
+Group=cyberfortress
+ExecStart=$INSTALL_ROOT/.venv/bin/python -m agents.healthcheck --serve
 OV
 echo "  wrote healthcheck override (--serve)"
 
