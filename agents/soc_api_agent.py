@@ -18,13 +18,7 @@ from core.soc.event_bus import get_bus
 from core.watchdog import write_heartbeat
 from core.tenant_guard import TenantError, assert_single_tenant_runtime
 
-try:
-    from core.defense import rate_limit_allow, security_headers
-except Exception:
-    rate_limit_allow = None
-
-    def security_headers(handler):
-        return None
+from core.defense import rate_limit_allow, security_headers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -73,7 +67,7 @@ class Handler(BaseHTTPRequestHandler):
             return None
         if header.startswith("Basic "):
             try:
-                decoded = base64.b64decode(header.split(" ", 1)[1]).decode("utf-8")
+                decoded = base64.b64decode(header.split(" ", 1)[1], validate=True).decode("utf-8")
                 user, _, password = decoded.partition(":")
                 return rbac.authenticate(user, password)
             except Exception:
