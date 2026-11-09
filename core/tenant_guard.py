@@ -19,7 +19,7 @@ class TenantError(Exception):
 def configured_tenants() -> list[str]:
     """Return configured tenant IDs, ignoring symlinks and invalid directory names."""
     root = Path(os.getenv("CF_ROOT", ".")).resolve() / "config" / "tenants"
-    if not root.is_dir():
+    if root.is_symlink() or not root.is_dir():
         return []
     found = []
     for path in root.iterdir():
@@ -71,7 +71,7 @@ def resolve_request_tenant(
     Policy:
     - Active process tenant (CF_TENANT_ID) is authoritative when set.
     - Client-supplied tenant must match active tenant or be empty.
-    - Never allow request body/header alone to switch tenant when CF_TENANT_ID is set.
+    - Never allow request body/header alone to establish a tenant context.
     """
     active = validate_tenant_id(active_tenant()) if active_tenant() else ""
     hdr = validate_tenant_id(header_tenant or "") if header_tenant else ""
@@ -91,8 +91,6 @@ def assert_tenant_owns(resource_tenant: str, *, allow_empty_resource: bool = Tru
     active = validate_tenant_id(active_tenant()) if active_tenant() else ""
     rt = (resource_tenant or "").strip()
     if not active:
-        if rt and not allow_empty_resource:
-            raise TenantError("no active tenant context")
         if rt:
             raise TenantError("no active tenant context")
         return
