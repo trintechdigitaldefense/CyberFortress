@@ -69,3 +69,37 @@ def test_env_perms(tmp_path):
     os.chmod(env, 0o600)
     ok, msg = check_env_permissions(env)
     assert ok is True
+
+
+def test_siem_batch_limits_and_schema_bounds(monkeypatch):
+    import core.soc.siem as siem
+
+    class FakeBus:
+        def __init__(self):
+            self.events = []
+
+        def publish(self, event):
+            self.events.append(event)
+            return True
+
+    bus = FakeBus()
+    monkeypatch.setattr(siem, "get_bus", lambda: bus)
+    monkeypatch.setenv("CF_SIEM_REQUIRE_TOKEN", "true")
+    monkeypatch.setenv("CF_SIEM_INGEST_TOKEN", "ingest-secret")
+    monkeypatch.setenv("CF_SIEM_MAX_EVENTS", "1")
+    assert siem.ingest_batch([{"indicator": "x"}], token="ingest-secret") == 1
+    with pytest.raises(ValueError, match="maximum"):
+        siem.ingest_batch([{}, {}], token="ingest-secret")
+    with pytest.raises(ValueError, match="object"):
+        siem.ingest_batch([None], token="ingest-secret")
+
+    normalized = siem.normalize_event({
+        "indicator": "i" * 1000,
+        "target": "t" * 1000,
+        "severity": "NOT_A_SEVERITY",
+        "extra": "e" * 5000,
+    })
+    assert len(normalized["indicator"]) == 256
+    assert len(normalized["target"]) == 256
+    assert normalized["severity"] == "MEDIUM"
+    assert len(normalized["raw"]["extra"]) == 1024
