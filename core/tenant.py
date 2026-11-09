@@ -37,7 +37,7 @@ def list_tenants() -> List[str]:
         return []
     out: List[str] = []
     for p in sorted(root.iterdir()):
-        if p.is_symlink() or not p.is_dir() or p.name.startswith("."):
+        if p.is_symlink() or not p.is_dir() or p.name.startswith(".") or p.name == "example_client":
             continue
         try:
             tid = validate_tenant_id(p.name)
@@ -66,16 +66,20 @@ def load_tenant_settings(tid: Optional[str] = None) -> Dict[str, Any]:
     if d.is_symlink() or d.resolve().parent != root:
         raise TenantError("tenant path escapes configured tenant root")
     path = d / "settings.yaml"
+    if path.is_symlink():
+        raise TenantError("tenant settings must not be a symlink")
     if not path.exists():
         return {"tenant_id": tid}
     try:
         import yaml
 
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if not isinstance(data, dict):
+            raise ValueError("tenant settings must be a YAML mapping")
         data.setdefault("tenant_id", tid)
         return data
-    except Exception:
-        return {"tenant_id": tid}
+    except Exception as exc:
+        raise TenantError("tenant settings are invalid") from exc
 
 
 def apply_tenant_env(tid: Optional[str] = None) -> Dict[str, Any]:
