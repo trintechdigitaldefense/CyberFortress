@@ -18,7 +18,7 @@ git -C "$TMP/source" commit -m initial >/dev/null
 git -C "$TMP/source" remote add origin "$TMP/origin.git"
 git -C "$TMP/source" push -u origin main >/dev/null
 
-git clone "$TMP/origin.git" "$TMP/client" >/dev/null 2>&1
+git clone --branch main "$TMP/origin.git" "$TMP/client" >/dev/null 2>&1
 git -C "$TMP/client" config user.name "CyberFortress CI"
 git -C "$TMP/client" config user.email "ci@example.invalid"
 
