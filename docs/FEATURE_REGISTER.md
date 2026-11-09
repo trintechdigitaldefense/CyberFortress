@@ -1,6 +1,6 @@
 # CyberFortress — Feature Register
 
-**Current hardening checkpoint:** `hardening/cyberfortress-final-release` @ `62d9390ab94e0d5dac8d6f69301e3c782691dcc1`  
+**Current hardening checkpoint:** `hardening/cyberfortress-final-release` @ `b906e13036ccd2d920a4b4d7e85b5df831259d58`  
 **Purpose:** Distinguish source presence from verified product capability.
 
 Status meanings:
@@ -20,11 +20,11 @@ Status meanings:
 | Telemetry fusion | `core/telemetry/fusion.py` | IMPLEMENTED_BUT_UNVERIFIED | Correlation, dedupe, audit failure and event-loss tests |
 | Detection/rules/scoring | `core/rules.py`, `core/escalation.py`, `core/ir/scoring.py` | IMPLEMENTED_BUT_UNVERIFIED | Explainability, precision/false-positive and regression corpus |
 | Threat intelligence | `core/soc/threat_intel.py`, `agents/threat_intel_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | Feed validation, freshness, provenance and safe enrichment tests |
-| Incident cases/state machine | `core/ir/cases.py`, `state_machine.py` | IMPLEMENTED_BUT_UNVERIFIED | Tenant-scoped storage, path-safe case IDs and valid/invalid lifecycle transitions now pass unit tests; concurrency and all API paths remain |
+| Incident cases/state machine | `core/ir/cases.py`, `state_machine.py` | IMPLEMENTED_BUT_UNVERIFIED | Tenant-scoped storage, path-safe case IDs and valid/invalid lifecycle transitions pass unit tests; dashboard/SOC API runtime guards and shared-tenant refusal pass CI; owner VM storage-permission checks remain |
 | Evidence packages | `core/evidence/pack.py`, reporting agents | IMPLEMENTED_BUT_UNVERIFIED | Hash verification, export, retention and restore tests |
 | Audit chain | `core/audit_chain.py`, `agents/compliance_logger.py`, `core/telemetry/fusion.py`, `core/whatsapp_gateway.py` | IMPLEMENTED_BUT_UNVERIFIED | Existing-chain verification before append, fsync/permission fail-closed and tamper refusal are tested; multi-process concurrency and external checkpoint remain |
 | Metrics persistence | `core/monitoring_metrics.py` | IMPLEMENTED_BUT_UNVERIFIED | Concurrent writers, atomic replace and storage-failure tests |
-| Dashboard authentication/RBAC | `agents/dashboard.py`, `core/soc/rbac.py` | IMPLEMENTED_BUT_UNVERIFIED | Tests cover per-user SOC roles, read-only auditor/investigator/viewer, no empty password and anonymous read-only mode; remote deployment/CSRF session review remains |
+| Dashboard authentication/RBAC | `agents/dashboard.py`, `core/soc/rbac.py` | IMPLEMENTED_BUT_UNVERIFIED | Tests cover per-user SOC roles, read-only auditor/investigator/viewer, fail-closed SOC API auth, dashboard CSRF and rate limits; remote TLS proxy deployment remains |
 | WhatsApp approval | `agents/whatsapp_webhook.py`, `core/whatsapp_gateway.py`, `core/defense.py` | IMPLEMENTED_BUT_UNVERIFIED | Unit tests pass for signature, configured startup secrets, nonce expiry, replay and atomic decision; live Meta integration/soak remains |
 | ROE/sign-off | `core/roe.py`, `core/readiness.py` | IMPLEMENTED_BUT_UNVERIFIED | Fail-closed missing/invalid sign-off tests pass; full client engagement expiry, scope and revocation acceptance remains |
 | Autonomy and approval tiers | `core/autonomy.py`, `core/circuit_breaker.py`, `core/containment/drivers.py` | IMPLEMENTED_BUT_UNVERIFIED | Tests cover driver failure, dry-run vs execution, process termination verification and no force bypass of Tier-2 approval; live isolated-VM proof remains |
