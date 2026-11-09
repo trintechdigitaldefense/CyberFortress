@@ -13,6 +13,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from core.circuit_breaker import breaker
 from core.defense import security_headers, rate_limit_allow, assert_safe_bind
+from core.tenant_guard import TenantError, assert_single_tenant_runtime
 import core.whatsapp_report_hooks  # noqa: F401
 from agents.dashboard_ui import DASHBOARD_HTML
 from agents.dashboard_status import agent_status as _agent_status_full
@@ -309,6 +310,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         if not _auth_ok(self):
             return self._unauthorized()
+        try:
+            assert_single_tenant_runtime()
+        except TenantError:
+            self._json(503, {"ok": False, "error": "multiple tenant configurations require isolated runtimes"})
+            return
         parsed = urlparse(self.path)
         path = parsed.path
         if path in ("/", "/dashboard", "/index.html"):
@@ -421,8 +427,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        client = self.client_address[0] if self.client_address else "unknown"
+        if not rate_limit_allow(f"dash-post:{client}", limit=60):
+            return self._json(429, {"ok": False, "error": "rate limited"})
         if not _auth_ok(self):
             return self._unauthorized()
+        try:
+            assert_single_tenant_runtime()
+        except TenantError:
+            self._json(503, {"ok": False, "error": "multiple tenant configurations require isolated runtimes"})
+            return
         if not _can_write(self):
             return self._json(403, {"ok": False, "error": "role cannot mutate state", "role": DASH_ROLE})
         if not _csrf_ok(self):
