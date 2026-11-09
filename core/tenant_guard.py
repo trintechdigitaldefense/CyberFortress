@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 _TENANT_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
@@ -13,6 +14,37 @@ _TENANT_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
 class TenantError(Exception):
     """Invalid or mismatched tenant context."""
 
+
+
+def configured_tenants() -> list[str]:
+    """Return configured tenant IDs, ignoring symlinks and invalid directory names."""
+    root = Path(os.getenv("CF_ROOT", ".")).resolve() / "config" / "tenants"
+    if not root.is_dir():
+        return []
+    found = []
+    for path in root.iterdir():
+        if path.is_symlink() or not path.is_dir() or path.name.startswith("."):
+            continue
+        try:
+            found.append(validate_tenant_id(path.name))
+        except TenantError:
+            continue
+    return sorted(set(found))
+
+
+def assert_single_tenant_runtime() -> str:
+    """
+    The current agent model has process-wide tenant context, not request-scoped
+    concurrent tenant isolation. Refuse to serve or process data when multiple
+    tenant configurations share one runtime.
+    """
+    configured = configured_tenants()
+    active = validate_tenant_id(active_tenant()) if active_tenant() else ""
+    if len(configured) > 1:
+        raise TenantError("multiple tenants configured: use one isolated runtime per tenant")
+    if configured and active != configured[0]:
+        raise TenantError("active tenant does not match the sole configured tenant")
+    return active
 
 def active_tenant() -> str:
     return (os.getenv("CF_TENANT_ID") or "").strip()
