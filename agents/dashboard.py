@@ -58,7 +58,7 @@ def _auth_ok(handler):
     if not header.startswith("Basic "):
         return False
     try:
-        decoded = base64.b64decode(header.split(" ", 1)[1]).decode("utf-8")
+        decoded = base64.b64decode(header.split(" ", 1)[1], validate=True).decode("utf-8")
         user, _, password = decoded.partition(":")
         configured_users = os.getenv("CF_SOC_USERS", "").strip()
         if configured_users:
