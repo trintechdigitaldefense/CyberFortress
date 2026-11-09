@@ -53,9 +53,14 @@ def test_siem_strips_spoofed_tenant(monkeypatch):
     monkeypatch.setenv("CF_TENANT_ID", "alpha")
     monkeypatch.delenv("CF_SIEM_INGEST_TOKEN", raising=False)
     monkeypatch.setenv("CF_SIEM_REQUIRE_TOKEN", "false")
-    clean = sanitize_ingest_event({"indicator": "x", "target": "1.1.1.1", "tenant_id": "evil"})
+    clean = sanitize_ingest_event({
+        "indicator": "x",
+        "target": "1.1.1.1",
+        "tenant_id": "evil",
+        "tenant": "other-evil",
+    })
     assert clean.get("tenant_id") == "alpha"
-    assert clean.get("tenant_id") != "evil"
+    assert clean.get("tenant") is None
 
 
 def test_env_perms(tmp_path):
