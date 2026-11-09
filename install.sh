@@ -17,26 +17,13 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 echo "[+] Python: $(python3 --version)"
 
-core_imports_ok() {
-  python3 -c "import yaml, requests, dateutil" 2>/dev/null
-}
-
-echo "[+] Installing core Python packages..."
-if python3 -m pip install --user -q -r requirements.txt 2>/dev/null \
-  || python3 -m pip install -q -r requirements.txt 2>/dev/null; then
-  echo "[+] Core packages installed"
-elif core_imports_ok; then
-  echo "[i] pip install failed (network/PyPI), but required modules already present — continuing"
-else
-  echo "[!] Failed to install core requirements and imports missing"
-  echo "    Retry later: python3 -m pip install -r requirements.txt"
-  exit 1
+echo "[+] Creating isolated Python environment..."
+if [[ ! -x .venv/bin/python ]]; then
+  python3 -m venv .venv
 fi
-
-echo "[+] Optional identity packages (ldap3, msal) — best effort..."
-python3 -m pip install --user -q ldap3 msal 2>/dev/null \
-  || python3 -m pip install -q ldap3 msal 2>/dev/null \
-  || echo "[i] Optional ldap3/msal skipped (install later if using LDAP/Azure AD)"
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
+echo "[+] Project dependencies installed in .venv"
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
