@@ -1,6 +1,6 @@
 # CyberFortress — Feature Register
 
-**Current hardening checkpoint:** `hardening/cyberfortress-final-release` @ `3751b7058694498421ff98d58e70b9ff6a919c65`  
+**Current hardening checkpoint:** `hardening/cyberfortress-final-release` @ `62d9390ab94e0d5dac8d6f69301e3c782691dcc1`  
 **Purpose:** Distinguish source presence from verified product capability.
 
 Status meanings:
@@ -30,9 +30,9 @@ Status meanings:
 | Autonomy and approval tiers | `core/autonomy.py`, `core/circuit_breaker.py`, `core/containment/drivers.py` | IMPLEMENTED_BUT_UNVERIFIED | Tests cover driver failure, dry-run vs execution, process termination verification and no force bypass of Tier-2 approval; live isolated-VM proof remains |
 | Firewall containment | `core/containment/*`, `agents/firewall_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | CI namespace acceptance passes effective NET_ADMIN probe, partial chain-setup rollback, bidirectional apply verification, explicit unblock and emergency disarm; client VM and protected-target acceptance remain |
 | Tenant isolation | `core/tenant.py`, `tenant_guard.py`, SOC RBAC | IMPLEMENTED_BUT_UNVERIFIED | Cross-tenant adversarial tests for every resource/API |
-| SIEM/API integration | `core/soc/siem.py`, `agents/siem_bridge_agent.py`, `soc_api_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | Ingest-token enforcement and trusted tenant stamping pass tests; retry, backpressure and delivery soak remain |
+| SIEM/API integration | `core/soc/siem.py`, `agents/siem_bridge_agent.py`, `soc_api_agent.py` | IMPLEMENTED_BUT_UNVERIFIED | Authenticated route RBAC, separate ingest token, trusted tenant stamping, body/batch/field limits and schema tests pass CI; retry/backpressure soak remains |
 | Playbooks/SOAR | `core/soc/playbooks.py`, `playbooks/*` | IMPLEMENTED_BUT_UNVERIFIED | Dry-run, authorisation, idempotency, timeout and rollback |
-| Deployment profiles | `install.sh`, `start.sh`, Docker Compose, `scripts/*preflight*` | IMPLEMENTED_BUT_UNVERIFIED | Termux/proot and standard Docker forced monitoring-only; native Linux VM is candidate live profile; actual client install/upgrade/soak/restore remain |
+| Deployment profiles | `install.sh`, `scripts/upgrade.sh`, `start.sh`, systemd, Docker Compose | IMPLEMENTED_BUT_UNVERIFIED | Isolated-venv install, fast-forward upgrade/rollback, unprivileged systemd agents and bounded firewall capabilities pass CI; owner VM install/upgrade/soak/restore remain |
 | Secrets management | `core/secrets_mgmt.py` | IMPLEMENTED_BUT_UNVERIFIED | Secure token generation, private file writes, env rotation and permission checks pass unit tests; operator recovery/rotation drill remains |
 | Client branding | README text identity; no dedicated image assets found in inspected tree | PARTIALLY_IMPLEMENTED | Approved logo pack, dashboard/report integration and brand review |
 
@@ -43,4 +43,4 @@ Update this file whenever a capability changes. A status may advance to IMPLEMEN
 
 ## Current verification checkpoint
 
-CI run [42526500787](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526500787) passed with 128 tests, Ruff, Bandit, pip-audit, isolated firewall chain rollback/apply/verify/unblock/disarm, backup checksum/staged restore and deployment-profile safety. This is automated evidence only; actual client VM installation, soak, legal sign-off, live Meta integration, concurrency and independent review remain outstanding.
+CI run [#408](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42614223976) passed on `a3a50bd2823aa55f8223378d0158596196001d2d` with 141 tests, Ruff, Bandit, pip-audit, installer smoke, fast-forward upgrade, lifecycle and tenant/API security regressions, isolated firewall acceptance, and backup/restore failure injection. This is automated engineering evidence only; owner VM installation, soak, client legal sign-off, live Meta integration, independent review and host recovery remain outstanding.
