@@ -61,9 +61,6 @@ class Handler(BaseHTTPRequestHandler):
                 bits = part.strip().split(":")
                 if len(bits) >= 3 and hmac.compare_digest(bits[2], token):
                     return bits[1]
-            dashboard_pass = os.getenv("CF_DASHBOARD_PASS", "")
-            if dashboard_pass and hmac.compare_digest(dashboard_pass, token):
-                return "operator"
             return None
         if header.startswith("Basic "):
             try:
