@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from core.soc.event_bus import get_bus
+from core.tenant_guard import assert_single_tenant_runtime
 
 logger = logging.getLogger("cf_siem")
 
@@ -21,7 +22,7 @@ def sanitize_ingest_event(raw: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(raw, dict):
         raise ValueError("SIEM event must be an object")
     clean = dict(raw)
-    tenant = os.getenv("CF_TENANT_ID", "").strip()
+    tenant = assert_single_tenant_runtime()
     clean.pop("tenant_id", None)
     if tenant:
         clean["tenant_id"] = tenant
