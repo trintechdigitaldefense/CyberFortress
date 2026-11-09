@@ -29,7 +29,7 @@ for rel in ("agents/dashboard.py", "agents/soc_api_agent.py"):
     source = (root / rel).read_text()
     assert source.count("assert_single_tenant_runtime()") >= 2, f"{rel} lacks GET/POST tenant guard"
 rbac = (root / "core/soc/rbac.py").read_text()
-assert "if role is None:\\n        return False" in rbac
+assert "if role is None:\n        return False" in rbac
 print("PASS: dashboard and SOC API enforce isolated tenant runtime and fail-closed RBAC")
 PY
 
