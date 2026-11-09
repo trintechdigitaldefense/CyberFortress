@@ -34,5 +34,9 @@ def test_playbook_match():
 def test_rbac_metrics_ha():
     assert authorize("viewer", "read:status")
     assert not authorize("viewer", "write:containment")
+    assert authorize("investigator", "read:cases")
+    assert authorize("auditor", "read:status")
+    assert not authorize("investigator", "write:cases")
+    assert not authorize("auditor", "write:containment")
     assert "cf_up" in prometheus_text()
     assert "leader" in try_become_leader()
