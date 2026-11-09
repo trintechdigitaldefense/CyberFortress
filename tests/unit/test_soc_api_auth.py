@@ -17,11 +17,14 @@ def test_soc_api_rejects_anonymous_by_default(monkeypatch):
 def test_soc_api_bearer_requires_configured_user(monkeypatch):
     from agents.soc_api_agent import Handler
 
+    monkeypatch.setenv("CF_DASHBOARD_PASS", "dashboard-secret")
     monkeypatch.setenv("CF_SOC_USERS", "analyst:analyst:secret-token")
     handler = Handler.__new__(Handler)
     handler.headers = {"Authorization": "Bearer secret-token"}
     assert handler._auth() == "analyst"
     handler.headers = {"Authorization": "Bearer unknown-token"}
+    assert handler._auth() is None
+    handler.headers = {"Authorization": "Bearer dashboard-secret"}
     assert handler._auth() is None
 
 
