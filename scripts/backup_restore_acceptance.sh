@@ -36,8 +36,7 @@ fi
 # Reject a checksum-mismatched archive.
 cp "$ARCHIVE" "$TMP/corrupt.tar.gz"
 printf 'tamper' >> "$TMP/corrupt.tar.gz"
-(cd "$TMP" && sha256sum "$(basename "$ARCHIVE")" > "$TMP/original.sha256")
-sed "s|$(basename "$ARCHIVE")|corrupt.tar.gz|" "$TMP/original.sha256" > "$TMP/corrupt.tar.gz.sha256"
+(cd "$(dirname "$ARCHIVE")" && sha256sum "$(basename "$ARCHIVE")") | sed "s|$(basename "$ARCHIVE")|corrupt.tar.gz|" > "$TMP/corrupt.tar.gz.sha256"
 if bash "$ROOT/scripts/restore_offbox.sh" "$TMP/corrupt.tar.gz" "$TMP/corrupt-stage"; then
   echo "FAIL: restore accepted a checksum-mismatched archive" >&2
   exit 1
