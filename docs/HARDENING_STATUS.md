@@ -21,7 +21,7 @@
 - Isolated VM soak (`docs/PILOT_SOAK.md`)
 - Legal/ROE/E&O (`docs/LEGAL_GATE.md`)
 
-Latest R2/R3 baseline CI evidence: [run #408](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42614223976) passed on `a3a50bd2823aa55f8223378d0158596196001d2d`; subsequent hardening changes are validated by [run #415](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42614686172) on `81202daf17b4cd7abc5e90b3aca50fa13bf883fc`. The additional malicious-archive/failure-injection regression in the current head is awaiting [run #416](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42617182784). These are engineering CI results, not owner VM or client acceptance.
+Latest R2/R3 baseline CI evidence: [run #416](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42617182784) passed on `1ccc6712488ccb6be71a16e006fdf9eef59411b7` with 141 tests, Ruff, Bandit, pip-audit, installer/upgrade/lifecycle checks, tenant/API controls, firewall namespace acceptance and malicious-archive plus backup-failure regressions. R2 and R3 engineering gates are closed; owner VM validation and later roadmap/release gates remain outstanding. These are engineering CI results, not owner VM or client acceptance.
 
 ## Verify
 
