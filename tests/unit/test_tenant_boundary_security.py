@@ -51,3 +51,21 @@ def test_tenant_symlink_is_not_counted(tmp_path, monkeypatch):
     (tenants / "linked").symlink_to(outside, target_is_directory=True)
     monkeypatch.setenv("CF_ROOT", str(root))
     assert configured_tenants() == []
+
+
+def test_client_claim_cannot_create_tenant_context(monkeypatch):
+    from core.tenant_guard import TenantError, resolve_request_tenant
+
+    monkeypatch.delenv("CF_TENANT_ID", raising=False)
+    with pytest.raises(TenantError, match="cannot establish"):
+        resolve_request_tenant(header_tenant="alpha")
+    with pytest.raises(TenantError, match="cannot establish"):
+        resolve_request_tenant(body_tenant="alpha")
+
+
+def test_resource_tenant_requires_active_context(monkeypatch):
+    from core.tenant_guard import TenantError, assert_tenant_owns
+
+    monkeypatch.delenv("CF_TENANT_ID", raising=False)
+    with pytest.raises(TenantError, match="no active tenant"):
+        assert_tenant_owns("alpha")
