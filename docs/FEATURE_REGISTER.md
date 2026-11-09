@@ -1,6 +1,6 @@
 # CyberFortress — Feature Register
 
-**Current hardening checkpoint:** `hardening/cyberfortress-final-release` @ `b906e13036ccd2d920a4b4d7e85b5df831259d58`  
+**Current hardening checkpoint:** `hardening/cyberfortress-final-release` (see the branch HEAD and latest CI run; this register is updated with each release checkpoint)  
 **Purpose:** Distinguish source presence from verified product capability.
 
 Status meanings:
