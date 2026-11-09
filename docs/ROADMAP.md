@@ -1,17 +1,17 @@
 # CyberFortress engineering roadmap
 
 **Development branch:** `hardening/cyberfortress-final-release`  
-**Baseline:** `0a1f61a4681f3f2205a3ec6802e103932658daaf`  
+**Latest R2/R3 verified checkpoint:** `a3a50bd2823aa55f8223378d0158596196001d2d`  
 **Operating posture:** monitoring-only; `CF_CONTAINMENT_LIVE=false`  
 **Release target:** v1.0.0 (not released)
 
 This roadmap separates work that can be completed in the repository from acceptance evidence that must be collected by TrinTech on its own isolated virtual machine. No cloud VM will be provisioned as part of this plan.
 
-## Current verified baseline
+## Current verified checkpoint
 
-The latest checked GitHub Actions run for the baseline, [42526663705](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42526663705), completed successfully. The repository's acceptance record reports 128 pytest tests plus Ruff, Bandit, pip-audit, shell checks, isolated firewall-namespace acceptance, backup/restore acceptance and deployment-profile safety checks.
+GitHub Actions [run #408](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42614223976) passed on `a3a50bd2823aa55f8223378d0158596196001d2d`: 141 pytest tests, Ruff, Bandit, pip-audit, isolated installer smoke test, process lifecycle safety, safe environment parsing, fast-forward upgrade/rollback regression, least-privilege systemd and tenant-boundary checks, isolated firewall namespace acceptance, backup/restore failure-injection acceptance, and Docker/Termux monitoring-only profile checks.
 
-These are CI results, not proof of a clean installation or live host capability on a real VM. The current branch remains a release candidate, not a client-ready release.
+This verifies the R2/R3 engineering gates in CI. It does not prove the owner's host filesystem permissions, systemd capability behaviour, live host firewall backend, client network isolation, or operational recovery. Those remain owner-run VM gates.
 
 ## Engineering roadmap
 
@@ -24,24 +24,25 @@ These are CI results, not proof of a clean installation or live host capability 
 **Exit:** no conflicting version, test-count or readiness claims; clean CI on the updated branch.
 
 ### R2 — Runtime, installation and recovery reliability
-- [x] Harden local start/stop lifecycle: repeated starts skip already-running recorded agents; shutdown validates PID identity and never kills unrelated listeners by port; stale/reused PID records are handled conservatively. A regression check is enforced in CI. (Install/update/uninstall audit remains open.)
-- [ ] Verify all supported profiles and ensure Termux/proot and standard Docker remain monitoring-only.
-- [ ] Review systemd service users, filesystem permissions, restart policy, resource limits and shutdown ordering.
-- [ ] Exercise backup/restore code paths, including malformed archives, interrupted copies, disk-full and permission failures.
-- [ ] Ensure secrets, client sign-off and approval state are never copied into public or ordinary operational backups.
+- [x] Harden local start/stop lifecycle: duplicate starts are suppressed only for verified recorded agents; shutdown validates PID identity and never kills unrelated listeners or clears ports.
+- [x] Verify supported profiles: Termux/proot and standard Docker remain monitoring-only.
+- [x] Review systemd service users, filesystem permissions, restart policy, resource limits and shutdown ordering. Standard agents use a dedicated unprivileged account; firewall privileges are bounded to network capabilities.
+- [x] Exercise backup/restore paths, including checksum mismatch, traversal and symlink archives, interrupted copy, simulated storage-write failure, destination failure and no-overwrite staging.
+- [x] Keep secrets, sign-off material and pending approval state outside operational backups.
+- [x] Add isolated-venv installation, fast-forward-only upgrade, dirty-tree/divergence refusal and source rollback reference.
 
-**Exit:** automated clean-install, upgrade, restart, failure-injection and staged-restore checks pass in CI; no unsafe privilege escalation or accidental live-mode activation.
-
+**Exit: Engineering gate complete.** CI run #408 passed installer smoke, upgrade regression, lifecycle safety, deployment privilege checks and backup/restore failure injection. Owner-run VM validation remains separate.
 ### R3 — Security and tenant-boundary assurance
-- [ ] Complete endpoint-by-endpoint authentication, authorization, CSRF, session, rate-limit and input-validation review.
-- [ ] Complete cross-tenant adversarial tests for every API, case, evidence, dashboard and export path.
-- [ ] Review approval binding, nonce/replay handling, expiry, approver identity and idempotent execution.
-- [ ] Review audit-chain concurrency, tamper handling, permissions, storage failure and recovery.
-- [ ] Review telemetry ingestion limits, schema validation, queue/backpressure behaviour and untrusted indicator handling.
-- [ ] Verify dependency pinning, vulnerability scanning and secret-leak checks remain blocking CI gates.
+- [x] Complete endpoint-by-endpoint authentication, authorization, CSRF, stateless-auth/session and rate-limit/input-validation review for the dashboard and SOC API.
+- [x] Enforce one tenant per isolated runtime at background-agent, case-store, dashboard and SOC API boundaries; refuse shared-process multi-tenant operation. Tenant IDs, directory symlinks and settings files are validated.
+- [x] Add cross-tenant adversarial regressions for untrusted tenant claims, tenant mismatch, shared-runtime refusal, path traversal and symlinked settings. Both dashboard and SOC API enforce the same runtime guard before dispatching routes.
+- [x] Review approval binding, nonce/replay handling, expiry, approver identity and idempotent execution; existing approval/ROE regressions remain blocking.
+- [x] Review audit-chain tamper/concurrency and storage-failure controls; existing audit acceptance remains blocking.
+- [x] Bound SIEM request body, batch count, field sizes and severity schema; strip caller tenant aliases and stamp only the trusted process tenant.
+- [x] Keep dependency pins, Bandit and pip-audit as blocking CI gates.
+- [x] Publish the threat review and explicit residual-risk statement in [TENANT_AND_API_SECURITY.md](TENANT_AND_API_SECURITY.md).
 
-**Exit:** documented threat review; adversarial regression tests pass; no unresolved critical/high security defect.
-
+**Exit: Engineering gate complete.** CI run #408 passed 141 tests, Ruff, Bandit, pip-audit and tenant/API security regressions. Shared-process multi-tenant deployment remains intentionally unsupported; use one isolated runtime per client. External review and owner-run host validation are not implied.
 ### R4 — End-to-end SOC and operator workflow
 - [ ] Prove synthetic event → normalization → detection → case → investigation → evidence → approval decision → simulated response → immutable audit trail.
 - [ ] Verify playbook dry-run, authorization, idempotency, timeout and rollback behaviour.
