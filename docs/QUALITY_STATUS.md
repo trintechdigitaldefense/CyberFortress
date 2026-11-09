@@ -10,17 +10,21 @@ This file is an **honest** status board. Scores are not marketing claims.
 | Safety defaults | Strong | `CF_CONTAINMENT_LIVE=false` default; ROE gates on live DROP |
 | Metrics concurrency | Fixed (P0) | Deadlock removed; atomic persist; unit tests |
 | Audit chain | Fixed (P0) | Flock, fail-closed, no unchained fusion fallback |
-| Dashboard auth | Hardened (P1) | Required auth policy, roles, CSRF header on POST |
+| Dashboard / SOC API auth | Hardened (P1) | Fail-closed roles, dedicated SOC API credentials, read-only roles, rate limits before auth, CSRF header on dashboard POST |
 | WhatsApp approvals | Hardened (P1) | Signature required when enabled; nonce/admin checks |
 | Firewall validation | Hardened (P1) | Hostname/CIDR/loopback/ROE denial tests |
 | CI | Blocking | Ruff, pytest, Bandit, pip-audit — no silent failure suppression |
 | IR case store | Improved (P2) | Path-safe IDs, tenant filter, atomic write, transitions |
-| Tenant isolation | Done (P2) | Env-scoped paths + SOC API tenant guard |
+| Tenant isolation | Engineering gate complete (P2) | One tenant per isolated runtime; agent, case-store, dashboard and SOC API guards; shared-process multi-tenant mode refused |
 | Telemetry schema | Done (P3) | v1.0 validate/normalize |
 | Readiness layers | Done (P4) | software → monitoring → pilot → live |
 | Release tests | Done (P5) | 138 tests + release_gate.sh |
 | Isolated VM soak | **Required** | See `docs/PILOT_SOAK.md` |
 | Legal / ROE / E&O | **Required** | See `docs/LEGAL_GATE.md` |
+
+## Latest CI evidence
+
+[Run #408](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42614223976) passed on `a3a50bd2823aa55f8223378d0158596196001d2d`: 141 tests, Ruff, Bandit, pip-audit, installer smoke, upgrade/lifecycle/tenant security regressions, firewall namespace acceptance and backup/restore failure injection. Owner-run VM validation remains required.
 
 ## Verify locally
 
