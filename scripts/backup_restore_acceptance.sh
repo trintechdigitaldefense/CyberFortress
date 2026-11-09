@@ -36,7 +36,8 @@ fi
 # Reject a checksum-mismatched archive.
 cp "$ARCHIVE" "$TMP/corrupt.tar.gz"
 printf 'tamper' >> "$TMP/corrupt.tar.gz"
-cp "$ARCHIVE.sha256" "$TMP/corrupt.tar.gz.sha256"
+(cd "$TMP" && sha256sum "$(basename "$ARCHIVE")" > "$TMP/original.sha256")
+sed "s|$(basename "$ARCHIVE")|corrupt.tar.gz|" "$TMP/original.sha256" > "$TMP/corrupt.tar.gz.sha256"
 if bash "$ROOT/scripts/restore_offbox.sh" "$TMP/corrupt.tar.gz" "$TMP/corrupt-stage"; then
   echo "FAIL: restore accepted a checksum-mismatched archive" >&2
   exit 1
@@ -51,8 +52,8 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 for filename, member_name, member_type in (
-    ("traversal.tar.gz", "cf_backup_bad/../../escape.txt", tarfile.REGTYPE),
-    ("symlink.tar.gz", "cf_backup_bad/link", tarfile.SYMTYPE),
+    ("cf_backup_traversal.tar.gz", "cf_backup_traversal/../../escape.txt", tarfile.REGTYPE),
+    ("cf_backup_symlink.tar.gz", "cf_backup_symlink/link", tarfile.SYMTYPE),
 ):
     path = root / filename
     with tarfile.open(path, "w:gz") as archive:
@@ -66,7 +67,7 @@ for filename, member_name, member_type in (
             info.linkname = "/etc/passwd"
             archive.addfile(info)
 PY
-for BAD in "$TMP/traversal.tar.gz" "$TMP/symlink.tar.gz"; do
+for BAD in "$TMP/cf_backup_traversal.tar.gz" "$TMP/cf_backup_symlink.tar.gz"; do
   sha256sum "$BAD" > "$BAD.sha256"
   if bash "$ROOT/scripts/restore_offbox.sh" "$BAD" "$TMP/bad-stage"; then
     echo "FAIL: restore accepted an unsafe archive member in $BAD" >&2
