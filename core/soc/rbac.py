@@ -59,6 +59,6 @@ def authenticate(user: str, token: str) -> Optional[str]:
 
 def authorize(role: Optional[str], permission: str) -> bool:
     if role is None:
-        return os.getenv("CF_SOC_REQUIRE_AUTH", "false").lower() not in ("1", "true", "yes")
+        return False
     perms = ROLES.get(role, set())
     return "*" in perms or permission in perms
