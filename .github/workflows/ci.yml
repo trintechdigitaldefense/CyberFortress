@@ -68,12 +68,21 @@ jobs:
           bash -n start.sh
           bash -n stop.sh
           bash -n scripts/process_lifecycle_safety.sh
+          bash -n scripts/load_env.sh
+          bash -n scripts/env_file_safety.sh
+          bash -n deploy/systemd/install_systemd.sh
           bash -n install.sh
           bash -n scripts/defense_check.sh
           bash -n scripts/quality_check.sh
 
       - name: Process lifecycle safety regression
         run: bash scripts/process_lifecycle_safety.sh
+
+      - name: Environment file safety regression
+        run: bash scripts/env_file_safety.sh
+
+      - name: Deployment privilege regression
+        run: bash scripts/deployment_security_regression.sh
 
       - name: Defense posture script
         run: bash scripts/defense_check.sh
