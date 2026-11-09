@@ -82,14 +82,20 @@ def resolve_request_tenant(
         if claimed and claimed != active:
             raise TenantError("cross-tenant request denied")
         return active
-    return claimed
+    if claimed:
+        raise TenantError("client-supplied tenant cannot establish tenant context")
+    return ""
 
 
 def assert_tenant_owns(resource_tenant: str, *, allow_empty_resource: bool = True) -> None:
-    active = active_tenant()
-    if not active:
-        return
+    active = validate_tenant_id(active_tenant()) if active_tenant() else ""
     rt = (resource_tenant or "").strip()
+    if not active:
+        if rt and not allow_empty_resource:
+            raise TenantError("no active tenant context")
+        if rt:
+            raise TenantError("no active tenant context")
+        return
     if not rt and allow_empty_resource:
         return
     if rt != active:
