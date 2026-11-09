@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+from core.tenant_guard import assert_single_tenant_runtime
+
 _LOCK = threading.Lock()
 CASE_DIR = Path(os.getenv("CF_IR_CASE_DIR", "./logs/ir_cases"))
 CASE_DIR.mkdir(parents=True, exist_ok=True)
@@ -69,7 +71,7 @@ def validate_case_id(case_id: str) -> str:
 class CaseStore:
     def __init__(self, case_dir: Optional[Path] = None):
         base = Path(case_dir) if case_dir is not None else CASE_DIR
-        tenant = os.getenv("CF_TENANT_ID", "").strip()
+        tenant = assert_single_tenant_runtime()
         if tenant and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", tenant):
             raise ValueError("invalid tenant identifier")
         self.tenant_id = tenant
