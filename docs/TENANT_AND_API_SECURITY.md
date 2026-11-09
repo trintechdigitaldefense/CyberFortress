@@ -30,3 +30,25 @@ Do not expose the SOC API directly to the internet. If remote access is required
 ## Verification boundary
 
 CI covers RBAC denial, tenant-context mismatch, shared-runtime refusal, symlink exclusion, caller-supplied tenant-field stripping, request routing and static deployment privilege policy. CI does not prove tenant separation on a real host, proxy configuration, or client operational controls. Those remain owner-run validation gates.
+
+
+## Defensive threat review
+
+| Threat / failure mode | Implemented control | Regression evidence |
+|---|---|---|
+| Anonymous access or unknown-role privilege | SOC API requires configured identity; missing/unknown roles deny; dashboard write roles are explicit | SOC auth/RBAC unit tests; dashboard/API security gate |
+| Credential confusion between services | SOC API bearer identities come only from `CF_SOC_USERS`; dashboard password is not accepted as an SOC bearer token; SIEM ingest has a separate token | SOC bearer regression tests |
+| Cross-tenant reads/writes through dashboard or SOC routes | Both HTTP handlers check the isolated-runtime guard before route dispatch; background agents and case-store construction also reject shared multi-tenant execution | Tenant-boundary tests and deployment security regression |
+| Client tenant spoofing | SIEM strips `tenant_id` and `tenant` claims and stamps only the active process tenant; a request claim cannot create tenant context | SIEM tenant spoofing and tenant-context tests |
+| Tenant path traversal / symlink escape | Tenant IDs are validated; tenant root, tenant directory and settings symlinks are rejected; malformed settings fail closed | Tenant path and settings regression tests |
+| API brute force / request flooding | Per-client rate limiting occurs before authentication on SOC and dashboard routes | API source gate and existing rate-limit implementation |
+| Oversized or abusive SIEM payload | HTTP body cap, batch-count cap, event object validation, bounded field lengths and severity allowlist | SIEM batch/schema tests and SOC API route tests |
+| Browser cross-site state mutation | Dashboard state-changing POST routes require the custom request header and a write-capable role | Existing dashboard CSRF/RBAC tests |
+| Approval replay or unauthorized containment | Nonce expiry/one-time consumption, signature verification, ROE allowlist and Tier-2 approval remain separate gates | WhatsApp approval and ROE regression suite |
+
+### Residual risks and explicit limits
+
+- Concurrent multi-tenant workers in one process are **not supported**. A future design would need tenant-scoped principals, request context, queue partitioning, storage partitioning and per-tenant worker lifecycles before that feature can be enabled.
+- The application does not terminate public TLS. Remote dashboard/API access requires a separately reviewed TLS reverse proxy, network allowlist and certificate lifecycle.
+- CI cannot prove host filesystem ownership, systemd capability behaviour, actual firewall kernel support, client network boundaries or operational recovery on the owner's VM.
+- A green CI run does not replace independent security review, owner-run monitoring soak or client-specific legal/Rules-of-Engagement approval.
