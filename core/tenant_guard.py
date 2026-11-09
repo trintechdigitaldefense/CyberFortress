@@ -23,7 +23,7 @@ def configured_tenants() -> list[str]:
         return []
     found = []
     for path in root.iterdir():
-        if path.is_symlink() or not path.is_dir() or path.name.startswith("."):
+        if path.is_symlink() or not path.is_dir() or path.name.startswith(".") or path.name == "example_client":
             continue
         try:
             found.append(validate_tenant_id(path.name))
