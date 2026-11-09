@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Optional
 
 from core.capacity import adaptive_interval
 from core.watchdog import write_heartbeat
+from core.tenant_guard import assert_single_tenant_runtime
 
 logger = logging.getLogger("cf_agent_runtime")
 
@@ -22,7 +23,7 @@ def run_forever(
     error_sleep: float = 10.0,
     max_error_sleep: float = 120.0,
 ) -> None:
-    tenant = os.getenv("CF_TENANT_ID", "")
+    tenant = assert_single_tenant_runtime()
     write_heartbeat(name, {"phase": "started", "tenant": tenant})
     err_streak = 0
     cycles = 0
