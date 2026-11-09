@@ -1,7 +1,7 @@
 # CyberFortress engineering roadmap
 
 **Development branch:** `hardening/cyberfortress-final-release`  
-**Latest R2/R3 verified checkpoint:** `a3a50bd2823aa55f8223378d0158596196001d2d`  
+**Latest R2/R3 verified code checkpoint:** `1ccc6712488ccb6be71a16e006fdf9eef59411b7`  
 **Operating posture:** monitoring-only; `CF_CONTAINMENT_LIVE=false`  
 **Release target:** v1.0.0 (not released)
 
@@ -9,7 +9,7 @@ This roadmap separates work that can be completed in the repository from accepta
 
 ## Current verified checkpoint
 
-GitHub Actions [run #408](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42614223976) passed on `a3a50bd2823aa55f8223378d0158596196001d2d`: 141 pytest tests, Ruff, Bandit, pip-audit, isolated installer smoke test, process lifecycle safety, safe environment parsing, fast-forward upgrade/rollback regression, least-privilege systemd and tenant-boundary checks, isolated firewall namespace acceptance, backup/restore failure-injection acceptance, and Docker/Termux monitoring-only profile checks.
+GitHub Actions [run #416](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42617182784) passed on `1ccc6712488ccb6be71a16e006fdf9eef59411b7`: 141 pytest tests, Ruff, Bandit, pip-audit, isolated installer smoke test, process lifecycle safety, safe environment parsing, fast-forward upgrade/rollback regression, least-privilege systemd and tenant-boundary checks, isolated firewall namespace acceptance, malicious archive rejection, backup/restore failure-injection acceptance, and Docker/Termux monitoring-only profile checks. This closes the R2 and R3 engineering CI gates; owner-run VM validation remains separate.
 
 This verifies the R2/R3 engineering gates in CI. It does not prove the owner's host filesystem permissions, systemd capability behaviour, live host firewall backend, client network isolation, or operational recovery. Those remain owner-run VM gates.
 
@@ -31,7 +31,7 @@ This verifies the R2/R3 engineering gates in CI. It does not prove the owner's h
 - [x] Keep secrets, sign-off material and pending approval state outside operational backups.
 - [x] Add isolated-venv installation, fast-forward-only upgrade, dirty-tree/divergence refusal and source rollback reference.
 
-**Exit: Engineering gate complete.** CI run #408 passed installer smoke, upgrade regression, lifecycle safety, deployment privilege checks and backup/restore failure injection. Owner-run VM validation remains separate.
+**Exit: Engineering gate complete.** CI run #416 passed installer smoke, upgrade regression, lifecycle safety, deployment privilege checks and backup/restore failure injection. Owner-run VM validation remains separate.
 ### R3 — Security and tenant-boundary assurance
 - [x] Complete endpoint-by-endpoint authentication, authorization, CSRF, stateless-auth/session and rate-limit/input-validation review for the dashboard and SOC API.
 - [x] Enforce one tenant per isolated runtime at background-agent, case-store, dashboard and SOC API boundaries; refuse shared-process multi-tenant operation. Tenant IDs, directory symlinks and settings files are validated.
@@ -42,7 +42,7 @@ This verifies the R2/R3 engineering gates in CI. It does not prove the owner's h
 - [x] Keep dependency pins, Bandit and pip-audit as blocking CI gates.
 - [x] Publish the threat review and explicit residual-risk statement in [TENANT_AND_API_SECURITY.md](TENANT_AND_API_SECURITY.md).
 
-**Exit: Engineering gate complete.** CI run #408 passed 141 tests, Ruff, Bandit, pip-audit and tenant/API security regressions. Shared-process multi-tenant deployment remains intentionally unsupported; use one isolated runtime per client. External review and owner-run host validation are not implied.
+**Exit: Engineering gate complete.** CI run #416 passed 141 tests, Ruff, Bandit, pip-audit and tenant/API security regressions. Shared-process multi-tenant deployment remains intentionally unsupported; use one isolated runtime per client. External review and owner-run host validation are not implied.
 ### R4 — End-to-end SOC and operator workflow
 - [ ] Prove synthetic event → normalization → detection → case → investigation → evidence → approval decision → simulated response → immutable audit trail.
 - [ ] Verify playbook dry-run, authorization, idempotency, timeout and rollback behaviour.
