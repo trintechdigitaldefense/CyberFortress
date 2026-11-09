@@ -9,6 +9,8 @@ from typing import Dict, Optional, Set
 
 ROLES: Dict[str, Set[str]] = {
     "viewer": {"read:status", "read:cases", "read:metrics"},
+    "investigator": {"read:status", "read:cases", "read:metrics"},
+    "auditor": {"read:status", "read:cases", "read:metrics"},
     "analyst": {
         "read:status",
         "read:cases",
