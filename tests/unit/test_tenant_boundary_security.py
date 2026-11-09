@@ -69,3 +69,33 @@ def test_resource_tenant_requires_active_context(monkeypatch):
     monkeypatch.delenv("CF_TENANT_ID", raising=False)
     with pytest.raises(TenantError, match="no active tenant"):
         assert_tenant_owns("alpha")
+
+
+def test_tenant_settings_symlink_is_rejected(tmp_path, monkeypatch):
+    from core import tenant as tenant_module
+    from core.tenant_guard import TenantError
+
+    root = tmp_path / "repo"
+    tenant_dir = root / "config" / "tenants" / "alpha"
+    tenant_dir.mkdir(parents=True)
+    outside = tmp_path / "outside.yaml"
+    outside.write_text("client_name: outside")
+    (tenant_dir / "settings.yaml").symlink_to(outside)
+    monkeypatch.setattr(tenant_module, "_ROOT", root)
+    monkeypatch.setenv("CF_TENANT_ID", "alpha")
+    with pytest.raises(TenantError, match="must not be a symlink"):
+        tenant_module.load_tenant_settings()
+
+
+def test_malformed_tenant_settings_fail_closed(tmp_path, monkeypatch):
+    from core import tenant as tenant_module
+    from core.tenant_guard import TenantError
+
+    root = tmp_path / "repo"
+    tenant_dir = root / "config" / "tenants" / "alpha"
+    tenant_dir.mkdir(parents=True)
+    (tenant_dir / "settings.yaml").write_text("- not-a-mapping")
+    monkeypatch.setattr(tenant_module, "_ROOT", root)
+    monkeypatch.setenv("CF_TENANT_ID", "alpha")
+    with pytest.raises(TenantError, match="settings are invalid"):
+        tenant_module.load_tenant_settings()
