@@ -24,7 +24,7 @@ This file is an **honest** status board. Scores are not marketing claims.
 
 ## Latest CI evidence
 
-[Run #408](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42614223976) passed on `a3a50bd2823aa55f8223378d0158596196001d2d`: 141 tests, Ruff, Bandit, pip-audit, installer smoke, upgrade/lifecycle/tenant security regressions, firewall namespace acceptance and backup/restore failure injection. Owner-run VM validation remains required.
+[Run #416](https://github.com/trintechdigitaldefense/CyberFortress/actions/runs/42617182784) passed on `1ccc6712488ccb6be71a16e006fdf9eef59411b7`: 141 tests, Ruff, Bandit, pip-audit, installer smoke, upgrade/lifecycle/tenant security regressions, firewall namespace acceptance, malicious archive rejection and backup/restore failure injection. Owner-run VM validation remains required.
 
 ## Verify locally
 
