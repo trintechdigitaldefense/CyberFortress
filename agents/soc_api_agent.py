@@ -193,6 +193,9 @@ class Handler(BaseHTTPRequestHandler):
             except PermissionError:
                 self._json(403, {"ok": False, "error": "valid SIEM ingest token required"})
                 return
+            except ValueError as e:
+                self._json(400, {"ok": False, "error": str(e)})
+                return
             self._json(200, {"ok": True, "ingested": n, "bus": get_bus().stats()})
             return
         if path == "/api/soc/ingest/cef":
@@ -202,6 +205,9 @@ class Handler(BaseHTTPRequestHandler):
                 n = siem.ingest_batch(events, token=self.headers.get("X-CF-SIEM-Token", ""))
             except PermissionError:
                 self._json(403, {"ok": False, "error": "valid SIEM ingest token required"})
+                return
+            except ValueError as e:
+                self._json(400, {"ok": False, "error": str(e)})
                 return
             self._json(200, {"ok": True, "ingested": n})
             return
