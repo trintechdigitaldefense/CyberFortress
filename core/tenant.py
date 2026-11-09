@@ -21,18 +21,27 @@ def tenant_dir() -> Optional[Path]:
     tid = validate_tenant_id(tenant_id())
     if not tid:
         return None
-    return _ROOT / "config" / "tenants" / tid
+    root = (_ROOT / "config" / "tenants").resolve()
+    candidate = root / tid
+    if candidate.is_symlink() or candidate.resolve().parent != root:
+        raise TenantError("tenant path escapes configured tenant root")
+    return candidate.resolve()
 
 
 def list_tenants() -> List[str]:
     root = _ROOT / "config" / "tenants"
-    if not root.is_dir():
+    if root.is_symlink() or not root.is_dir():
         return []
     out: List[str] = []
     for p in sorted(root.iterdir()):
-        if not p.is_symlink() and p.is_dir() and not p.name.startswith("."):
-            if (p / "settings.yaml").exists() or (p / "rule_pack.yaml").exists():
-                out.append(p.name)
+        if p.is_symlink() or not p.is_dir() or p.name.startswith("."):
+            continue
+        try:
+            tid = validate_tenant_id(p.name)
+        except TenantError:
+            continue
+        if (p / "settings.yaml").exists() or (p / "rule_pack.yaml").exists():
+            out.append(tid)
     seen = set()
     ordered = []
     for t in out:
@@ -46,7 +55,10 @@ def load_tenant_settings(tid: Optional[str] = None) -> Dict[str, Any]:
     tid = validate_tenant_id(tid or tenant_id())
     if not tid:
         return {}
-    d = _ROOT / "config" / "tenants" / tid
+    root = (_ROOT / "config" / "tenants").resolve()
+    d = root / tid
+    if d.is_symlink() or d.resolve().parent != root:
+        raise TenantError("tenant path escapes configured tenant root")
     path = d / "settings.yaml"
     if not path.exists():
         return {"tenant_id": tid}
