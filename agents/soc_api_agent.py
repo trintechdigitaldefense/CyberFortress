@@ -81,6 +81,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if not rate_limit_allow(self.client_address[0]):
+            self._json(429, {"ok": False, "error": "rate limited"})
+            return
         role = self._auth()
         if role is None:
             self.send_response(401)
@@ -90,9 +93,6 @@ class Handler(BaseHTTPRequestHandler):
             assert_single_tenant_runtime()
         except TenantError:
             self._json(503, {"ok": False, "error": "multiple tenant configurations require isolated runtimes"})
-            return
-        if rate_limit_allow is not None and not rate_limit_allow(self.client_address[0]):
-            self._json(429, {"ok": False, "error": "rate limited"})
             return
         path = urlparse(self.path).path
         permission = required_permission("GET", path)
