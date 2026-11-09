@@ -29,6 +29,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y iproute2 iptables rsync
 
+      - name: Isolated installer smoke test
+        run: |
+          bash install.sh
+          test -x .venv/bin/python
+          .venv/bin/python -c "import yaml, requests, dateutil"
       - name: No failure-suppression in quality gate
         run: |
           if grep -nE '\|\|\s*true' scripts/quality_check.sh scripts/defense_check.sh 2>/dev/null | grep -v 'chmod'; then
@@ -70,6 +75,8 @@ jobs:
           bash -n scripts/process_lifecycle_safety.sh
           bash -n scripts/load_env.sh
           bash -n scripts/env_file_safety.sh
+          bash -n scripts/deployment_security_regression.sh
+          bash -n scripts/upgrade.sh
           bash -n deploy/systemd/install_systemd.sh
           bash -n install.sh
           bash -n scripts/defense_check.sh
