@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.tenant_guard import TenantError, assert_single_tenant_runtime, validate_tenant_id
+
 _ROOT = Path(os.getenv("CF_ROOT", ".")).resolve()
 
 
@@ -16,7 +18,7 @@ def tenant_id() -> str:
 
 
 def tenant_dir() -> Optional[Path]:
-    tid = tenant_id()
+    tid = validate_tenant_id(tenant_id())
     if not tid:
         return None
     return _ROOT / "config" / "tenants" / tid
@@ -28,7 +30,7 @@ def list_tenants() -> List[str]:
         return []
     out: List[str] = []
     for p in sorted(root.iterdir()):
-        if p.is_dir() and not p.name.startswith("."):
+        if not p.is_symlink() and p.is_dir() and not p.name.startswith("."):
             if (p / "settings.yaml").exists() or (p / "rule_pack.yaml").exists():
                 out.append(p.name)
     seen = set()
@@ -41,7 +43,7 @@ def list_tenants() -> List[str]:
 
 
 def load_tenant_settings(tid: Optional[str] = None) -> Dict[str, Any]:
-    tid = tid or tenant_id()
+    tid = validate_tenant_id(tid or tenant_id())
     if not tid:
         return {}
     d = _ROOT / "config" / "tenants" / tid
@@ -59,8 +61,17 @@ def load_tenant_settings(tid: Optional[str] = None) -> Dict[str, Any]:
 
 
 def apply_tenant_env(tid: Optional[str] = None) -> Dict[str, Any]:
+    previous = os.environ.get("CF_TENANT_ID")
     if tid:
-        os.environ["CF_TENANT_ID"] = tid
+        os.environ["CF_TENANT_ID"] = validate_tenant_id(tid)
+    try:
+        assert_single_tenant_runtime()
+    except TenantError:
+        if previous is None:
+            os.environ.pop("CF_TENANT_ID", None)
+        else:
+            os.environ["CF_TENANT_ID"] = previous
+        raise
     settings = load_tenant_settings()
     active = tenant_id()
     if not active:
