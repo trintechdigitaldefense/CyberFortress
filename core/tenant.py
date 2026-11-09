@@ -21,7 +21,10 @@ def tenant_dir() -> Optional[Path]:
     tid = validate_tenant_id(tenant_id())
     if not tid:
         return None
-    root = (_ROOT / "config" / "tenants").resolve()
+    raw_root = _ROOT / "config" / "tenants"
+    if raw_root.is_symlink():
+        raise TenantError("tenant root must not be a symlink")
+    root = raw_root.resolve()
     candidate = root / tid
     if candidate.is_symlink() or candidate.resolve().parent != root:
         raise TenantError("tenant path escapes configured tenant root")
@@ -55,7 +58,10 @@ def load_tenant_settings(tid: Optional[str] = None) -> Dict[str, Any]:
     tid = validate_tenant_id(tid or tenant_id())
     if not tid:
         return {}
-    root = (_ROOT / "config" / "tenants").resolve()
+    raw_root = _ROOT / "config" / "tenants"
+    if raw_root.is_symlink():
+        raise TenantError("tenant root must not be a symlink")
+    root = raw_root.resolve()
     d = root / tid
     if d.is_symlink() or d.resolve().parent != root:
         raise TenantError("tenant path escapes configured tenant root")
