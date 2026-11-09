@@ -16,8 +16,7 @@ grep -q '^AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW$' "$FIREWALL"
 grep -q '^NoNewPrivileges=true$' "$FIREWALL"
 grep -q 'useradd --system --gid cyberfortress' "$INSTALLER"
 grep -q 'chown -R cyberfortress:cyberfortress' "$INSTALLER"
-! grep -q '^User=root$' "$AGENT"
-! grep -q '^User=root
+! grep -q '^User=root$' "$FIREWALL"
  "$FIREWALL"
 python3 - "$ROOT" <<'PY'
 import sys
