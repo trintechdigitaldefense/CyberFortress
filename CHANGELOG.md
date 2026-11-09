@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased] — hardening branch
+
+### R2 — Installation and runtime reliability
+- Isolated pinned dependencies in a repository-local Python virtual environment.
+- Added fast-forward-only upgrade with dirty-tree/divergence refusal and source rollback reference.
+- Hardened process lifecycle regression, safe environment parsing, and dedicated least-privilege systemd services with bounded resources.
+
+### R3 — Tenant and API security
+- Made SOC RBAC fail closed; separated SOC API credentials from dashboard credentials.
+- Enforced tenant isolation at agent, dashboard, SOC API, case-store and SIEM boundaries; shared-process multi-tenant mode is disabled.
+- Added request rate limits, body/batch/field bounds, tenant path validation and security regression coverage.
+
+
 ## [v0.5.7] — 2026-10-22
 
 ### systemd 24/7 + client pack + legal gate
